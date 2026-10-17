@@ -4,7 +4,7 @@ import type { MeshData } from '../geometry/mesh';
 const ARRAY_BUFFER = 34962;
 const ELEMENT_ARRAY_BUFFER = 34963;
 const FLOAT = 5126;
-const UNSIGNED_BYTE = 5121;
+const UNSIGNED_SHORT = 5123;
 const UNSIGNED_INT = 5125;
 
 const pad4 = (n: number) => (n + 3) & ~3;
@@ -17,7 +17,7 @@ const LITTLE_ENDIAN = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
  * of the inputs: the JSON chunk is canonical and the binary chunk is laid out
  * in a fixed order (invariant 2).
  *
- * Attributes: POSITION, NORMAL, COLOR_0 (RGBA8 normalised), and the custom
+ * Attributes: POSITION, NORMAL, COLOR_0 (linear RGBA16 normalised), and the custom
  * `_CONFIDENCE` (VEC2 float: shape, colour) that drives "soft until sure".
  */
 export function writeGlb(
@@ -39,7 +39,10 @@ export function writeGlb(
       bytes: new Uint8Array(mesh.normals.buffer, mesh.normals.byteOffset, mesh.normals.byteLength),
       target: ARRAY_BUFFER,
     },
-    { bytes: mesh.colours, target: ARRAY_BUFFER },
+    {
+      bytes: new Uint8Array(mesh.colours.buffer, mesh.colours.byteOffset, mesh.colours.byteLength),
+      target: ARRAY_BUFFER,
+    },
     {
       bytes: new Uint8Array(
         mesh.confidence.buffer,
@@ -117,7 +120,7 @@ export function writeGlb(
       { bufferView: 1, componentType: FLOAT, count: vertexCount, type: 'VEC3' },
       {
         bufferView: 2,
-        componentType: UNSIGNED_BYTE,
+        componentType: UNSIGNED_SHORT,
         normalized: true,
         count: vertexCount,
         type: 'VEC4',

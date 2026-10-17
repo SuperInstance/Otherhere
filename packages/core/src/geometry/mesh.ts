@@ -1,4 +1,5 @@
 import earcut from 'earcut';
+import { SRGB_TO_LINEAR_U16 } from './srgb';
 
 /** A point in the Bundle's local frame: x = east, y = up, z = south (three.js convention). */
 export type V3 = [number, number, number];
@@ -9,7 +10,7 @@ export type Conf = [number, number];
 export type MeshData = {
   positions: Float32Array;
   normals: Float32Array;
-  colours: Uint8Array; // RGBA, A = 255
+  colours: Uint16Array; // linear RGBA, normalised; A = 65535
   confidence: Float32Array; // VEC2 (shape, colour)
   indices: Uint32Array;
 };
@@ -70,7 +71,7 @@ export class MeshBuilder {
     for (const p of pts) {
       this.pos.push(q(p[0]), q(p[1]), q(p[2]));
       this.nor.push(qn(n[0]), qn(n[1]), qn(n[2]));
-      this.col.push(r, g, b, 255);
+      this.col.push(SRGB_TO_LINEAR_U16[r]!, SRGB_TO_LINEAR_U16[g]!, SRGB_TO_LINEAR_U16[b]!, 65535);
       this.conf.push(qc(conf[0]), qc(conf[1]));
     }
     for (const i of tris) this.idx.push(base + i);
@@ -88,7 +89,7 @@ export class MeshBuilder {
     return {
       positions: new Float32Array(this.pos),
       normals: new Float32Array(this.nor),
-      colours: new Uint8Array(this.col),
+      colours: new Uint16Array(this.col),
       confidence: new Float32Array(this.conf),
       indices: new Uint32Array(this.idx),
     };

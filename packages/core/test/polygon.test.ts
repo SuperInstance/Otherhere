@@ -42,7 +42,7 @@ describe('MeshBuilder', () => {
     const d = m.build();
     expect(Array.from(d.normals.slice(0, 3))).toEqual([0, 0, -1]);
     expect(d.indices).toHaveLength(6);
-    expect(Array.from(d.colours.slice(0, 4))).toEqual([255, 0, 0, 255]);
+    expect(Array.from(d.colours.slice(0, 4))).toEqual([65535, 0, 0, 65535]);
   });
   it('triangulates concave polygons', () => {
     const m = new MeshBuilder();
