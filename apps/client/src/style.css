@@ -183,3 +183,35 @@ input:focus-visible {
 .team-1 {
   color: #2f5a9e;
 }
+#postcard {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+label.spaced {
+  margin-top: 8px;
+}
+select {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 8px;
+  font-size: 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+}
+.note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+.note:empty {
+  display: none;
+}
+.note a {
+  color: var(--accent);
+}

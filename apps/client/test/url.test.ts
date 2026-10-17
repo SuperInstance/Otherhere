@@ -20,6 +20,10 @@ describe('parseStart', () => {
     expect(parseStart('')).toBeNull();
     expect(parseStart('?s=abc234')).toEqual({ session: 'ABC234' });
     expect(parseStart('?s=OOPS00')).toBeNull();
+    expect(parseStart('?c=pc_abcdefghjk&k=secret')).toEqual({
+      capsule: 'pc_abcdefghjk',
+      key: 'secret',
+    });
   });
 });
 

@@ -17,7 +17,7 @@ const capsule = {
   scope: 'private',
   createdAt: '2026-10-17T00:00:00Z',
   cells: [cell],
-  snapshot: { facts: [], generators: [] },
+  snapshot: { features: [], facts: [], generators: [] },
   privacy: { blurred: false },
 };
 

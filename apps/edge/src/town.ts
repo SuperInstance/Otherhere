@@ -218,6 +218,44 @@ export class TownDO extends DurableObject<Env> {
     return { features, resolved: Object.fromEntries(resolveFacts(facts)) };
   }
 
+  /** Every Feature anchored in a Cell and every Fact about them, for a Capsule snapshot. */
+  async snapshot(
+    cell: string,
+  ): Promise<{ status: BlockStatus; features: Feature[]; facts: Fact[] }> {
+    const status = await this.ensureBlock(ingestBlockOf(cell));
+    const features = this.sql
+      .exec<{ id: string; kind: Feature['kind']; anchor_cell: string }>(
+        'SELECT id, kind, anchor_cell FROM features WHERE anchor_cell = ?',
+        cell,
+      )
+      .toArray()
+      .map((r) => ({ id: r.id, kind: r.kind, anchorCell: r.anchor_cell }));
+    const facts = this.sql
+      .exec<{
+        feature_id: string;
+        attribute: string;
+        source: Fact['source'];
+        value: string;
+        confidence: number;
+        observed_at: string;
+        version: number;
+      }>(
+        'SELECT f.* FROM facts f JOIN features x ON x.id = f.feature_id WHERE x.anchor_cell = ?',
+        cell,
+      )
+      .toArray()
+      .map((r): Fact => ({
+        featureId: r.feature_id,
+        attribute: r.attribute,
+        source: r.source,
+        value: JSON.parse(r.value) as Fact['value'],
+        confidence: r.confidence,
+        observedAt: r.observed_at,
+        version: r.version,
+      }));
+    return { status, features, facts };
+  }
+
   /** The current Bundle for a Cell: ingest if needed, then build or reuse by content address. */
   async bundleFor(cell: string): Promise<CellBundle> {
     const status = await this.ensureBlock(ingestBlockOf(cell));

@@ -11,6 +11,7 @@ import {
   DEMO_CELL,
   localFrame,
   sha256Hex,
+  type BundleFeature,
   type BundleManifest,
   type LocalFrame,
 } from '@otherhere/core';
@@ -36,7 +37,8 @@ export type WorldStats = {
   mismatched: number;
 };
 
-type Source = 'api' | 'demo';
+/** Where Bundles come from: the edge API, the built-in demo lot, or a postcard's Fact snapshot. */
+type Source = 'api' | 'demo' | { capsule: Map<string, BundleFeature[]> };
 
 const MAX_PARALLEL = 3;
 
@@ -73,6 +75,11 @@ export class World {
   update(x: number, z: number): void {
     if (this.source === 'demo') {
       this.want(DEMO_CELL);
+      return;
+    }
+    if (typeof this.source === 'object') {
+      // A postcard is exactly its Cells: load them all, nothing beyond.
+      for (const c of this.source.capsule.keys()) this.want(c);
       return;
     }
     const here = this.cellAtWorld(x, z);
@@ -119,9 +126,11 @@ export class World {
     let manifest: BundleManifest;
     let bytes: Uint8Array;
     let ingest: 'ok' | 'failed' = 'ok';
-    if (this.source === 'demo') {
+    if (this.source === 'demo' || typeof this.source === 'object') {
       // Built in the browser: the same interpreter, the same bytes (invariant 2).
-      const built = await buildBundle({ cell, features: demoLot(cell) });
+      const features =
+        this.source === 'demo' ? demoLot(cell) : (this.source.capsule.get(cell) ?? []);
+      const built = await buildBundle({ cell, features });
       manifest = built.manifest;
       bytes = built.glb;
     } else {

@@ -11,6 +11,7 @@ import {
 import type { Env } from './env';
 import { bundleKey } from './town';
 import { sessionRoutes } from './sessions';
+import { capsuleRoutes } from './capsules';
 
 export { TownDO } from './town';
 export { SessionDO } from './session';
@@ -39,6 +40,8 @@ export default {
 
     const session = await sessionRoutes(req, env, path);
     if (session) return session;
+    const capsule = await capsuleRoutes(req, env, path);
+    if (capsule) return capsule;
 
     if (req.method !== 'GET') return error(405, 'method not allowed');
 

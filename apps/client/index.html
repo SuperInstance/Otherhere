@@ -30,6 +30,20 @@
           <button type="button" id="host" hidden>Start a match here</button>
         </div>
       </form>
+      <form id="postcard" hidden autocomplete="off" aria-label="Save a postcard">
+        <label for="pc-title">Postcard title</label>
+        <input id="pc-title" name="title" maxlength="200" placeholder="The trail to the falls" />
+        <label for="pc-scope" class="spaced">Who can open it</label>
+        <div class="row">
+          <select id="pc-scope" name="scope">
+            <option value="private">Only me (private link)</option>
+            <option value="friends" selected>Anyone with the link</option>
+            <option value="public">Public</option>
+          </select>
+          <button type="submit">Save postcard</button>
+        </div>
+        <p class="note" id="pc-result" aria-live="polite"></p>
+      </form>
       <section id="match" hidden aria-label="Match">
         <p id="match-line"></p>
         <div class="row secondary">

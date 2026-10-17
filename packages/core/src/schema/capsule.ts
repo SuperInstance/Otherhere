@@ -4,6 +4,7 @@ import { Fact } from './fact';
 import { GeneratorRef } from './bundle';
 import { Ruleset } from './ruleset';
 import { CellId } from './cell';
+import { Feature } from './feature';
 
 /**
  * A shareable package. Capsules snapshot their Facts (ADR-0008) and never ship
@@ -16,11 +17,19 @@ export const Capsule = z
     formatVersion: z.literal(1),
     id: z.string().min(8),
     kind: z.enum(['place', 'capture', 'ruleset', 'match']),
-    title: z.string().max(200),
+    title: z.string().trim().min(1).max(200),
     scope: Scope,
     createdAt: z.iso.datetime(),
-    cells: z.array(CellId),
+    cells: z.array(CellId).min(1).max(61),
+    /** Where the viewer starts: a point, and optionally a pose in the frame of `cells[0]`'s centre. */
+    view: z
+      .strictObject({
+        center: z.strictObject({ lat: z.number(), lng: z.number() }),
+        pose: z.tuple([z.number(), z.number(), z.number(), z.number(), z.number()]).optional(),
+      })
+      .optional(),
     snapshot: z.strictObject({
+      features: z.array(Feature),
       facts: z.array(Fact),
       generators: z.array(GeneratorRef),
     }),

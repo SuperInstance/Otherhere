@@ -10,7 +10,20 @@ import {
   Scene,
   WebGPURenderer,
 } from 'three/webgpu';
-import { cellAt, DEMO_CELL, type MatchState, type SessionInfo, type Team } from '@otherhere/core';
+import {
+  capsuleBundleInputs,
+  cellAt,
+  cellCenter,
+  cellRing,
+  DEMO_CELL,
+  generatorSet,
+  generatorsMatch,
+  localFrame,
+  type Capsule,
+  type MatchState,
+  type SessionInfo,
+  type Team,
+} from '@otherhere/core';
 import { World } from './world';
 import { SessionClient } from './net';
 import { describeEvent, MatchView, TEAM_NAMES } from './match';
@@ -112,11 +125,35 @@ if (start && 'session' in start) {
   }
 }
 
+// --- Postcard (optional) -----------------------------------------------------------
+let capsule: Capsule | null = null;
+if (start && 'capsule' in start) {
+  const q = start.key ? `?k=${encodeURIComponent(start.key)}` : '';
+  try {
+    const res = await fetch(`/api/capsules/${start.capsule}${q}`);
+    if (res.ok) capsule = (await res.json()) as Capsule;
+  } catch {
+    // handled below
+  }
+  if (!capsule) {
+    errorEl.textContent =
+      'This postcard does not exist, or it is private. Check the link with whoever shared it.';
+    errorEl.hidden = false;
+  }
+}
+
 // --- World -----------------------------------------------------------------------
 const isDemo = !!start && 'demo' in start;
-const place = start && 'lat' in start ? start : (sessionInfo?.origin ?? null);
+const place =
+  start && 'lat' in start ? start : (sessionInfo?.origin ?? capsule?.view?.center ?? null);
 if (place && !isDemo) input.value = `${place.lat}, ${place.lng}`;
-const originCell = isDemo ? DEMO_CELL : place ? cellAt(place.lat, place.lng) : null;
+const originCell = isDemo
+  ? DEMO_CELL
+  : capsule
+    ? capsule.cells[0]!
+    : place
+      ? cellAt(place.lat, place.lng)
+      : null;
 
 if (!originCell) {
   statusEl.textContent = `${backend} · Enter coordinates to walk a place.`;
@@ -124,8 +161,15 @@ if (!originCell) {
   camera.position.set(0, 40, 80);
   camera.lookAt(0, 0, 0);
 } else {
-  const world = new World(scene, originCell, isDemo ? 'demo' : 'api');
-  const saved = parsePose(location.hash);
+  const world = new World(
+    scene,
+    originCell,
+    isDemo ? 'demo' : capsule ? { capsule: capsuleBundleInputs(capsule) } : 'api',
+  );
+  const pose = capsule?.view?.pose;
+  const saved =
+    parsePose(location.hash) ??
+    (pose ? { x: pose[0], y: pose[1], z: pose[2], yaw: pose[3], pitch: pose[4] } : null);
   let spawned = !!saved;
   // Start at the exact point typed (not the Cell centre), at eye height.
   const startAt = place ? world.frame.project(place) : { e: 0, n: 0 };
@@ -150,6 +194,13 @@ if (!originCell) {
     }
     if (s.errors)
       lines.push(`${s.errors} cell${s.errors === 1 ? '' : 's'} failed to load. Reload to retry.`);
+    if (capsule) {
+      lines.unshift(
+        `Postcard: ${capsule.title} · saved ${capsule.createdAt.slice(0, 10)} · built in your browser`,
+      );
+      if (!generatorsCurrent)
+        lines.push('Drawn with newer generators than it was saved with, so details may differ.');
+    }
     statusEl.textContent = lines.join('\n');
     (window as unknown as { __otherhere: unknown }).__otherhere = {
       stats: s,
@@ -172,6 +223,70 @@ if (!originCell) {
       },
     };
   };
+
+  let generatorsCurrent = true;
+  if (capsule)
+    void generatorSet()
+      .refs()
+      .then((refs) => (generatorsCurrent = generatorsMatch(capsule!, refs)));
+
+  // --- Postcards ------------------------------------------------------------------
+  const pcForm = $<HTMLFormElement>('postcard');
+  const pcResult = $('pc-result');
+  pcForm.hidden = isDemo || !!sessionInfo || !!capsule;
+  pcForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = pcForm.querySelector('button')!;
+    btn.disabled = true;
+    pcResult.textContent = 'Saving…';
+    const here = world.frame.unproject({ e: walk.pose.x, n: -walk.pose.z });
+    const cell = world.cellAtWorld(walk.pose.x, walk.pose.z);
+    const cells = cellRing(cell, 1);
+    // The postcard's frame is centred on its first Cell (where we stand); re-express our pose in it.
+    const q = localFrame(cellCenter(cells[0]!)).project(here);
+    const pose = [q.e, walk.pose.y, -q.n, walk.pose.yaw, walk.pose.pitch].map((n) =>
+      Number(n.toFixed(3)),
+    );
+    const res = await fetch('/api/capsules', {
+      method: 'POST',
+      body: JSON.stringify({
+        title:
+          $<HTMLInputElement>('pc-title').value.trim() ||
+          `A walk at ${here.lat.toFixed(4)}, ${here.lng.toFixed(4)}`,
+        scope: $<HTMLSelectElement>('pc-scope').value,
+        cells,
+        center: { lat: Number(here.lat.toFixed(6)), lng: Number(here.lng.toFixed(6)) },
+        pose,
+      }),
+    });
+    btn.disabled = false;
+    if (!res.ok) {
+      pcResult.textContent = 'Could not save the postcard. Try again in a moment.';
+      return;
+    }
+    const { id, ownerKey, scope } = (await res.json()) as {
+      id: string;
+      ownerKey: string;
+      scope: string;
+    };
+    const url = `${location.origin}/?c=${id}${scope === 'private' ? `&k=${ownerKey}` : ''}`;
+    pcResult.textContent = '';
+    const a = document.createElement('a');
+    a.href = url;
+    a.textContent = url;
+    pcResult.append(
+      scope === 'private'
+        ? 'Saved. Only this link opens it, so keep it safe: '
+        : 'Saved. Share this link: ',
+      a,
+    );
+    try {
+      await navigator.clipboard.writeText(url);
+      pcResult.append(' (copied)');
+    } catch {
+      // clipboard unavailable; the link is shown
+    }
+  });
 
   // --- Match ---------------------------------------------------------------------
   const hostBtn = $<HTMLButtonElement>('host');
