@@ -1,0 +1,6 @@
+pnpm-lock.yaml
+dist
+.wrangler
+**/fixtures/*.json
+**/worker-configuration.d.ts
+docs/BRIEF.md
