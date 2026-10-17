@@ -37,14 +37,16 @@ test('two players see each other move over WebRTC, then play capture the flag', 
   });
 
   // Player A walks a place and starts a match there.
-  const a = await (await browser.newContext()).newPage();
+  const ctxA = await browser.newContext();
+  const a = await ctxA.newPage();
   await a.goto('/?at=47.3769,8.5417&name=Ada');
   await a.getByRole('button', { name: 'Start a match here' }).click();
   await a.waitForURL(/\?s=[A-Z2-9]{6}/);
   const code = new URL(a.url()).searchParams.get('s')!;
 
   // Player B joins with the invite link (a separate browser context: a second device).
-  const b = await (await browser.newContext()).newPage();
+  const ctxB = await browser.newContext();
+  const b = await ctxB.newPage();
   await b.goto(`/?s=${code}&name=Bo`);
 
   // Both are in, on different teams, connected peer-to-peer.
@@ -60,15 +62,19 @@ test('two players see each other move over WebRTC, then play capture the flag', 
   const before = (await session(a))!.peers[0]!;
   await b.bringToFront(); // background pages get throttled animation frames
   await b.locator('canvas').click({ position: { x: 900, y: 500 } });
+  // Hold W until A sees B move. How far B gets per second depends on the frame
+  // rate, which on software-rendering CI runners can be a few frames a second.
   await b.keyboard.down('KeyW');
-  await b.waitForTimeout(3000);
-  await b.keyboard.up('KeyW');
   await expect
-    .poll(async () => {
-      const p = (await session(a))!.peers[0]!;
-      return Math.hypot(p.x - before.x, p.z - before.z);
-    })
-    .toBeGreaterThan(3);
+    .poll(
+      async () => {
+        const p = (await session(a))!.peers[0]!;
+        return Math.hypot(p.x - before.x, p.z - before.z);
+      },
+      { timeout: 30_000 },
+    )
+    .toBeGreaterThan(1.5);
+  await b.keyboard.up('KeyW');
 
   // Players start at their own bases, 240 m apart: team fog hides the enemy.
   expect((await session(a))!.peers[0]!.visible).toBe(false);
@@ -79,4 +85,6 @@ test('two players see each other move over WebRTC, then play capture the flag', 
   await expect.poll(async () => (await session(b))?.phase).toBe('playing');
   await expect(b.locator('#match-line')).toContainText(`Match ${code}`);
   await a.screenshot({ path: 'test-results/match-a.png' });
+  await ctxA.close();
+  await ctxB.close();
 });
