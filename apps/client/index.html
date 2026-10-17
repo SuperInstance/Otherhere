@@ -27,8 +27,17 @@
         <div class="row secondary">
           <button type="button" id="locate">Use my location</button>
           <button type="button" id="demo">Show generator demo</button>
+          <button type="button" id="host" hidden>Start a match here</button>
         </div>
       </form>
+      <section id="match" hidden aria-label="Match">
+        <p id="match-line"></p>
+        <div class="row secondary">
+          <button type="button" id="match-start" hidden>Start the match</button>
+          <button type="button" id="match-invite">Copy invite link</button>
+        </div>
+        <ol id="match-log" aria-live="polite"></ol>
+      </section>
       <p id="status" aria-live="polite"></p>
     </main>
     <p id="help">WASD or arrows to walk · drag to look · Shift to run · scroll to rise</p>

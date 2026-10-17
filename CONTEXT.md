@@ -60,6 +60,19 @@ _Avoid_: tile, asset pack
 **Ruleset**:
 The game being played: objectives, simulation, and fog behaviour.
 
+**Session**:
+A live match: a `SessionDO` addressed by a six-character join code, with its own origin and Ruleset (ADR-0011).
+_Avoid_: room, lobby, game (as a noun for the connection)
+
+**Match state**:
+The authoritative state of a Session's game (flags, score, clock), changed only by the SessionDO.
+
+**Base**:
+A team's home spot in capture the flag, where its Flag starts and where captures count.
+
+**Tag**:
+A defender touching an intruder in the defender's half; the intruder's carried Flag goes home.
+
 **Capsule**:
 A shareable package (a place, capture, ruleset, or match) that snapshots its Facts and carries a **Scope** (ADR-0008).
 
@@ -87,6 +100,7 @@ One step of the **Ladder**.
 - A **Town** contains 7⁴ ≈ 2,401 **Cells**; a **Cell** belongs to exactly one **Town**.
 - A **Bundle** is a pure function of one **Cell**'s **Resolved values** and the **Generator** versions used.
 - A **Capsule** snapshots the **Facts** it needs and never ships a **Bundle**.
+- A **Session** plays one **Ruleset** in the world frame of its origin **Cell**; its **Match state** is shared, while fog decides who each player sees.
 
 ## Example dialogue
 

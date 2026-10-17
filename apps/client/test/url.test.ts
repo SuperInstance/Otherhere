@@ -18,6 +18,8 @@ describe('parseStart', () => {
     expect(parseStart('?lat=1&lng=2')).toEqual({ lat: 1, lng: 2 });
     expect(parseStart('?demo=generators')).toEqual({ demo: true });
     expect(parseStart('')).toBeNull();
+    expect(parseStart('?s=abc234')).toEqual({ session: 'ABC234' });
+    expect(parseStart('?s=OOPS00')).toBeNull();
   });
 });
 

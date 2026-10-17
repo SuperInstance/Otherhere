@@ -1,5 +1,5 @@
 /** Where to start, from `?at=lat,lng` (or `?lat=&lng=`). */
-export type Start = { lat: number; lng: number } | { demo: true } | null;
+export type Start = { lat: number; lng: number } | { demo: true } | { session: string } | null;
 
 export function parseCoords(text: string): { lat: number; lng: number } | null {
   const m = /^\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*$/.exec(text);
@@ -13,6 +13,8 @@ export function parseCoords(text: string): { lat: number; lng: number } | null {
 export function parseStart(search: string): Start {
   const p = new URLSearchParams(search);
   if (p.get('demo') === 'generators') return { demo: true };
+  const s = p.get('s')?.trim().toUpperCase();
+  if (s && /^[A-HJ-NP-Z2-9]{6}$/.test(s)) return { session: s };
   const at = p.get('at');
   if (at) return parseCoords(at);
   if (p.has('lat') && p.has('lng')) return parseCoords(`${p.get('lat')},${p.get('lng')}`);

@@ -156,3 +156,30 @@ input:focus-visible {
     padding: 12px;
   }
 }
+#match {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+#match-line {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+#match-log {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-soft);
+}
+#match-log:empty {
+  display: none;
+}
+.team-0 {
+  color: #a3402f;
+}
+.team-1 {
+  color: #2f5a9e;
+}

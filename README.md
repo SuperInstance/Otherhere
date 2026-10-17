@@ -15,7 +15,8 @@ Geometry backed by known facts (OSM height, roof shape) renders crisp and fully 
 ```
 packages/core   zod schemas, H3 helpers, deterministic math + RNG, geometry DSL + interpreter,
                 built-in generators (JSON), GLB writer, OSM → Facts
-apps/edge       Cloudflare Worker: TownDO (SQLite Facts per H3 res-6 Town), R2 Bundle cache, static client
+apps/edge       Cloudflare Worker: TownDO (SQLite Facts per H3 res-6 Town), R2 Bundle cache,
+                SessionDO (matches: signaling, relay, authoritative events), static client
 apps/client     Vite + three.js (WebGPU, falls back to WebGL2): walk any lat/lng
 ```
 
@@ -30,9 +31,11 @@ open "http://localhost:5173/?at=47.3769,8.5417"
 
 Controls: WASD or arrows to walk, drag to look, Shift to run, scroll (or R/F) to rise and fall. On touch screens, the left side is a joystick and the right side looks around. `?demo=generators` shows every roof shape and prop.
 
+**Play capture the flag:** while walking a place, choose **Start a match here** and share the invite link. Players join the smaller team and start at their bases. Grab the enemy flag and bring it home; defenders tag intruders in their half. Enemies stay hidden unless a teammate is within 45 m (team fog). Motion travels peer to peer over WebRTC, and the match's Durable Object decides pickups, captures, tags, and score (ADR-0011). To relay through TURN behind strict NATs, set the `TURN_KEY_ID` and `TURN_KEY_API_TOKEN` Worker secrets (Cloudflare Realtime).
+
 ```sh
 pnpm test         # core (Node), edge (workerd), client unit tests
-pnpm --filter @otherhere/client e2e   # Playwright: demo, real neighbourhood, pixel-identical reload
+pnpm --filter @otherhere/client e2e   # Playwright: demo, real neighbourhood, pixel-identical reload, two-player match
 pnpm lint && pnpm typecheck
 pnpm ingest <lat> <lng>               # fetch OSM around a point and summarise the Facts
 ```
