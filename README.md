@@ -17,6 +17,8 @@ packages/core   zod schemas, H3 helpers, deterministic math + RNG, geometry DSL 
                 built-in generators (JSON), GLB writer, OSM → Facts
 apps/edge       Cloudflare Worker: TownDO (SQLite Facts per H3 res-6 Town), R2 Bundle cache,
                 SessionDO (matches: signaling, relay, authoritative events), static client
+packages/models model router (daily budget caps), Jev / Groq / MiniMax / Claude adapters, the Ladder, the photo observer
+packages/judge  the fixed truth eval and scoring code, pinned by JUDGE.lock.json (invariant 6)
 apps/client     Vite + three.js (WebGPU, falls back to WebGL2): walk any lat/lng
 ```
 
@@ -33,6 +35,8 @@ Controls: WASD or arrows to walk, drag to look, Shift to run, scroll (or R/F) to
 
 **Save a postcard:** while walking a place, give it a title, choose who can open it, and select **Save postcard**. You get a link. A postcard snapshots the Facts of the 7 Cells around you (ADR-0008). Whoever opens it rebuilds the place in their own browser from that snapshot, so it looks the same a year later. Private postcards need the key in their link (ADR-0012).
 
+**Sharpen a building with a photo:** tap a building to see what is known about it and where each Fact came from. Then add a photo. A vision model writes an observation, the building question pack climbs the Ladder (TypeSafe Jev first), and confident answers become Facts with `source: "capture"`. Those outrank OpenStreetMap, so the building redraws crisper. The photo is never stored. This needs Worker secrets: `GROQ_KEY` (vision) and `TYPESAFE_KEY` (Jev), plus optionally `MINIMAX_KEY` and `ANTHROPIC_API_KEY` as higher rungs. Every paid call goes through one router with daily caps per provider (`MODEL_CAPS_USD`, default $1–2/day each). Spend and every Ladder decision are kept in the `OpsDO`; set `OPS_TOKEN` to read them at `/api/ops/spend` and `/api/ops/decisions`.
+
 **Play capture the flag:** while walking a place, choose **Start a match here** and share the invite link. Players join the smaller team and start at their bases. Grab the enemy flag and bring it home; defenders tag intruders in their half. Enemies stay hidden unless a teammate is within 45 m (team fog). Motion travels peer to peer over WebRTC, and the match's Durable Object decides pickups, captures, tags, and score (ADR-0011). To relay through TURN behind strict NATs, set the `TURN_KEY_ID` and `TURN_KEY_API_TOKEN` Worker secrets (Cloudflare Realtime).
 
 ```sh
@@ -40,6 +44,8 @@ pnpm test         # core (Node), edge (workerd), client unit tests
 pnpm --filter @otherhere/client e2e   # Playwright: demo, real neighbourhood, pixel-identical reload, two-player match, postcards
 pnpm lint && pnpm typecheck
 pnpm ingest <lat> <lng>               # fetch OSM around a point and summarise the Facts
+pnpm --filter @otherhere/models smoke <image>   # live: photo → observation → Jev → Facts (needs keys, ~$0.001)
+pnpm --filter @otherhere/judge truth            # live: score Jev on the fixed truth eval (needs TYPESAFEAI_KEY, ~$0.01)
 ```
 
 ## Determinism

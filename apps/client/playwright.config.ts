@@ -6,7 +6,9 @@ const chromium = process.env.PW_CHROMIUM ?? '/opt/pw-browsers/chromium';
 
 export default defineConfig({
   testDir: 'e2e',
-  timeout: 90_000,
+  timeout: 120_000,
+  // Every spec renders a city with software WebGL here and in CI; in parallel they starve each other.
+  workers: 1,
   use: {
     baseURL: 'http://localhost:8787',
     viewport: { width: 1280, height: 800 },
@@ -14,7 +16,7 @@ export default defineConfig({
   },
   // The edge Worker serves the built client as static assets plus the API: same shape as production.
   webServer: {
-    command: 'pnpm build && pnpm --filter @otherhere/edge dev',
+    command: 'pnpm build && pnpm --filter @otherhere/edge dev:e2e',
     url: 'http://localhost:8787/api/health',
     reuseExistingServer: true,
     timeout: 120_000,

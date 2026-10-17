@@ -43,10 +43,12 @@ test('save a postcard, open it by link, and see the same place', async ({
   const link = await page.locator('#pc-result a').getAttribute('href', { timeout: 60_000 });
   expect(link).toMatch(/\?c=pc_[a-z2-9]{10}$/);
   await hideHud(page);
-  const live = await page.locator('canvas').screenshot({ path: 'test-results/postcard-live.png' });
+  const live = await page.screenshot({ path: 'test-results/postcard-live.png' });
+  await page.close(); // one software-rendered city at a time
 
   // A friend opens the link in a fresh browser: Bundles are rebuilt from the snapshot.
-  const friend = await (await browser.newContext()).newPage();
+  const friendCtx = await browser.newContext();
+  const friend = await friendCtx.newPage();
   await friend.goto(new URL(link!).pathname + new URL(link!).search);
   await settle(friend);
   await expect(friend.locator('#status')).toContainText('Postcard: Bahnhofplatz at dusk');
@@ -54,11 +56,10 @@ test('save a postcard, open it by link, and see the same place', async ({
   expect(s!.ready).toBe(7);
   expect(s!.mismatched).toBe(0);
   await hideHud(friend);
-  const shared = await friend
-    .locator('canvas')
-    .screenshot({ path: 'test-results/postcard-shared.png' });
+  const shared = await friend.screenshot({ path: 'test-results/postcard-shared.png' });
   // The postcard starts where it was saved and is built from the same Facts, so it looks the same.
   expect(shared.equals(live)).toBe(true);
+  await friendCtx.close();
 });
 
 test('private postcards do not open without their key', async ({ page, request }) => {

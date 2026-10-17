@@ -215,3 +215,28 @@ select {
 .note a {
   color: var(--accent);
 }
+#feature {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+#feature-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+#feature-facts {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ink-soft);
+}
+input[type='file'] {
+  height: auto;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  font-size: 14px;
+}

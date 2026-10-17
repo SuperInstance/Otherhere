@@ -12,9 +12,11 @@ import type { Env } from './env';
 import { bundleKey } from './town';
 import { sessionRoutes } from './sessions';
 import { capsuleRoutes } from './capsules';
+import { intelligenceRoutes } from './intelligence';
 
 export { TownDO } from './town';
 export { SessionDO } from './session';
+export { OpsDO } from './ops';
 
 const json = (body: unknown, init: ResponseInit = {}) =>
   Response.json(body, { ...init, headers: { 'cache-control': 'no-store', ...init.headers } });
@@ -42,6 +44,8 @@ export default {
     if (session) return session;
     const capsule = await capsuleRoutes(req, env, path);
     if (capsule) return capsule;
+    const intelligence = await intelligenceRoutes(req, env, path);
+    if (intelligence) return intelligence;
 
     if (req.method !== 'GET') return error(405, 'method not allowed');
 

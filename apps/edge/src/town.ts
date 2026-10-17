@@ -18,7 +18,11 @@ import {
 } from '@otherhere/core';
 import type { Env } from './env';
 
-export type BlockStatus = 'ok' | 'failed';
+/** `loading`: an Overpass fetch is still running; the Cell is served as a sketch meanwhile. */
+export type BlockStatus = 'ok' | 'failed' | 'loading';
+
+/** How long a Bundle request waits for an ingest before serving the sketch. */
+const INGEST_WAIT_MS = 8_000;
 
 export type CellBundle = { manifest: BundleManifest; status: BlockStatus; cached: boolean };
 
@@ -258,7 +262,13 @@ export class TownDO extends DurableObject<Env> {
 
   /** The current Bundle for a Cell: ingest if needed, then build or reuse by content address. */
   async bundleFor(cell: string): Promise<CellBundle> {
-    const status = await this.ensureBlock(ingestBlockOf(cell));
+    // Never hold a Cell hostage to a slow Overpass: after a short wait, serve what we
+    // have and let the fetch finish in the background (the client asks again).
+    const ingest = this.ensureBlock(ingestBlockOf(cell));
+    const status = await Promise.race([
+      ingest,
+      new Promise<BlockStatus>((r) => setTimeout(() => r('loading'), INGEST_WAIT_MS)),
+    ]);
     const { features, resolved } = await this.cellFacts(cell);
     const input: BundleFeature[] = features.map((f) => ({
       id: f.id,

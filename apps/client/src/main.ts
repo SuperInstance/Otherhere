@@ -7,6 +7,8 @@ import {
   Mesh,
   MeshStandardNodeMaterial,
   PerspectiveCamera,
+  Raycaster,
+  Vector2,
   Scene,
   WebGPURenderer,
 } from 'three/webgpu';
@@ -21,12 +23,14 @@ import {
   localFrame,
   type Capsule,
   type MatchState,
+  type ResolvedAttrs,
   type SessionInfo,
   type Team,
 } from '@otherhere/core';
 import { World } from './world';
 import { SessionClient } from './net';
 import { describeEvent, MatchView, TEAM_NAMES } from './match';
+import { describeFacts, photoToJpegBase64 } from './feature';
 import { WalkControls } from './walk';
 import { PAPER } from './material';
 import { formatPose, parseCoords, parsePose, parseStart, type Pose } from './url';
@@ -190,7 +194,7 @@ if (!originCell) {
     ];
     if (s.sketch) {
       const are = s.sketch === 1 ? '1 cell is' : `${s.sketch} cells are`;
-      lines.push(`${are} still a sketch: OpenStreetMap was unreachable. Reload to retry.`);
+      lines.push(`${are} still a sketch: waiting for OpenStreetMap, trying again shortly.`);
     }
     if (s.errors)
       lines.push(`${s.errors} cell${s.errors === 1 ? '' : 's'} failed to load. Reload to retry.`);
@@ -287,6 +291,81 @@ if (!originCell) {
       // clipboard unavailable; the link is shown
     }
   });
+
+  // --- Building details and photos --------------------------------------------------
+  // Tap a building in the live World to see what is known about it and add a photo.
+  if (!isDemo && !capsule) {
+    const panel = $('feature');
+    const title = $('feature-title');
+    const factsEl = $('feature-facts');
+    const result = $('feature-result');
+    const photo = $<HTMLInputElement>('photo');
+    let selected: { cell: string; featureId: string } | null = null;
+    const raycaster = new Raycaster();
+    const showFacts = async () => {
+      if (!selected) return;
+      const { resolved } = (await (await fetch(`/api/cells/${selected.cell}/facts`)).json()) as {
+        resolved: Record<string, ResolvedAttrs>;
+      };
+      const attrs = resolved[selected.featureId] ?? {};
+      title.textContent =
+        typeof attrs.name?.value === 'string' ? attrs.name.value : 'This building';
+      factsEl.replaceChildren(
+        ...describeFacts(attrs).map((t) =>
+          Object.assign(document.createElement('li'), { textContent: t }),
+        ),
+      );
+    };
+    walk.onTap = (cx, cy) => {
+      raycaster.setFromCamera(
+        new Vector2((cx / innerWidth) * 2 - 1, -(cy / innerHeight) * 2 + 1),
+        camera,
+      );
+      const hit = world.pick(raycaster);
+      if (!hit || !/^osm:w\d+$/.test(hit.featureId)) {
+        panel.hidden = true;
+        selected = null;
+        return;
+      }
+      selected = hit;
+      panel.hidden = false;
+      result.textContent = '';
+      void showFacts();
+    };
+    photo.addEventListener('change', async () => {
+      const file = photo.files?.[0];
+      if (!file || !selected) return;
+      const target = selected;
+      result.textContent = 'Looking at your photo…';
+      photo.disabled = true;
+      try {
+        const res = await fetch(`/api/features/${encodeURIComponent(target.featureId)}/observe`, {
+          method: 'POST',
+          body: JSON.stringify({ cell: target.cell, image: await photoToJpegBase64(file) }),
+        });
+        const body = (await res.json()) as {
+          error?: string;
+          facts?: { attribute: string }[];
+          observation?: string;
+        };
+        if (!res.ok) {
+          result.textContent = body.error ?? 'Could not use that photo. Try another one.';
+        } else if (!body.facts?.length) {
+          result.textContent =
+            'The photo did not show this building clearly enough to learn anything. Try one taken straight on.';
+        } else {
+          result.textContent = `Learned ${body.facts.length} thing${body.facts.length === 1 ? '' : 's'} from your photo. This building is now sharper.`;
+          world.reload(target.cell);
+          await showFacts();
+        }
+      } catch {
+        result.textContent = 'Could not reach the server. Check your connection and try again.';
+      } finally {
+        photo.disabled = false;
+        photo.value = '';
+      }
+    });
+  }
 
   // --- Match ---------------------------------------------------------------------
   const hostBtn = $<HTMLButtonElement>('host');

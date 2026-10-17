@@ -1,4 +1,4 @@
-import { Group, Mesh, type BufferGeometry, type Scene } from 'three/webgpu';
+import { Group, Mesh, type BufferGeometry, type Raycaster, type Scene } from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { gridDisk } from 'h3-js';
 import {
@@ -19,12 +19,16 @@ import { confidenceMaterial } from './material';
 
 type CellState = {
   state: 'loading' | 'ready' | 'error';
-  /** 'ok' = built from OSM; 'failed' = OSM unreachable, showing the sketch. */
-  ingest?: 'ok' | 'failed';
+  /** 'ok' = built from OSM; 'failed' / 'loading' = no OSM yet, showing the sketch. */
+  ingest?: 'ok' | 'failed' | 'loading';
+  /** How many times we have re-asked for a sketch Cell. */
+  retries?: number;
   manifest?: BundleManifest;
   verified?: boolean;
   group?: Group;
   roadPoints?: { x: number; z: number }[];
+  /** Vertex ranges per Feature, from the Bundle's extras: what the walker can pick. */
+  ranges?: { id: string; first: number; count: number }[];
 };
 
 export type WorldStats = {
@@ -125,7 +129,7 @@ export class World {
   private async load(cell: string) {
     let manifest: BundleManifest;
     let bytes: Uint8Array;
-    let ingest: 'ok' | 'failed' = 'ok';
+    let ingest: 'ok' | 'failed' | 'loading' = 'ok';
     if (this.source === 'demo' || typeof this.source === 'object') {
       // Built in the browser: the same interpreter, the same bytes (invariant 2).
       const features =
@@ -134,9 +138,10 @@ export class World {
       manifest = built.manifest;
       bytes = built.glb;
     } else {
-      const info = await fetchJson<{ manifest: BundleManifest; status: 'ok' | 'failed' }>(
-        `/api/cells/${cell}`,
-      );
+      const info = await fetchJson<{
+        manifest: BundleManifest;
+        status: 'ok' | 'failed' | 'loading';
+      }>(`/api/cells/${cell}`);
       manifest = info.manifest;
       ingest = info.status;
       bytes = new Uint8Array(
@@ -173,8 +178,53 @@ export class World {
 
     const state = this.cells.get(cell);
     if (!state) return; // evicted while loading
-    Object.assign(state, { state: 'ready', manifest, verified, group, ingest, roadPoints });
+    const ranges =
+      (
+        gltf.userData as {
+          otherhere?: { features?: { id: string; first: number; count: number }[] };
+        }
+      ).otherhere?.features ?? [];
+    Object.assign(state, { state: 'ready', manifest, verified, group, ingest, roadPoints, ranges });
     this.root.add(group);
+    // A sketch Cell may be waiting on OpenStreetMap: ask again a few times.
+    const retries = state.retries ?? 0;
+    if (ingest !== 'ok' && retries < 3) {
+      setTimeout(
+        () => {
+          if (this.cells.get(cell) !== state) return;
+          this.reload(cell);
+          const next = this.cells.get(cell);
+          if (next) next.retries = retries + 1;
+        },
+        ingest === 'loading' ? 10_000 : 30_000,
+      );
+    }
+  }
+
+  /** The Feature under a ray (from a tap), if any. */
+  pick(raycaster: Raycaster): { cell: string; featureId: string; distance: number } | null {
+    const hits = raycaster.intersectObject(this.root, true);
+    for (const hit of hits) {
+      const cell = hit.object.parent?.name;
+      const s = cell ? this.cells.get(cell) : undefined;
+      if (!s?.ranges || !hit.face) continue;
+      const v = hit.face.a;
+      const f = s.ranges.find((r) => v >= r.first && v < r.first + r.count);
+      if (f) return { cell: cell!, featureId: f.id, distance: hit.distance };
+      return null; // hit the ground
+    }
+    return null;
+  }
+
+  /** Throw away a Cell's Bundle and load its current one (after its Facts changed). */
+  reload(cell: string): void {
+    const s = this.cells.get(cell);
+    if (s?.group) {
+      this.root.remove(s.group);
+      s.group.traverse((o) => (o as Mesh).geometry?.dispose());
+    }
+    this.cells.delete(cell);
+    this.want(cell);
   }
 
   /** A good place to stand: the road vertex nearest the given point, if any is loaded. */

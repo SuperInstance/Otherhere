@@ -44,6 +44,17 @@
         </div>
         <p class="note" id="pc-result" aria-live="polite"></p>
       </form>
+      <section id="feature" hidden aria-labelledby="feature-title">
+        <p id="feature-title"></p>
+        <ul id="feature-facts"></ul>
+        <label for="photo" class="spaced">Add a photo of this building</label>
+        <input type="file" id="photo" accept="image/*" capture="environment" />
+        <p class="note">
+          Your photo is sent to an image model to describe the building, then discarded. Only what
+          it says about the building is kept.
+        </p>
+        <p class="note" id="feature-result" aria-live="polite"></p>
+      </section>
       <section id="match" hidden aria-label="Match">
         <p id="match-line"></p>
         <div class="row secondary">

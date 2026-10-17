@@ -15,7 +15,10 @@ const PITCH_LIMIT = 1.45;
 export class WalkControls {
   pose: Pose;
   private keys = new Set<string>();
-  private look: { id: number; x: number; y: number } | null = null;
+  private look: { id: number; x: number; y: number; x0: number; y0: number; t0: number } | null =
+    null;
+  /** Called for a quick press-and-release without dragging (a tap or click). */
+  onTap: (clientX: number, clientY: number) => void = () => {};
   private stick: { id: number; x0: number; y0: number; dx: number; dy: number } | null = null;
   private stickEl: HTMLElement;
   private knobEl: HTMLElement;
@@ -59,7 +62,14 @@ export class WalkControls {
       this.stickEl.style.top = `${e.clientY}px`;
       this.knobEl.style.transform = '';
     } else if (!this.look) {
-      this.look = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      this.look = {
+        id: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        x0: e.clientX,
+        y0: e.clientY,
+        t0: performance.now(),
+      };
     }
   };
 
@@ -88,7 +98,17 @@ export class WalkControls {
       this.stick = null;
       this.stickEl.style.display = 'none';
     }
-    if (this.look?.id === e.pointerId) this.look = null;
+    if (this.look?.id === e.pointerId) {
+      const l = this.look;
+      this.look = null;
+      if (
+        e.type === 'pointerup' &&
+        Math.hypot(e.clientX - l.x0, e.clientY - l.y0) < 6 &&
+        performance.now() - l.t0 < 400
+      ) {
+        this.onTap(e.clientX, e.clientY);
+      }
+    }
   };
 
   /** Advance by `dt` seconds. Returns true if the pose changed. */

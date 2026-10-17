@@ -37,14 +37,16 @@ test('two players see each other move over WebRTC, then play capture the flag', 
   });
 
   // Player A walks a place and starts a match there.
-  const a = await (await browser.newContext()).newPage();
+  const ctxA = await browser.newContext();
+  const a = await ctxA.newPage();
   await a.goto('/?at=47.3769,8.5417&name=Ada');
   await a.getByRole('button', { name: 'Start a match here' }).click();
   await a.waitForURL(/\?s=[A-Z2-9]{6}/);
   const code = new URL(a.url()).searchParams.get('s')!;
 
   // Player B joins with the invite link (a separate browser context: a second device).
-  const b = await (await browser.newContext()).newPage();
+  const ctxB = await browser.newContext();
+  const b = await ctxB.newPage();
   await b.goto(`/?s=${code}&name=Bo`);
 
   // Both are in, on different teams, connected peer-to-peer.
@@ -79,4 +81,6 @@ test('two players see each other move over WebRTC, then play capture the flag', 
   await expect.poll(async () => (await session(b))?.phase).toBe('playing');
   await expect(b.locator('#match-line')).toContainText(`Match ${code}`);
   await a.screenshot({ path: 'test-results/match-a.png' });
+  await ctxA.close();
+  await ctxB.close();
 });

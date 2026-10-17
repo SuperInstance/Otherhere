@@ -18,7 +18,8 @@ const stats = (page: Page) =>
 /** Compare only the rendered world: hide the HUD overlays, whose text can legitimately differ. */
 const sceneShot = async (page: Page, path: string) => {
   await page.addStyleTag({ content: '#hud, #help { visibility: hidden !important; }' });
-  return page.locator('canvas').screenshot({ path });
+  await page.bringToFront(); // background pages get no animation frames
+  return page.screenshot({ path }); // the canvas fills the viewport
 };
 
 async function settle(page: Page, cells: number) {

@@ -43,7 +43,7 @@ describe('Capsule privacy (invariant 5)', () => {
   });
 });
 
-describe('QuestionPack limits', () => {
+describe('QuestionPack (Jev shapes, ADR-0013)', () => {
   const q = (question: unknown) =>
     QuestionPack.safeParse({
       id: 'pack.building',
@@ -51,16 +51,27 @@ describe('QuestionPack limits', () => {
       description: '',
       questions: { roof: question },
     });
-  it('choice allows 2..255 options; score 2..10 levels', () => {
-    const opts = (n: number) => Array.from({ length: n }, (_, i) => `o${i}`);
-    expect(q({ type: 'choice', instructions: '', criteria: '', options: opts(255) }).success).toBe(
-      true,
-    );
-    expect(q({ type: 'choice', instructions: '', criteria: '', options: opts(256) }).success).toBe(
+  it('choice criteria map 1..255 options to descriptions', () => {
+    const opts = (n: number) =>
+      Object.fromEntries(Array.from({ length: n }, (_, i) => [`o${i}`, 'desc']));
+    expect(q({ type: 'choice', instructions: 'Which?', criteria: opts(255) }).success).toBe(true);
+    expect(q({ type: 'choice', instructions: 'Which?', criteria: opts(256) }).success).toBe(false);
+  });
+  it('score criteria are 1..10 ordered levels; noul criteria are true/false descriptions', () => {
+    expect(q({ type: 'score', instructions: 'How?', criteria: Array(11).fill('x') }).success).toBe(
       false,
     );
-    expect(q({ type: 'score', instructions: '', criteria: '', levels: 11 }).success).toBe(false);
-    expect(q({ type: 'noul', instructions: 'Is it a church?', criteria: '' }).success).toBe(true);
+    expect(q({ type: 'score', instructions: 'How?', criteria: ['low', 'high'] }).success).toBe(
+      true,
+    );
+    expect(
+      q({
+        type: 'noul',
+        instructions: 'Is it a church?',
+        criteria: { true: 'a church', false: 'anything else' },
+      }).success,
+    ).toBe(true);
+    expect(q({ type: 'noul', instructions: 'Is it?', criteria: 'yes' }).success).toBe(false);
   });
 });
 

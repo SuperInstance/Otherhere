@@ -15,11 +15,13 @@
     "bindings": [
       { "name": "TOWN", "class_name": "TownDO" },
       { "name": "SESSION", "class_name": "SessionDO" },
+      { "name": "OPS", "class_name": "OpsDO" },
     ],
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["TownDO"] },
     { "tag": "v2", "new_sqlite_classes": ["SessionDO"] },
+    { "tag": "v3", "new_sqlite_classes": ["OpsDO"] },
   ],
   "r2_buckets": [{ "binding": "BUNDLES", "bucket_name": "otherhere-bundles" }],
   "vars": {

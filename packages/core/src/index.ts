@@ -31,3 +31,4 @@ export { default as GOLDEN_DEMO } from './demo/golden.json';
 export * from './game/ctf';
 export * from './game/protocol';
 export * from './capsule/place';
+export * from './packs/building';

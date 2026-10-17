@@ -6,7 +6,13 @@ export default defineConfig({
     cloudflareTest({
       wrangler: { configPath: './wrangler.jsonc' },
       // Tests never touch the network: Overpass points at a closed port.
-      miniflare: { bindings: { OVERPASS_ENDPOINTS: 'http://127.0.0.1:9/api/interpreter' } },
+      miniflare: {
+        bindings: {
+          OVERPASS_ENDPOINTS: 'http://127.0.0.1:9/api/interpreter',
+          MODEL_FAKE: 'true',
+          OPS_TOKEN: 'test-ops',
+        },
+      },
     }),
   ],
 });
