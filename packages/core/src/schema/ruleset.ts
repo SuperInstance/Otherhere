@@ -12,6 +12,8 @@ export const FogRule = z.strictObject({
   fadeAfterS: z.number().min(0),
 });
 
+export type FogRule = z.infer<typeof FogRule>;
+
 export const Objective = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('explore') }),
   z.strictObject({

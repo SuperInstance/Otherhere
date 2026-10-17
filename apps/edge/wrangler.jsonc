@@ -12,9 +12,15 @@
     "run_worker_first": ["/api/*"],
   },
   "durable_objects": {
-    "bindings": [{ "name": "TOWN", "class_name": "TownDO" }],
+    "bindings": [
+      { "name": "TOWN", "class_name": "TownDO" },
+      { "name": "SESSION", "class_name": "SessionDO" },
+    ],
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TownDO"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["TownDO"] },
+    { "tag": "v2", "new_sqlite_classes": ["SessionDO"] },
+  ],
   "r2_buckets": [{ "binding": "BUNDLES", "bucket_name": "otherhere-bundles" }],
   "vars": {
     // Comma-separated Overpass endpoints, tried in order (ADR-0010).

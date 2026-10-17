@@ -10,8 +10,10 @@ import {
 } from '@otherhere/core';
 import type { Env } from './env';
 import { bundleKey } from './town';
+import { sessionRoutes } from './sessions';
 
 export { TownDO } from './town';
+export { SessionDO } from './session';
 
 const json = (body: unknown, init: ResponseInit = {}) =>
   Response.json(body, { ...init, headers: { 'cache-control': 'no-store', ...init.headers } });
@@ -34,6 +36,9 @@ export default {
       const count = await town.ingestOverpass(block, (await req.json()) as OverpassResponse);
       return json({ block, features: count });
     }
+
+    const session = await sessionRoutes(req, env, path);
+    if (session) return session;
 
     if (req.method !== 'GET') return error(405, 'method not allowed');
 
