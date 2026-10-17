@@ -13,7 +13,8 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "deploy": "pnpm --filter @otherhere/client build && pnpm --filter @otherhere/edge run deploy"
+    "deploy": "pnpm --filter @otherhere/client build && pnpm --filter @otherhere/edge run deploy",
+    "ingest": "pnpm --filter @otherhere/core exec tsx scripts/ingest.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

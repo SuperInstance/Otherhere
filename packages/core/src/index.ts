@@ -25,3 +25,5 @@ export * from './generators';
 export * from './glb/write';
 export * from './bundle/build';
 export * from './demo/lot';
+export * from './osm/overpass';
+export * from './osm/to-facts';

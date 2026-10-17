@@ -19,7 +19,7 @@ const q = (v: number) => Math.round(v * 1000) / 1000 + 0; // millimetres
 const qc = (v: number) => Math.round(v * 1000) / 1000 + 0;
 const qn = (v: number) => Math.round(v * 32767) / 32767 + 0;
 
-export function parseColour(hex: string): [number, number, number] {
+export function hexToRgb(hex: string): [number, number, number] {
   const m = /^#([0-9a-f]{6})$/i.exec(hex);
   if (!m) return [255, 0, 255];
   const n = parseInt(m[1]!, 16);
@@ -66,7 +66,7 @@ export class MeshBuilder {
     const tris = triangulate(pts, n);
     if (tris.length === 0) return;
     const base = this.vertexCount;
-    const [r, g, b] = parseColour(colour);
+    const [r, g, b] = hexToRgb(colour);
     for (const p of pts) {
       this.pos.push(q(p[0]), q(p[1]), q(p[2]));
       this.nor.push(qn(n[0]), qn(n[1]), qn(n[2]));
