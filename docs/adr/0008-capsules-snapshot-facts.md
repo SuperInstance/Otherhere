@@ -1,0 +1,3 @@
+# Capsules snapshot Facts; live references are optional
+
+A **Capsule** contains a content-addressed snapshot of the Facts it needs (plus generator versions), not live references into someone's World. Postcards must look the same when opened a year later, must be shareable with someone who has no access to the owner's storage, and must pass the privacy pass (blur, location fuzz) once at export, not on every read. A Capsule may also carry an optional `liveRef` (Town + Cell list) that a viewer with access can use to "refresh to latest". Snapshots are larger, but Bundles are regenerable from the snapshot, so a Capsule never needs to ship meshes.
