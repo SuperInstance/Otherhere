@@ -23,7 +23,8 @@ export type BuiltBundle = { glb: Uint8Array; manifest: BundleManifest };
 
 /** Ground colour for a Cell nobody has told us about yet: the "sketch". */
 export const GROUND_COLOUR = '#ddd6c6';
-const GROUND_CONF: [number, number] = [0.2, 0.2];
+// Where the ground is, is certain (flat in M0); what covers it is not yet known.
+const GROUND_CONF: [number, number] = [1, 0.2];
 
 const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
