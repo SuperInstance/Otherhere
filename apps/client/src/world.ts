@@ -11,7 +11,7 @@ import {
   DEMO_CELL,
   localFrame,
   sha256Hex,
-  type BundleFeature,
+  type CapsuleCellInput,
   type BundleManifest,
   type LocalFrame,
 } from '@otherhere/core';
@@ -42,7 +42,7 @@ export type WorldStats = {
 };
 
 /** Where Bundles come from: the edge API, the built-in demo lot, or a postcard's Fact snapshot. */
-type Source = 'api' | 'demo' | { capsule: Map<string, BundleFeature[]> };
+type Source = 'api' | 'demo' | { capsule: Map<string, CapsuleCellInput> };
 
 const MAX_PARALLEL = 3;
 
@@ -132,9 +132,11 @@ export class World {
     let ingest: 'ok' | 'failed' | 'loading' = 'ok';
     if (this.source === 'demo' || typeof this.source === 'object') {
       // Built in the browser: the same interpreter, the same bytes (invariant 2).
-      const features =
-        this.source === 'demo' ? demoLot(cell) : (this.source.capsule.get(cell) ?? []);
-      const built = await buildBundle({ cell, features });
+      const input =
+        this.source === 'demo'
+          ? { features: demoLot(cell) }
+          : (this.source.capsule.get(cell) ?? { features: [] });
+      const built = await buildBundle({ cell, ...input });
       manifest = built.manifest;
       bytes = built.glb;
     } else {

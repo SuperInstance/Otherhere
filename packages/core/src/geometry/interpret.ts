@@ -1,6 +1,8 @@
 import { rngFor } from '../hash/rng';
 import type { ResolvedAttrs } from '../facts/resolve';
 import { RoofShape, type LngLat } from '../schema/fact';
+import type { Essence } from '../schema/world';
+import { essenceParams } from '../essence/compute';
 import type { Expr, GeneratorDef, Op } from '../schema/generator';
 import type { LocalFrame } from '../geo/frame';
 import { MeshBuilder, type Conf, type V3 } from './mesh';
@@ -11,7 +13,7 @@ import { blob, box, cylinder, extrude, ribbon, roof, windows } from './shapes';
  * Bump when interpreter output changes for the same inputs. It is part of every
  * Bundle's content address, so old Bundles are rebuilt rather than mixed.
  */
-export const INTERPRETER_VERSION = '0.3.0';
+export const INTERPRETER_VERSION = '0.4.0';
 
 /** Confidence of anything a generator imagines rather than reads from a Fact. */
 export const IMAGINED = 0.25;
@@ -124,10 +126,15 @@ export function evalExpr(e: Expr, ctx: Ctx): Val {
     }
     case 'pick': {
       const r = rngFor(ctx.feature.id, e.key)();
-      const w = e.weights ?? e.options.map(() => 1);
+      // Weights may be expressions (e.g. Essence statistics); non-positive means "never".
+      const w = (e.weights ?? e.options.map(() => 1)).map((x) => {
+        const n = num(evalExpr(x, ctx));
+        return n !== null && n > 0 ? n : 0;
+      });
       if (w.length !== e.options.length)
         throw new GeneratorError('pick: weights/options length mismatch');
       const total = w.reduce((a, b) => a + b, 0);
+      if (total <= 0) return { v: null, c: 0 };
       let acc = 0;
       let i = 0;
       for (; i < w.length - 1; i++) {
@@ -164,6 +171,7 @@ export function runGenerator(
   feature: FeatureInput,
   frame: LocalFrame,
   mesh: MeshBuilder,
+  essence?: Essence,
 ): RunStats | null {
   const geomAttr = def.geometry;
   const g = feature.attrs[geomAttr];
@@ -184,6 +192,8 @@ export function runGenerator(
   }
 
   const ctx: Ctx = { feature, env: new Map() };
+  // The place's character (ADR-0014): statistics, not Facts about this Feature, so imagined.
+  for (const [k, v] of Object.entries(essenceParams(essence))) ctx.env.set(k, { v, c: IMAGINED });
   if (ring) {
     // Footprint metrics, available to generators as `@area`, `@width`, `@length`, `@perimeter`.
     const r = minAreaRect(ring);

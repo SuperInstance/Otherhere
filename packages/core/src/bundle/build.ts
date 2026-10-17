@@ -5,6 +5,7 @@ import { localFrame } from '../geo/frame';
 import type { ResolvedAttrs } from '../facts/resolve';
 import type { FeatureKind } from '../schema/feature';
 import type { BundleManifest } from '../schema/bundle';
+import type { Essence } from '../schema/world';
 import { generatorSet, type GeneratorSet } from '../generators';
 import { INTERPRETER_VERSION, runGenerator } from '../geometry/interpret';
 import { MeshBuilder } from '../geometry/mesh';
@@ -17,6 +18,8 @@ export type BuildInput = {
   cell: string;
   features: readonly BundleFeature[];
   generators?: GeneratorSet;
+  /** The Town's character (ADR-0014). Part of the content address. */
+  essence?: Essence;
 };
 
 export type BuiltBundle = { glb: Uint8Array; manifest: BundleManifest };
@@ -40,6 +43,7 @@ export async function bundleInputsHash(input: BuildInput): Promise<string> {
       interpreter: INTERPRETER_VERSION,
       generators: await gens.refs(),
       features: [...input.features].sort(byId),
+      essence: input.essence,
     }),
   );
 }
@@ -63,7 +67,7 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle> {
     const gen = gens.forKind(f.kind);
     if (!gen) continue;
     const first = mesh.vertexCount;
-    const stats = runGenerator(gen, f, frame, mesh);
+    const stats = runGenerator(gen, f, frame, mesh, input.essence);
     if (stats && mesh.vertexCount > first)
       ranges.push({ id: f.id, first, count: mesh.vertexCount - first });
   }

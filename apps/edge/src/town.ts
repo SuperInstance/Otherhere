@@ -2,6 +2,8 @@ import { DurableObject } from 'cloudflare:workers';
 import {
   buildBundle,
   bundleInputsHash,
+  computeEssence,
+  type Essence,
   BundleManifest,
   Fact,
   fetchOverpass,
@@ -66,6 +68,7 @@ export class TownDO extends DurableObject<Env> {
         attempts INTEGER NOT NULL,
         error TEXT
       );
+      CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS bundles (
         cell TEXT PRIMARY KEY,
         inputs_hash TEXT NOT NULL,
@@ -77,6 +80,7 @@ export class TownDO extends DurableObject<Env> {
   /** Write Features and Facts. Same-source rewrites bump `version` only when the value changes. */
   private write(features: Feature[], facts: Fact[]): void {
     this.ctx.storage.transactionSync(() => {
+      this.sql.exec("DELETE FROM meta WHERE key = 'essence'");
       for (const f of features) {
         this.sql.exec(
           `INSERT INTO features (id, kind, anchor_cell) VALUES (?, ?, ?)
@@ -222,10 +226,54 @@ export class TownDO extends DurableObject<Env> {
     return { features, resolved: Object.fromEntries(resolveFacts(facts)) };
   }
 
+  /** The Town's Essence (ADR-0014), recomputed lazily after any write. */
+  private essence(): Essence {
+    const cached = this.sql
+      .exec<{ value: string }>("SELECT value FROM meta WHERE key = 'essence'")
+      .toArray()[0];
+    if (cached) return JSON.parse(cached.value) as Essence;
+    const kinds = new Map(
+      this.sql
+        .exec<{ id: string; kind: Feature['kind'] }>('SELECT id, kind FROM features')
+        .toArray()
+        .map((r) => [r.id, r.kind]),
+    );
+    const facts = this.sql
+      .exec<{
+        feature_id: string;
+        attribute: string;
+        source: Fact['source'];
+        value: string;
+        confidence: number;
+        observed_at: string;
+        version: number;
+      }>(`SELECT * FROM facts WHERE attribute IN ('height', 'levels', 'roof.shape', 'colour')`)
+      .toArray()
+      .map((r): Fact => ({
+        featureId: r.feature_id,
+        attribute: r.attribute,
+        source: r.source,
+        value: JSON.parse(r.value) as Fact['value'],
+        confidence: r.confidence,
+        observedAt: r.observed_at,
+        version: r.version,
+      }));
+    const resolved = resolveFacts(facts);
+    const e = computeEssence(
+      this.ctx.id.name ?? 'town',
+      [...kinds].map(([id, kind]) => ({ kind, attrs: resolved.get(id) ?? {} })),
+    );
+    this.sql.exec(
+      "INSERT OR REPLACE INTO meta (key, value) VALUES ('essence', ?)",
+      JSON.stringify(e),
+    );
+    return e;
+  }
+
   /** Every Feature anchored in a Cell and every Fact about them, for a Capsule snapshot. */
   async snapshot(
     cell: string,
-  ): Promise<{ status: BlockStatus; features: Feature[]; facts: Fact[] }> {
+  ): Promise<{ status: BlockStatus; features: Feature[]; facts: Fact[]; essence: Essence }> {
     const status = await this.ensureBlock(ingestBlockOf(cell));
     const features = this.sql
       .exec<{ id: string; kind: Feature['kind']; anchor_cell: string }>(
@@ -257,7 +305,7 @@ export class TownDO extends DurableObject<Env> {
         observedAt: r.observed_at,
         version: r.version,
       }));
-    return { status, features, facts };
+    return { status, features, facts, essence: this.essence() };
   }
 
   /** The current Bundle for a Cell: ingest if needed, then build or reuse by content address. */
@@ -275,7 +323,8 @@ export class TownDO extends DurableObject<Env> {
       kind: f.kind,
       attrs: resolved[f.id] ?? {},
     }));
-    const inputsHash = await bundleInputsHash({ cell, features: input, generators: gens });
+    const essence = this.essence();
+    const inputsHash = await bundleInputsHash({ cell, features: input, generators: gens, essence });
 
     const row = this.sql
       .exec<{ inputs_hash: string; manifest: string }>(
@@ -287,7 +336,12 @@ export class TownDO extends DurableObject<Env> {
       return { manifest: BundleManifest.parse(JSON.parse(row.manifest)), status, cached: true };
     }
 
-    const { glb, manifest } = await buildBundle({ cell, features: input, generators: gens });
+    const { glb, manifest } = await buildBundle({
+      cell,
+      features: input,
+      generators: gens,
+      essence,
+    });
     const gz = await new Response(
       new Blob([glb as Uint8Array<ArrayBuffer>])
         .stream()

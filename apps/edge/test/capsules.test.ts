@@ -39,6 +39,8 @@ describe('postcards', () => {
     expect(c.cells).toEqual(cells);
     expect(c.snapshot.features.length).toBe(features);
     expect(c.view?.pose).toEqual([0, 1.7, 0, 0.5, 0]);
+    // The Town's Essence travels with the postcard so its Bundles rebuild identically (ADR-0014).
+    expect(c.snapshot.essences?.[townOf(cells[0]!)]?.sampleCount).toBeGreaterThan(0);
   });
 
   it('private postcards need the owner key, and look missing without it', async () => {

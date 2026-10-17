@@ -25,7 +25,7 @@ export type Expr =
   | { op: 'floor'; value: Expr }
   | { op: 'clamp'; value: Expr; min: Expr; max: Expr }
   | { op: 'rand'; min: Expr; max: Expr; key: string }
-  | { op: 'pick'; options: Expr[]; key: string; weights?: number[] }
+  | { op: 'pick'; options: Expr[]; key: string; weights?: (number | Expr)[] }
   | { op: 'if'; cond: Expr; then: Expr; else: Expr };
 
 export const Expr: z.ZodType<Expr> = z.lazy(() =>
@@ -50,7 +50,7 @@ export const Expr: z.ZodType<Expr> = z.lazy(() =>
       op: z.literal('pick'),
       options: z.array(Expr).min(1).max(256),
       key: z.string(),
-      weights: z.array(z.number().nonnegative()).optional(),
+      weights: z.array(Expr).optional(),
     }),
     z.strictObject({ op: z.literal('if'), cond: Expr, then: Expr, else: Expr }),
   ]),

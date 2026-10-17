@@ -5,6 +5,7 @@ import { GeneratorRef } from './bundle';
 import { Ruleset } from './ruleset';
 import { CellId } from './cell';
 import { Feature } from './feature';
+import { Essence } from './world';
 
 /**
  * A shareable package. Capsules snapshot their Facts (ADR-0008) and never ship
@@ -31,6 +32,8 @@ export const Capsule = z
     snapshot: z.strictObject({
       features: z.array(Feature),
       facts: z.array(Fact),
+      /** The Essence of each Town the Cells belong to, so Bundles rebuild identically (ADR-0014). */
+      essences: z.record(z.string(), Essence).optional(),
       generators: z.array(GeneratorRef),
     }),
     ruleset: Ruleset.optional(),

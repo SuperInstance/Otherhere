@@ -50,7 +50,7 @@ describe('place Capsules (ADR-0008)', () => {
       const live = features
         .filter((f) => f.anchorCell === cell)
         .map((f) => ({ id: f.id, kind: f.kind, attrs: resolved.get(f.id) ?? {} }));
-      expect(await bundleInputsHash({ cell, features: fromCapsule.get(cell)! })).toBe(
+      expect(await bundleInputsHash({ cell, ...fromCapsule.get(cell)! })).toBe(
         await bundleInputsHash({ cell, features: live }),
       );
     }

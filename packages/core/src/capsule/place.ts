@@ -5,6 +5,8 @@ import type { Fact } from '../schema/fact';
 import type { Feature } from '../schema/feature';
 import type { Scope } from '../schema/scope';
 import type { BundleFeature } from '../bundle/build';
+import type { Essence } from '../schema/world';
+import { townOf } from '../geo/h3';
 
 export type PlaceCapsuleInput = {
   id: string;
@@ -17,6 +19,7 @@ export type PlaceCapsuleInput = {
   features: Feature[];
   facts: Fact[];
   generators: GeneratorRef[];
+  essences?: Record<string, Essence>;
 };
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
@@ -49,7 +52,12 @@ export function makePlaceCapsule(input: PlaceCapsuleInput): Capsule {
     createdAt: input.createdAt,
     cells,
     view: { center: input.center, ...(input.pose ? { pose: input.pose } : {}) },
-    snapshot: { features, facts, generators: input.generators },
+    snapshot: {
+      features,
+      facts,
+      generators: input.generators,
+      ...(input.essences ? { essences: input.essences } : {}),
+    },
     // A place postcard holds map Facts only: no imagery, so nothing to blur.
     // Captures (M2) must be blurred by the agent before they can be attached.
     privacy: { blurred: true },
@@ -57,12 +65,21 @@ export function makePlaceCapsule(input: PlaceCapsuleInput): Capsule {
   });
 }
 
+export type CapsuleCellInput = { features: BundleFeature[]; essence?: Essence };
+
 /** Per-Cell Bundle inputs, resolved from the snapshot exactly as the TownDO resolves live Facts. */
-export function capsuleBundleInputs(c: Capsule): Map<string, BundleFeature[]> {
+export function capsuleBundleInputs(c: Capsule): Map<string, CapsuleCellInput> {
   const resolved = resolveFacts(c.snapshot.facts);
-  const out = new Map<string, BundleFeature[]>(c.cells.map((cell) => [cell, []]));
+  const out = new Map<string, CapsuleCellInput>(
+    c.cells.map((cell) => {
+      const essence = c.snapshot.essences?.[townOf(cell)];
+      return [cell, essence ? { features: [], essence } : { features: [] }];
+    }),
+  );
   for (const f of c.snapshot.features) {
-    out.get(f.anchorCell)?.push({ id: f.id, kind: f.kind, attrs: resolved.get(f.id) ?? {} });
+    out
+      .get(f.anchorCell)
+      ?.features.push({ id: f.id, kind: f.kind, attrs: resolved.get(f.id) ?? {} });
   }
   return out;
 }

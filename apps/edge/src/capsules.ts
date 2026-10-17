@@ -5,6 +5,7 @@ import {
   Scope,
   sha256Hex,
   townOf,
+  type Essence,
   type Fact,
   type Feature,
 } from '@otherhere/core';
@@ -64,14 +65,16 @@ export async function capsuleRoutes(
 
     const features: Feature[] = [];
     const facts: Fact[] = [];
+    const essences: Record<string, Essence> = {};
     for (const cell of cells) {
       // RPC typing of recursive JSON values is too deep for tsc; the shape is TownDO.snapshot's.
       const town = env.TOWN.get(env.TOWN.idFromName(townOf(cell))) as unknown as {
-        snapshot(cell: string): Promise<{ features: Feature[]; facts: Fact[] }>;
+        snapshot(cell: string): Promise<{ features: Feature[]; facts: Fact[]; essence: Essence }>;
       };
       const snap = await town.snapshot(cell);
       features.push(...snap.features);
       facts.push(...snap.facts);
+      essences[townOf(cell)] = snap.essence;
     }
 
     const id = `pc_${token(10)}`;
@@ -89,6 +92,7 @@ export async function capsuleRoutes(
         features,
         facts,
         generators: await generatorSet().refs(),
+        essences,
       });
     } catch (err) {
       return json({ error: `invalid capsule: ${(err as Error).message.slice(0, 300)}` }, 400);
