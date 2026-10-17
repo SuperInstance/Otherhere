@@ -1,0 +1,204 @@
+{
+  "id": "building.basic",
+  "version": "0.1.0",
+  "description": "Any building: extruded footprint, a roof, and a window grid. Uses OSM height/levels/roof tags when known and imagines the rest.",
+  "appliesTo": ["building"],
+  "geometry": "footprint",
+  "ops": [
+    { "op": "let", "name": "type", "value": { "attr": "building", "default": "yes" } },
+    {
+      "op": "let",
+      "name": "isHouse",
+      "value": {
+        "op": "or",
+        "args": [
+          { "op": "eq", "args": [{ "param": "type" }, "house"] },
+          { "op": "eq", "args": [{ "param": "type" }, "detached"] },
+          { "op": "eq", "args": [{ "param": "type" }, "semidetached_house"] },
+          { "op": "eq", "args": [{ "param": "type" }, "bungalow"] },
+          { "op": "eq", "args": [{ "param": "type" }, "terrace"] },
+          { "op": "eq", "args": [{ "param": "type" }, "garage"] },
+          { "op": "eq", "args": [{ "param": "type" }, "shed"] }
+        ]
+      }
+    },
+    {
+      "op": "let",
+      "name": "height",
+      "value": {
+        "op": "if",
+        "cond": { "op": "has", "attr": "height" },
+        "then": { "attr": "height" },
+        "else": {
+          "op": "if",
+          "cond": { "op": "has", "attr": "levels" },
+          "then": {
+            "op": "add",
+            "args": [{ "op": "mul", "args": [{ "attr": "levels" }, 3.1] }, 1]
+          },
+          "else": {
+            "op": "if",
+            "cond": { "param": "isHouse" },
+            "then": { "op": "rand", "min": 5, "max": 8, "key": "height" },
+            "else": {
+              "op": "rand",
+              "min": 7,
+              "max": {
+                "op": "clamp",
+                "value": { "op": "div", "args": [{ "param": "@area" }, 25] },
+                "min": 9,
+                "max": 24
+              },
+              "key": "height"
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "let",
+      "name": "base",
+      "value": {
+        "op": "if",
+        "cond": { "op": "has", "attr": "minHeight" },
+        "then": { "attr": "minHeight" },
+        "else": 0
+      }
+    },
+    {
+      "op": "let",
+      "name": "roofShape",
+      "value": {
+        "op": "if",
+        "cond": { "op": "has", "attr": "roof.shape" },
+        "then": { "attr": "roof.shape" },
+        "else": {
+          "op": "if",
+          "cond": {
+            "op": "and",
+            "args": [{ "param": "isHouse" }, { "op": "lt", "args": [{ "param": "@area" }, 400] }]
+          },
+          "then": {
+            "op": "pick",
+            "options": ["gable", "hip", "shed"],
+            "weights": [4, 3, 1],
+            "key": "roof.shape"
+          },
+          "else": {
+            "op": "pick",
+            "options": ["flat", "hip"],
+            "weights": [5, 1],
+            "key": "roof.shape"
+          }
+        }
+      }
+    },
+    {
+      "op": "let",
+      "name": "rise",
+      "value": {
+        "op": "if",
+        "cond": { "op": "eq", "args": [{ "param": "roofShape" }, "flat"] },
+        "then": 0,
+        "else": {
+          "op": "if",
+          "cond": { "op": "has", "attr": "roof.height" },
+          "then": { "attr": "roof.height" },
+          "else": {
+            "op": "min",
+            "args": [
+              {
+                "op": "mul",
+                "args": [
+                  { "param": "@width" },
+                  { "op": "rand", "min": 0.28, "max": 0.42, "key": "pitch" }
+                ]
+              },
+              { "op": "mul", "args": [{ "param": "height" }, 0.45] }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "op": "let",
+      "name": "eave",
+      "value": {
+        "op": "max",
+        "args": [
+          { "op": "sub", "args": [{ "param": "height" }, { "param": "rise" }] },
+          { "op": "add", "args": [{ "param": "base" }, 2.2] }
+        ]
+      }
+    },
+    {
+      "op": "let",
+      "name": "wall",
+      "value": {
+        "op": "if",
+        "cond": { "op": "has", "attr": "colour" },
+        "then": { "attr": "colour" },
+        "else": {
+          "op": "pick",
+          "options": ["#efe6da", "#e8d9c4", "#d9b99b", "#c98f6d", "#b7c4c9", "#a9b59a", "#d7c6d6"],
+          "weights": [5, 5, 4, 2, 2, 1, 1],
+          "key": "colour"
+        }
+      }
+    },
+    {
+      "op": "let",
+      "name": "roofColour",
+      "value": {
+        "op": "if",
+        "cond": { "op": "has", "attr": "roof.colour" },
+        "then": { "attr": "roof.colour" },
+        "else": {
+          "op": "if",
+          "cond": { "op": "eq", "args": [{ "param": "roofShape" }, "flat"] },
+          "then": {
+            "op": "pick",
+            "options": ["#9a9a94", "#8a8f8c", "#a8a296"],
+            "key": "roof.colour"
+          },
+          "else": {
+            "op": "pick",
+            "options": ["#8c4a3c", "#5b5f66", "#7a6a58", "#a0573f"],
+            "weights": [4, 3, 2, 2],
+            "key": "roof.colour"
+          }
+        }
+      }
+    },
+    {
+      "op": "extrude",
+      "base": { "param": "base" },
+      "top": { "param": "eave" },
+      "colour": { "param": "wall" }
+    },
+    {
+      "op": "roof",
+      "shape": { "param": "roofShape" },
+      "base": { "param": "eave" },
+      "rise": { "param": "rise" },
+      "colour": { "param": "roofColour" },
+      "wallColour": { "param": "wall" }
+    },
+    {
+      "op": "windows",
+      "when": {
+        "op": "gt",
+        "args": [{ "op": "sub", "args": [{ "param": "eave" }, { "param": "base" }] }, 2.6]
+      },
+      "confidence": 0.3,
+      "base": { "param": "base" },
+      "top": { "param": "eave" },
+      "floorHeight": { "op": "if", "cond": { "param": "isHouse" }, "then": 2.8, "else": 3.2 },
+      "width": { "op": "rand", "min": 0.9, "max": 1.4, "key": "window.width" },
+      "height": 1.4,
+      "sill": 0.9,
+      "spacing": { "op": "rand", "min": 2.6, "max": 3.6, "key": "window.spacing" },
+      "colour": "#3d5566"
+    }
+  ]
+}

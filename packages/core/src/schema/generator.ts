@@ -57,7 +57,12 @@ export const Expr: z.ZodType<Expr> = z.lazy(() =>
 );
 
 const Vec3 = z.tuple([Expr, Expr, Expr]);
-const when = { when: Expr.optional() };
+const when = {
+  /** Skip the op unless this evaluates truthy. */
+  when: Expr.optional(),
+  /** Upper bound on the shape confidence this op may claim (e.g. imagined windows). */
+  confidence: z.number().min(0).max(1).optional(),
+};
 
 /** Statements. Footprint ops need an area Feature; `ribbon` a path; solids a position. */
 export const Op = z.discriminatedUnion('op', [
@@ -71,6 +76,8 @@ export const Op = z.discriminatedUnion('op', [
     base: Expr,
     rise: Expr,
     colour: Expr,
+    /** Colour for gable ends and shed high walls; defaults to `colour`. */
+    wallColour: Expr.optional(),
     ...when,
   }),
   /** A grid of window panes on every wall long enough to hold one. */
