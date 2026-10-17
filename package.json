@@ -14,7 +14,8 @@
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "deploy": "pnpm --filter @otherhere/client build && pnpm --filter @otherhere/edge run deploy",
-    "ingest": "pnpm --filter @otherhere/core exec tsx scripts/ingest.ts"
+    "ingest": "pnpm --filter @otherhere/core exec tsx scripts/ingest.ts",
+    "seed:dev": "curl -sS -X POST --data-binary @packages/core/test/fixtures/overpass-zurich.json http://localhost:8787/api/dev/blocks/881f8ed951fffff"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

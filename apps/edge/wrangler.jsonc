@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "otherhere",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+  // The client is served as static assets; the Worker only handles /api/*.
+  "assets": {
+    "directory": "../client/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "TOWN", "class_name": "TownDO" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TownDO"] }],
+  "r2_buckets": [{ "binding": "BUNDLES", "bucket_name": "otherhere-bundles" }],
+  "vars": {
+    // Comma-separated Overpass endpoints, tried in order (ADR-0010).
+    "OVERPASS_ENDPOINTS": "https://overpass-api.de/api/interpreter,https://overpass.private.coffee/api/interpreter,https://overpass.kumi.systems/api/interpreter",
+  },
+}

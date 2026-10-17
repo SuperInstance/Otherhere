@@ -1,0 +1,24 @@
+{
+  "name": "@otherhere/edge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "mkdir -p ../client/dist && wrangler dev --port 8787 --var ALLOW_DEV_ROUTES:true",
+    "deploy": "wrangler deploy",
+    "test": "mkdir -p ../client/dist && vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "wrangler deploy --dry-run --outdir dist"
+  },
+  "dependencies": {
+    "@otherhere/core": "workspace:*",
+    "h3-js": "^4.5.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.4.4",
+    "@cloudflare/workers-types": "^5.20261016.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.12",
+    "wrangler": "4.151.1"
+  }
+}
