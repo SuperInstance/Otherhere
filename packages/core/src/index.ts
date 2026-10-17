@@ -27,3 +27,4 @@ export * from './bundle/build';
 export * from './demo/lot';
 export * from './osm/overpass';
 export * from './osm/to-facts';
+export { default as GOLDEN_DEMO } from './demo/golden.json';

@@ -4,6 +4,7 @@ import { demoLot, DEMO_CELL } from '../src/demo/lot';
 import { readGlbJson } from '../src/glb/write';
 import { BUILTIN_GENERATORS } from '../src/generators';
 import { BundleManifest } from '../src/schema/bundle';
+import GOLDEN from '../src/demo/golden.json';
 
 describe('built-in generators', () => {
   it('cover every Feature kind', () => {
@@ -22,21 +23,21 @@ describe('buildBundle (invariants 1 and 2)', () => {
   });
 
   it('pins golden hashes for the demo lot', async () => {
+    // The same bytes are asserted in the Workers runtime (apps/edge) and the browser (apps/client).
     // A change here means every Bundle changes: bump INTERPRETER_VERSION or a generator version.
+    expect(DEMO_CELL).toBe(GOLDEN.cell);
     const { manifest } = await buildBundle({ cell: DEMO_CELL, features: demoLot() });
     expect({
       inputsHash: manifest.inputsHash,
       outputHash: manifest.outputHash,
       vertexCount: manifest.vertexCount,
       featureCount: manifest.featureCount,
-    }).toMatchInlineSnapshot(`
-      {
-        "featureCount": 15,
-        "inputsHash": "6b48b695d305a1cea84962701291c43d2ecbf965b727802b1967d6837856dff6",
-        "outputHash": "fdeeb9472689dc64c2e97225534eb63037afb49ed7b121159c91a49d5ee4fb3f",
-        "vertexCount": 2208,
-      }
-    `);
+    }).toEqual({
+      inputsHash: GOLDEN.inputsHash,
+      outputHash: GOLDEN.outputHash,
+      vertexCount: GOLDEN.vertexCount,
+      featureCount: GOLDEN.featureCount,
+    });
   });
 
   it('inputs hash changes when a Fact changes', async () => {
