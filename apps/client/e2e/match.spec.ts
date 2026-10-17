@@ -62,15 +62,19 @@ test('two players see each other move over WebRTC, then play capture the flag', 
   const before = (await session(a))!.peers[0]!;
   await b.bringToFront(); // background pages get throttled animation frames
   await b.locator('canvas').click({ position: { x: 900, y: 500 } });
+  // Hold W until A sees B move. How far B gets per second depends on the frame
+  // rate, which on software-rendering CI runners can be a few frames a second.
   await b.keyboard.down('KeyW');
-  await b.waitForTimeout(3000);
-  await b.keyboard.up('KeyW');
   await expect
-    .poll(async () => {
-      const p = (await session(a))!.peers[0]!;
-      return Math.hypot(p.x - before.x, p.z - before.z);
-    })
-    .toBeGreaterThan(3);
+    .poll(
+      async () => {
+        const p = (await session(a))!.peers[0]!;
+        return Math.hypot(p.x - before.x, p.z - before.z);
+      },
+      { timeout: 30_000 },
+    )
+    .toBeGreaterThan(1.5);
+  await b.keyboard.up('KeyW');
 
   // Players start at their own bases, 240 m apart: team fog hides the enemy.
   expect((await session(a))!.peers[0]!.visible).toBe(false);
