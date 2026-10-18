@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDING_PACK } from '@otherhere/core';
 import { MemoryLedger, ModelRouter } from '../src/router';
-import { JevProvider, JevRejected } from '../src/providers/jev';
+import { fitForJev, JevProvider, JevRejected } from '../src/providers/jev';
 import { ChatProvider, stripThinking } from '../src/providers/chat';
 
 const router = () =>
@@ -83,6 +83,31 @@ describe('JevProvider', () => {
     const err = await limited.ask(BUILDING_PACK, 'x').catch((e: unknown) => e);
     expect(err).toBeInstanceOf(Error);
     expect(err).not.toBeInstanceOf(JevRejected);
+  });
+});
+
+describe('fitForJev', () => {
+  it('leaves an acceptable image alone, whatever its aspect', () => {
+    expect(fitForJev(1280, 720)).toEqual({
+      crop: { width: 1280, height: 720 },
+      width: 1280,
+      height: 720,
+    });
+    expect(fitForJev(960, 320)).toMatchObject({ width: 960, height: 320 });
+  });
+  it('upscales a short image without cropping it', () => {
+    // The eval's panorama: refused at 600×242, accepted once 280 px tall.
+    expect(fitForJev(600, 242)).toEqual({
+      crop: { width: 600, height: 242 },
+      width: 694,
+      height: 280,
+    });
+  });
+  it('downscales a large image and crops only past 5.6:1', () => {
+    expect(fitForJev(4032, 3024)).toMatchObject({ width: 1568, height: 1176 });
+    const pano = fitForJev(8000, 1000);
+    expect(pano.crop).toEqual({ width: 5600, height: 1000 });
+    expect([pano.width, pano.height]).toEqual([1568, 280]);
   });
 });
 

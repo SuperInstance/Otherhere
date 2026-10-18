@@ -48,10 +48,30 @@ Each pipeline ran on the raw photo and on the same preprocessed bytes. Rows coun
 
 What this does and does not show:
 
-- **Reproducibility is the solid finding.** B returned identical answers on every run. A's answers changed on 8 of 10 photos, because the vision model's observation text varies and Jev faithfully follows it. This is a difference in kind and needs no larger sample: a reproducible answer can be cached, diffed and re-derived.
+- **Reproducibility is the solid finding.** B returned identical answers on every run here (but see the re-run below: not always). A's answers changed on 8 of 10 photos, because the vision model's observation text varies and Jev faithfully follows it. This is a difference in kind and needs no larger sample: a reproducible answer can be cached, diffed and re-derived.
 - **Preprocessing only buys B coverage.** On the nine photos B accepts raw, raw and preprocessed B score the same (21/26). The whole raw-vs-preprocessed gap is p03, the 2.5:1 panorama B refuses raw. For A, the raw-vs-preprocessed difference (78.5% vs 75.3%) is smaller than A's own run-to-run spread, so no crop effect is visible.
 - **Accuracy is unresolved.** A ranges 21–26 of 31 across runs; B sits at 26, A's best. The gap is no larger than A's noise. 31 field-answers is a smoke test, not a comparison; more photos are needed to rank them on accuracy.
 - **Coverage on real input is unknown.** Raw B refused 1 of 10 photos here (refusals are scored zero, and now surface as `JevRejected`). Preprocessing removed that, but the refusal rate on a real capture feed is what decides whether B can be the default, and it has not been measured.
+
+### Jev's image limits, measured (2026-10-18)
+
+One photo resized to 150 sizes, then bisected: **Jev accepts an image when every side is between 280 and 1,568 px, at any aspect ratio** (3:1 was accepted at 320–512 px tall). Below 280 or above 1,568 it answers HTTP 400 "Invalid image dimensions". So p03 (600×242) was refused for being 242 px tall, not for being a panorama, and cropping it to 2:1 was never needed. `fitForJev` now does the smallest fix: scale every side into 280–1,568 px, cropping only past 5.6:1.
+
+For the app's real input this nearly settles coverage on dimensions. The client sends photos and video frames at most 1,280 px on the long side, so a refusal needs a short side under 280 px: a panorama wider than about 4.6:1. Ordinary phone photos (4:3, 16:9, portrait) and video frames always fit. Refusals for content rather than size have not been seen and are not measured.
+
+Re-run with the minimal fit (3 runs per column, correct out of 31):
+
+| Column                   | Runs     | Mean  | Spread | Stable photos | Refused |
+| ------------------------ | -------- | ----- | ------ | ------------- | ------- |
+| A, raw photo             | 25 22 25 | 77.4% | 3      | 1/10          | none    |
+| A, fitted                | 24 19 22 | 69.9% | 5      | 2/10          | none    |
+| B, raw photo             | 20 21 21 | 66.7% | 1      | 9/10          | p03     |
+| B, fitted                | 26 26 26 | 83.9% | 0      | 10/10         | none    |
+| B, earlier crop to ≤ 2:1 | 26 26 26 | 83.9% | 0      | 10/10         | none    |
+
+- The minimal fit scores the same as the 2:1 crop without throwing away any of the photo.
+- **B is not perfectly reproducible.** On raw photos one answer flipped in one of three runs. Across both re-runs B moved by 1 field-answer in 1 of 4 column sets, against A's 3–5 in every set. B is far steadier than A, but a single B reading near a threshold is still a sample (next section).
+- A's two columns again differ by less than A's own spread.
 
 ### What reproducibility does and does not buy
 
@@ -62,4 +82,4 @@ A separate measurement on another project asked Jev the same question about the 
 - **A refusal is a refusal.** Jev declining the input raises `JevRejected`, and the Ladder logs it as `outcome: "refused"`, not as a low score or a transport error. B-first would then ask A, which is a different rung reading different evidence (the observation text), and both attempts are in the decision log. The eval keeps scoring a refusal as zero, so coverage stays visible.
 - **Not done yet:** recording spread. A reading within about 0.02 of the Ladder threshold (0.7) should be treated as uncertain, and when a question is asked more than once the spread belongs in the record. Neither is implemented; the first needs a margin in the Ladder, the second a repeated-ask mode that only the eval uses today.
 
-**Open decision for the owner:** A remains the default as accepted. The case for B-first is reproducibility and cost, not accuracy. B-first would preprocess the photo, ask Jev directly, and fall back to A on a refusal or low confidence. Changing the default this ADR accepted needs an explicit decision, ideally after measuring B's refusal rate on real captures.
+**Open decision for the owner:** A remains the default as accepted. The case for B-first is reproducibility and cost, not accuracy. B-first would fit the photo with `fitForJev`, ask Jev directly, and fall back to A on a refusal or low confidence. Refusals for size are now known to be limited to extreme panoramas, so the remaining unknowns are refusals for content and accuracy on a larger photo set. Changing the default this ADR accepted needs an explicit decision.

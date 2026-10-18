@@ -1,9 +1,10 @@
 // Compare the two ADR-0013 pipelines on the fixed photo eval (spends real money: ~$0.04 per run).
 //   A: Groq vision → written observation → Jev        (the accepted default)
 //   B: Jev reading the image directly ("danger zone")  (the candidate)
-// Each pipeline runs on the raw photo and on the same preprocessed bytes (centre-cropped
-// to ≤ 2:1, short side ≥ 448 px), so the crop's effect and the path's effect can be told
-// apart. Every column runs RUNS times: the run-to-run spread and per-photo stability are
+// Each pipeline runs on the raw photo and on the same preprocessed bytes (`fitForJev`:
+// the smallest resize that puts every side in Jev's accepted 280–1568 px), so the
+// preprocessing's effect and the path's effect can be told apart. B also runs on the
+// earlier preprocessing (crop to ≤ 2:1, short side ≥ 448 px) for comparison. Every column runs RUNS times: the run-to-run spread and per-photo stability are
 // reported, and so is coverage (how many photos Jev refused outright).
 // Usage: GROQ_KEY=… TYPESAFEAI_KEY=… RUNS=3 pnpm --filter @otherhere/judge photos
 import { readFileSync } from 'node:fs';
@@ -12,6 +13,7 @@ import { BUILDING_PACK, type Answers } from '@otherhere/core';
 import {
   ChatProvider,
   JevProvider,
+  fitForJev,
   JevRejected,
   MemoryLedger,
   ModelRouter,
@@ -26,40 +28,79 @@ const router = new ModelRouter({ caps: { jev: 2, groq: 2 }, ledger: new MemoryLe
 const jev = new JevProvider(router, { apiKey: process.env.TYPESAFEAI_KEY ?? '' });
 const groq = new ChatProvider(router, 'groq', { apiKey: process.env.GROQ_KEY ?? '' });
 
-/** Centre-crop to at most 2:1 and upscale so the short side is ≥ 448 px (Jev rejects small or extreme images). */
-const cropForJev = (path: string): string =>
+const PIL = (script: string, ...args: string[]): string =>
   execFileSync('python3', [
     '-I',
     '-c',
-    'import sys,io;from PIL import Image;im=Image.open(sys.argv[1]).convert("RGB");w,h=im.size;' +
+    `import sys,io;from PIL import Image;${script}`,
+    ...args,
+  ]).toString('base64');
+const save = 'b=io.BytesIO();im.save(b,"JPEG",quality=90);sys.stdout.buffer.write(b.getvalue())';
+
+/** `fitForJev`: centre-crop to the given size, then resize to the target. */
+const fitted = (path: string, w: number, h: number): string => {
+  const f = fitForJev(w, h);
+  return PIL(
+    'im=Image.open(sys.argv[1]).convert("RGB");w,h=im.size;W,H=int(sys.argv[2]),int(sys.argv[3]);' +
+      'im=im.crop(((w-W)//2,(h-H)//2,(w-W)//2+W,(h-H)//2+H)).resize((int(sys.argv[4]),int(sys.argv[5])));' +
+      save,
+    path,
+    String(f.crop.width),
+    String(f.crop.height),
+    String(f.width),
+    String(f.height),
+  );
+};
+
+/** The earlier preprocessing: centre-crop to at most 2:1, upscale so the short side is ≥ 448 px. */
+const crop448 = (path: string): string =>
+  PIL(
+    'im=Image.open(sys.argv[1]).convert("RGB");w,h=im.size;' +
       'W=min(w,2*h);H=min(h,2*w);im=im.crop(((w-W)//2,(h-H)//2,(w-W)//2+W,(h-H)//2+H));' +
       'k=max(1,448/min(W,H));im=im.resize((round(W*k),round(H*k)));' +
-      'b=io.BytesIO();im.save(b,"JPEG",quality=90);sys.stdout.buffer.write(b.getvalue())',
+      save,
     path,
-  ]).toString('base64');
+  );
+
+const size = (path: string): [number, number] =>
+  JSON.parse(
+    execFileSync('python3', [
+      '-I',
+      '-c',
+      'import sys,json;from PIL import Image;print(json.dumps(Image.open(sys.argv[1]).size))',
+      path,
+    ]).toString(),
+  ) as [number, number];
 
 const images = cases.map((c) => {
   const path = new URL(c.image, root).pathname;
-  return { raw: readFileSync(path).toString('base64'), crop: cropForJev(path) };
+  const [w, h] = size(path);
+  return {
+    raw: readFileSync(path).toString('base64'),
+    fitted: fitted(path, w, h),
+    crop448: crop448(path),
+  };
 });
+type Variant = keyof (typeof images)[number];
 
 type Outcome = { score: CaseScore; signature: string; refused: boolean; costUsd: number };
 type Column = { name: string; run: (i: number) => Promise<{ answers: Answers; costUsd: number }> };
 
-const viaVision = (pick: 'raw' | 'crop') => async (i: number) => {
+const viaVision = (pick: Variant) => async (i: number) => {
   const seen = await groq.describe(images[i]![pick], VISION_PROMPT);
   const r = await jev.ask(BUILDING_PACK, seen.value);
   return { answers: r.value, costUsd: seen.costUsd + r.costUsd };
 };
-const direct = (pick: 'raw' | 'crop') => async (i: number) => {
+const direct = (pick: Variant) => async (i: number) => {
   const r = await jev.askAboutImage(BUILDING_PACK, images[i]![pick], VISION_PROMPT);
   return { answers: r.value, costUsd: r.costUsd };
 };
 const columns: Column[] = [
-  { name: 'A raw ', run: viaVision('raw') },
-  { name: 'A crop', run: viaVision('crop') },
-  { name: 'B raw ', run: direct('raw') },
-  { name: 'B crop', run: direct('crop') },
+  { name: 'A raw    ', run: viaVision('raw') },
+  { name: 'A fitted ', run: viaVision('fitted') },
+  { name: 'B raw    ', run: direct('raw') },
+  { name: 'B fitted ', run: direct('fitted') },
+  { name: 'B crop448', run: direct('crop448') },
 ];
 
 /** What the pipeline decided, ignoring probabilities: used to tell whether a photo's answers repeat. */
@@ -106,7 +147,7 @@ for (let run = 0; run < RUNS; run++) {
 
 const total = summarize(results[0]![0]!.map((o) => o.score)).total;
 console.log(`\n${cases.length} photos, ${total} labelled field-answers, ${RUNS} runs per column\n`);
-console.log('column  per run (correct)        mean    spread  stable photos  refused  $/run');
+console.log('column     per run (correct)        mean    spread  stable photos  refused  $/run');
 for (const [ci, col] of columns.entries()) {
   const runs = results[ci]!;
   const corrects = runs.map((r) => summarize(r.map((o) => o.score)).correct);
