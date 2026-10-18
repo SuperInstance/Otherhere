@@ -15,6 +15,8 @@ import {
   resolveFacts,
   OverpassResponseSchema,
   townOf,
+  questsFor,
+  type Quest,
   type BundleFeature,
   type Feature,
   type OverpassResponse,
@@ -78,6 +80,10 @@ export class TownDO extends DurableObject<Env> {
         manifest TEXT NOT NULL
       );
     `);
+    // Buildings a photo could not settle (the Ladder's human rung): they become Quests.
+    this.sql.exec(
+      'CREATE TABLE IF NOT EXISTS unsure (feature_id TEXT PRIMARY KEY, at INTEGER NOT NULL)',
+    );
     // v2: which Plugin, if any, delivered a block's data (ADR-0015).
     const cols = this.sql.exec<{ name: string }>('PRAGMA table_info(blocks)').toArray();
     if (!cols.some((c) => c.name === 'via'))
@@ -255,6 +261,37 @@ export class TownDO extends DurableObject<Env> {
         version: r.version,
       }));
     return { features, resolved: Object.fromEntries(resolveFacts(facts)) };
+  }
+
+  /** Record whether a photo settled a building. An unsettled one stays a Quest until one does. */
+  async markObserved(featureId: string, settled: boolean): Promise<void> {
+    if (settled) this.sql.exec('DELETE FROM unsure WHERE feature_id = ?', featureId);
+    else
+      this.sql.exec(
+        'INSERT OR REPLACE INTO unsure (feature_id, at) VALUES (?, ?)',
+        featureId,
+        Date.now(),
+      );
+  }
+
+  /** The Quests in a Cell: the buildings a photo would sharpen most. */
+  async quests(cell: string): Promise<Quest[]> {
+    const { features, resolved } = await this.cellFacts(cell);
+    const ids = features.filter((f) => f.kind === 'building').map((f) => f.id);
+    const unsure = new Set(
+      this.sql
+        .exec<{ feature_id: string }>(
+          'SELECT u.feature_id FROM unsure u JOIN features f ON f.id = u.feature_id WHERE f.anchor_cell = ?',
+          cell,
+        )
+        .toArray()
+        .map((r) => r.feature_id),
+    );
+    return questsFor(
+      cell,
+      ids.map((id) => ({ id, attrs: resolved[id] ?? {} })),
+      unsure,
+    );
   }
 
   /** The Town's Essence (ADR-0014), recomputed lazily after any write. */

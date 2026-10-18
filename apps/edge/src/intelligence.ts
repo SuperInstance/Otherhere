@@ -72,6 +72,7 @@ async function observe(req: Request, env: Env, featureId: string): Promise<Respo
   const town = env.TOWN.get(env.TOWN.idFromName(townOf(cell))) as unknown as {
     cellFacts(cell: string): Promise<{ features: Feature[] }>;
     putFacts(facts: Fact[]): Promise<number>;
+    markObserved(featureId: string, settled: boolean): Promise<void>;
     bundleFor(cell: string): Promise<{ manifest: { inputsHash: string } }>;
   };
   const { features } = await town.cellFacts(cell);
@@ -93,6 +94,8 @@ async function observe(req: Request, env: Env, featureId: string): Promise<Respo
     );
   }
   if (result.facts.length) await town.putFacts(result.facts);
+  // Not confident enough to become Facts: the human rung's Quest asks for a better photo.
+  await town.markObserved(featureId, result.facts.length > 0);
   const bundle = await town.bundleFor(cell);
   return json({
     observation: result.observation,

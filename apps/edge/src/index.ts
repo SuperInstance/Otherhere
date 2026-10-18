@@ -70,12 +70,13 @@ export default {
       return json({ cell, town: townOf(cell), ring: cellRing(cell, 1) });
     }
 
-    let m = /^\/api\/cells\/([^/]+)(\/facts)?$/.exec(path);
+    let m = /^\/api\/cells\/([^/]+)(\/facts|\/quests)?$/.exec(path);
     if (m) {
       const cell = m[1]!;
       if (!isCell(cell)) return error(400, 'not an H3 res-9 Cell');
       const town = townFor(env, cell);
-      if (m[2]) return json(await town.cellFacts(cell));
+      if (m[2] === '/facts') return json(await town.cellFacts(cell));
+      if (m[2] === '/quests') return json({ cell, quests: await town.quests(cell) });
       const bundle = await town.bundleFor(cell);
       return json({ cell, town: townOf(cell), ...bundle });
     }

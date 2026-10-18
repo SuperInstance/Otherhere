@@ -233,6 +233,15 @@ select {
   line-height: 18px;
   color: var(--ink-soft);
 }
+.quest {
+  margin: 8px 0 0;
+  padding: 6px 8px;
+  border-left: 3px solid #d99a1a;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink);
+  background: rgba(255, 176, 32, 0.12);
+}
 input[type='file'] {
   height: auto;
   padding: 8px 0;

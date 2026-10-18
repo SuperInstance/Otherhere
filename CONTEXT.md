@@ -73,6 +73,10 @@ A team's home spot in capture the flag, where its Flag starts and where captures
 **Tag**:
 A defender touching an intruder in the defender's half; the intruder's carried Flag goes home.
 
+**Quest**:
+A nudge to photograph a building whose look is still imagined, marked by an amber beacon. `unknown` Quests are derived from Facts and disappear when a capture fills the gap; `unsure` ones come from a photo the **Ladder** could not settle (the human rung). At most three per **Cell**.
+_Avoid_: task, mission, bounty
+
 **Capsule**:
 A shareable package (a place, capture, ruleset, or match) that snapshots its Facts and carries a **Scope** (ADR-0008).
 
