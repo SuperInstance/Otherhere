@@ -3,12 +3,21 @@ import type { OpsDO } from './ops';
 import type { SessionDO } from './session';
 import type { TownDO } from './town';
 
+/** Cloudflare's rate-limiting binding. */
+export interface RateLimit {
+  limit(opts: { key: string }): Promise<{ success: boolean }>;
+}
+
 export interface Env {
   TOWN: DurableObjectNamespace<TownDO>;
   SESSION: DurableObjectNamespace<SessionDO>;
   OPS: DurableObjectNamespace<OpsDO>;
   JOBS: DurableObjectNamespace<JobsDO>;
   BUNDLES: R2Bucket;
+  /** Photo analysis: the one public route that spends model budget. */
+  PHOTO_LIMIT?: RateLimit;
+  /** Routes that create Sessions, Capsules or judge events. */
+  WRITE_LIMIT?: RateLimit;
   ASSETS: Fetcher;
   OVERPASS_ENDPOINTS: string;
   /** 'true' only under `wrangler dev`. */

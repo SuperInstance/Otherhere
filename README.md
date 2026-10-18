@@ -69,6 +69,8 @@ The Worker serves both the client and the API. Deploying needs an R2 bucket name
 CLOUDFLARE_API_TOKEN=... pnpm deploy
 ```
 
+See [`docs/RUNBOOK.md`](docs/RUNBOOK.md) for secrets, limits, health checks, troubleshooting and rollback.
+
 Or run the **Deploy** GitHub Action. It needs repository secrets `CLOUDFLARE_API_TOKEN` (permissions: Workers Scripts edit, Workers R2 Storage edit) and `CLOUDFLARE_ACCOUNT_ID`. To deploy on every push to `main`, set the repository variable `DEPLOY_ENABLED=true`.
 
 OSM data © OpenStreetMap contributors, ODbL. Fetched from public Overpass instances with endpoint fallback (ADR-0010).

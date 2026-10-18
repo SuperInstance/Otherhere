@@ -25,6 +25,11 @@
     { "tag": "v3", "new_sqlite_classes": ["OpsDO"] },
     { "tag": "v4", "new_sqlite_classes": ["JobsDO"] },
   ],
+  // Per-client limits on the routes that cost money or create state (keyed by client IP).
+  "ratelimits": [
+    { "name": "PHOTO_LIMIT", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } },
+    { "name": "WRITE_LIMIT", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } },
+  ],
   "r2_buckets": [{ "binding": "BUNDLES", "bucket_name": "otherhere-bundles" }],
   "vars": {
     // Comma-separated Overpass endpoints, tried in order (ADR-0010).
