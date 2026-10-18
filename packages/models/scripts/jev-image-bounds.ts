@@ -13,6 +13,7 @@ const jev = new JevProvider(router, { apiKey: process.env.TYPESAFEAI_KEY ?? '' }
 const PACK: QuestionPack = {
   id: 'probe',
   version: '1',
+  description: 'Probe: is the image accepted at all?',
   questions: {
     visible: {
       type: 'noul',
