@@ -2,6 +2,16 @@
 // modify this file or the eval sets; JUDGE.lock.json pins their hashes.
 import type { Answers } from '@otherhere/core';
 
+/** Expected answers, hand-labelled. A field is left out when it cannot be judged. */
+export type Expected = {
+  visible: boolean;
+  roof_shape?: string;
+  floors?: string;
+  wall_colour?: string;
+  roof_colour?: string;
+};
+
+/** A written observation and what it says about the building. */
 export type TruthCase = {
   id: string;
   observation: string;
@@ -17,7 +27,10 @@ export type TruthCase = {
 export type CaseScore = { id: string; correct: number; total: number; misses: string[] };
 
 /** One point per expected answer. `visible` is right when the noul is on the right side of 0.5. */
-export function scoreCase(c: TruthCase, answers: Answers | null): CaseScore {
+export function scoreCase(
+  c: { id: string; expected: Expected },
+  answers: Answers | null,
+): CaseScore {
   const misses: string[] = [];
   let correct = 0;
   let total = 0;

@@ -21,14 +21,35 @@ export class JevProvider {
   ) {}
 
   async ask(pack: QuestionPack, state: unknown): Promise<Priced<Answers>> {
+    return this.post(
+      JSON.stringify({ model: this.opts.model ?? 'jev-latest', state, questions: pack.questions }),
+      {},
+    );
+  }
+
+  /**
+   * Ask about an image directly (the "danger zone" image path, ADR-0013). The
+   * placeholder in `state` is replaced by the image on TypeSafe's side.
+   */
+  async askAboutImage(
+    pack: QuestionPack,
+    jpegBase64: string,
+    prompt: string,
+  ): Promise<Priced<Answers>> {
+    const placeholder = `img-${crypto.randomUUID()}`;
     const body = JSON.stringify({
       model: this.opts.model ?? 'jev-latest',
-      state,
+      state: `${prompt}\n${placeholder}`,
+      assets: { [placeholder]: { type: 'image', format: 'jpg', data_base64: jpegBase64 } },
       questions: pack.questions,
     });
+    return this.post(body, { 'TypeSafe-Danger-Zone-Images': 'true' });
+  }
+
+  private async post(body: string, headers: Record<string, string>): Promise<Priced<Answers>> {
     const pricing = this.opts.pricing ?? JEV_PRICING;
-    // Rough upper bound: ~1 token per 3 characters of request.
-    const estimate = ((body.length / 3) * pricing.inputPerM) / 1_000_000;
+    // Rough upper bound: ~1 token per 3 characters of text; images are capped like text.
+    const estimate = (Math.min(body.length / 3, 8000) * pricing.inputPerM) / 1_000_000;
     return this.router.run(this.id, estimate, pricing, async () => {
       const res = await (this.opts.fetch ?? fetch)(
         `${this.opts.baseUrl ?? 'https://api.typesafe.ai'}/v1/systemone`,
@@ -37,6 +58,7 @@ export class JevProvider {
           headers: {
             authorization: `Bearer ${this.opts.apiKey}`,
             'content-type': 'application/json',
+            ...headers,
           },
           body,
         },

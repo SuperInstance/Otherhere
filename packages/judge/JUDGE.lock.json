@@ -1,4 +1,15 @@
 {
-  "src/score.ts": "3da53a87fb8a7bb6064b33a57a9904db7c8b09f8a6bbd74a4615c3a78c8470c4",
-  "evals/truth/building-observations.v1.jsonl": "35f18652c3da89ef20c0c2b6533ce145101ca43fa44a548705c48c3661f1f630"
+  "src/score.ts": "2badd31e6755a207ef61929bd5dc0a4a2a580fa3212ce73dd780d602a078aa55",
+  "evals/truth/building-observations.v1.jsonl": "35f18652c3da89ef20c0c2b6533ce145101ca43fa44a548705c48c3661f1f630",
+  "evals/truth/building-photos.v1.jsonl": "89c23ff9ed23a0d02174298d13a353febb64c2673c9b52951a9f085a752f4d87",
+  "evals/truth/photos/p01.jpg": "96813182708fb6b4410ee46959c949cd39455fd6fcf9e82539eb288305d173cb",
+  "evals/truth/photos/p02.jpg": "34196bfd0f0e32ff4b19d6a9db9dc4b90210aee82304c0981d23c101b0482247",
+  "evals/truth/photos/p03.jpg": "5c306b133e35fcb7eff76097b8336b07142da4513408971eb6fb8f06677dea92",
+  "evals/truth/photos/p04.jpg": "54fac19a205535b72d5ae969c80c84aa0c2e19712bdad14f9403840ea3ef6ac4",
+  "evals/truth/photos/p05.jpg": "e9388021b586303940e4d5cab23fd682c8c2c893030aa33e70f78eb11ad05024",
+  "evals/truth/photos/p06.jpg": "26eb0e20c409af3c0fd2c85eb851a02c7abfeada64ded618967e7f2820fd105a",
+  "evals/truth/photos/p07.jpg": "dd2a58cf0126bb410ff77f03d8f156ebe3897f3dd0e42b150a6f32b80ca0ef28",
+  "evals/truth/photos/p08.jpg": "4056dcea60b91100882c24b9fdaac0afb91d62a19db75f3cc11d21a9b2f4fc55",
+  "evals/truth/photos/p09.jpg": "dca6f701c787cf4d9569e615ce81e1f636560e1593027c78ad7b7ada7371e735",
+  "evals/truth/photos/p10.jpg": "d8424ed734d7d0e0877917bcea1846072393248f386e703bfa943dbba903afd0"
 }

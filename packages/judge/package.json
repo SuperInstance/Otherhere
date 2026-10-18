@@ -9,7 +9,8 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.test.json",
-    "truth": "tsx scripts/truth.ts"
+    "truth": "tsx scripts/truth.ts",
+    "photos": "tsx scripts/photos.ts"
   },
   "dependencies": {
     "@otherhere/core": "workspace:*",

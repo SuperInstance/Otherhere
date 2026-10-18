@@ -44,6 +44,25 @@ describe('JevProvider', () => {
     expect((fetch.calls[0]!.init.headers as Record<string, string>).authorization).toBe('Bearer k');
   });
 
+  it('sends an image as an asset with the danger-zone header', async () => {
+    const fetch = fakeFetch({
+      model: 'jev',
+      answers: { visible: { type: 'noul', noul: 0.9 } },
+      usage: { input_tokens: 900, output_tokens: 5 },
+    });
+    const jev = new JevProvider(router(), { apiKey: 'k', fetch });
+    await jev.askAboutImage(BUILDING_PACK, 'AAAA', 'The building nearest the centre:');
+    const init = fetch.calls[0]!.init;
+    expect((init.headers as Record<string, string>)['TypeSafe-Danger-Zone-Images']).toBe('true');
+    const sent = JSON.parse(init.body as string) as {
+      state: string;
+      assets: Record<string, { data_base64: string; format: string }>;
+    };
+    const [placeholder, asset] = Object.entries(sent.assets)[0]!;
+    expect(sent.state).toContain(placeholder);
+    expect(asset).toMatchObject({ type: 'image', format: 'jpg', data_base64: 'AAAA' });
+  });
+
   it('surfaces API errors', async () => {
     const jev = new JevProvider(router(), {
       apiKey: 'k',

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { BUILDING_PACK } from '@otherhere/core';
-import { JUDGE_FILES, parseTruth, scoreCase, summarize } from '../src/index';
+import { JUDGE_FILES, parsePhotos, parseTruth, scoreCase, summarize } from '../src/index';
 
 const root = new URL('../', import.meta.url);
 const cases = parseTruth(
@@ -53,5 +53,28 @@ describe('truth eval: building observations v1', () => {
     );
     expect(summarize(perfect).accuracy).toBe(1);
     expect(summarize(cases.map((c) => scoreCase(c, null))).accuracy).toBe(0);
+  });
+});
+
+describe('truth eval: building photos v1', () => {
+  const photos = parsePhotos(
+    readFileSync(new URL('evals/truth/building-photos.v1.jsonl', root), 'utf8'),
+  );
+  it('has a credited image for every case and labels the pack can give', () => {
+    expect(photos).toHaveLength(10);
+    for (const p of photos) {
+      expect(readFileSync(new URL(`evals/truth/${p.image}`, root)).byteLength).toBeGreaterThan(
+        10_000,
+      );
+      expect(p.credit.license).toMatch(/^CC (BY|PDM|0)\b/);
+      for (const [q, want] of Object.entries(p.expected)) {
+        if (q === 'visible') continue;
+        const question = BUILDING_PACK.questions[q];
+        expect(
+          question?.type === 'choice' && String(want) in question.criteria,
+          `${p.id}.${q}=${want}`,
+        ).toBe(true);
+      }
+    }
   });
 });
