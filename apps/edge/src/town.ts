@@ -13,12 +13,15 @@ import {
   overpassQuery,
   blockBBox,
   resolveFacts,
+  OverpassResponseSchema,
+  townOf,
   type BundleFeature,
   type Feature,
   type OverpassResponse,
   type ResolvedAttrs,
 } from '@otherhere/core';
 import type { Env } from './env';
+import { jobsStub } from './jobs';
 
 /** `loading`: an Overpass fetch is still running; the Cell is served as a sketch meanwhile. */
 export type BlockStatus = 'ok' | 'failed' | 'loading';
@@ -75,6 +78,10 @@ export class TownDO extends DurableObject<Env> {
         manifest TEXT NOT NULL
       );
     `);
+    // v2: which Plugin, if any, delivered a block's data (ADR-0015).
+    const cols = this.sql.exec<{ name: string }>('PRAGMA table_info(blocks)').toArray();
+    if (!cols.some((c) => c.name === 'via'))
+      this.sql.exec('ALTER TABLE blocks ADD COLUMN via TEXT');
   }
 
   /** Write Features and Facts. Same-source rewrites bump `version` only when the value changes. */
@@ -117,16 +124,37 @@ export class TownDO extends DurableObject<Env> {
     block: string,
     res: OverpassResponse,
     observedAt = new Date().toISOString(),
+    via: string | null = null,
   ): Promise<number> {
     const { features, facts } = osmToFacts(res, { block, observedAt });
     this.write(features, facts);
     this.sql.exec(
-      `INSERT INTO blocks (block, status, updated_at, attempts, error) VALUES (?, 'ok', ?, 0, NULL)
-       ON CONFLICT(block) DO UPDATE SET status = 'ok', updated_at = excluded.updated_at, attempts = 0, error = NULL`,
+      `INSERT INTO blocks (block, status, updated_at, attempts, error, via) VALUES (?, 'ok', ?, 0, NULL, ?)
+       ON CONFLICT(block) DO UPDATE SET status = 'ok', updated_at = excluded.updated_at, attempts = 0,
+         error = NULL, via = excluded.via`,
       block,
       Date.now(),
+      via,
     );
     return features.length;
+  }
+
+  /**
+   * A Plugin's result for an `ingest_block` job (ADR-0015). It is a proposal: the
+   * raw Overpass response is checked here and Facts are derived by `osmToFacts`,
+   * which keeps only Features anchored inside the block and always writes
+   * `source: "osm"`. Throws a plain Error when the proposal is not acceptable.
+   */
+  async acceptIngestProposal(block: string, overpass: unknown, agent: string): Promise<number> {
+    if (townOf(block) !== this.ctx.id.name) throw new Error('block is not in this Town');
+    const r = OverpassResponseSchema.safeParse(overpass);
+    if (!r.success) throw new Error(`not an Overpass response: ${r.error.issues[0]?.message}`);
+    return this.ingestOverpass(
+      block,
+      r.data as OverpassResponse,
+      new Date().toISOString(),
+      `agent:${agent}`,
+    );
   }
 
   /** Facts from any source. Validated; the TownDO is the gatekeeper for what enters a World. */
@@ -185,6 +213,9 @@ export class TownDO extends DurableObject<Env> {
         attempts + 1,
         String((err as Error).message).slice(0, 500),
       );
+      // If Plugins are set up, ask one to fetch the block for us. Without them the
+      // retry above still happens on the next request (invariant 7).
+      if (this.env.AGENT_TOKEN) await jobsStub(this.env).enqueue('ingest_block', block);
       return 'failed';
     }
   }

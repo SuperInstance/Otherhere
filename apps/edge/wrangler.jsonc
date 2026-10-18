@@ -16,12 +16,14 @@
       { "name": "TOWN", "class_name": "TownDO" },
       { "name": "SESSION", "class_name": "SessionDO" },
       { "name": "OPS", "class_name": "OpsDO" },
+      { "name": "JOBS", "class_name": "JobsDO" },
     ],
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["TownDO"] },
     { "tag": "v2", "new_sqlite_classes": ["SessionDO"] },
     { "tag": "v3", "new_sqlite_classes": ["OpsDO"] },
+    { "tag": "v4", "new_sqlite_classes": ["JobsDO"] },
   ],
   "r2_buckets": [{ "binding": "BUNDLES", "bucket_name": "otherhere-bundles" }],
   "vars": {

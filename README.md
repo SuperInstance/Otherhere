@@ -20,6 +20,7 @@ apps/edge       Cloudflare Worker: TownDO (SQLite Facts per H3 res-6 Town), R2 B
 packages/models model router (daily budget caps), Jev / Groq / MiniMax / Claude adapters, the Ladder, the photo observer
 packages/judge  the fixed truth eval and scoring code, pinned by JUDGE.lock.json (invariant 6)
 apps/client     Vite + three.js (WebGPU, falls back to WebGL2): walk any lat/lng
+apps/agent      optional Plugin runtime (Node): pulls jobs it can run, returns proposals the edge validates
 ```
 
 ## Develop
@@ -40,6 +41,8 @@ Controls: WASD or arrows to walk, drag to look, Shift to run, scroll (or R/F) to
 **Learn from a filmed walk:** under **Learn from a filmed walk**, give a phone video and the GPS track (.gpx) of the same walk. The browser samples a frame every few seconds, flies the camera along your track, finds the building you were facing, and sends that frame through the same photo pipeline. Buildings you passed sharpen; frames are never stored. It runs entirely in the browser plus the edge, so no plugin is needed (invariant 7).
 
 **Play capture the flag:** while walking a place, choose **Start a match here** and share the invite link. Players join the smaller team and start at their bases. Grab the enemy flag and bring it home; defenders tag intruders in their half. Enemies stay hidden unless a teammate is within 45 m (team fog). Motion travels peer to peer over WebRTC, and the match's Durable Object decides pickups, captures, tags, and score (ADR-0011). To relay through TURN behind strict NATs, set the `TURN_KEY_ID` and `TURN_KEY_API_TOKEN` Worker secrets (Cloudflare Realtime).
+
+**Lend a device (optional):** set the `AGENT_TOKEN` Worker secret, then on any always-on machine run `OTHERHERE_EDGE=https://… OTHERHERE_AGENT_TOKEN=… OTHERHERE_ALWAYS_ON=true pnpm --filter @otherhere/agent start`. The device pulls jobs it can run and sends results back as proposals; the Worker checks each one and derives Facts itself (ADR-0015). Today a Plugin fetches OpenStreetMap blocks: any block whose Overpass fetch failed at the edge is queued for it, and the owner can pre-ingest an area with `POST /api/ops/crawl {"lat":…,"lng":…,"rings":2}` (needs `OPS_TOKEN`; `GET /api/ops/jobs` shows the queue). Without a Plugin everything works as before.
 
 ```sh
 pnpm test         # core (Node), edge (workerd), client unit tests

@@ -11,6 +11,7 @@ export default defineConfig({
           OVERPASS_ENDPOINTS: 'http://127.0.0.1:9/api/interpreter',
           MODEL_FAKE: 'true',
           OPS_TOKEN: 'test-ops',
+          AGENT_TOKEN: 'test-agent',
         },
       },
     }),

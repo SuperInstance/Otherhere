@@ -1,3 +1,4 @@
+import type { JobsDO } from './jobs';
 import type { OpsDO } from './ops';
 import type { SessionDO } from './session';
 import type { TownDO } from './town';
@@ -6,6 +7,7 @@ export interface Env {
   TOWN: DurableObjectNamespace<TownDO>;
   SESSION: DurableObjectNamespace<SessionDO>;
   OPS: DurableObjectNamespace<OpsDO>;
+  JOBS: DurableObjectNamespace<JobsDO>;
   BUNDLES: R2Bucket;
   ASSETS: Fetcher;
   OVERPASS_ENDPOINTS: string;
@@ -25,4 +27,6 @@ export interface Env {
   MODEL_FAKE?: string;
   /** If set, owner-only ops routes require `Authorization: Bearer <OPS_TOKEN>`. */
   OPS_TOKEN?: string;
+  /** If set, Plugins may pull jobs with `Authorization: Bearer <AGENT_TOKEN>` (ADR-0015). */
+  AGENT_TOKEN?: string;
 }

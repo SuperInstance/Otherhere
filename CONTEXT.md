@@ -82,7 +82,14 @@ Who may see something: `private` | `friends` | `public`.
 ### Intelligence and compute
 
 **Plugin**:
-An optional device that contributes compute (GPU laptop, always-on server, any laptop, phone).
+An optional device that contributes compute (GPU laptop, always-on server, any laptop, phone). It pulls **Jobs** and returns **Proposals** (ADR-0015).
+_Avoid_: worker (that is a Cloudflare Worker), node
+
+**Job**:
+A unit of work a **Plugin** can claim, matched to it by capabilities and held under a short lease.
+
+**Proposal**:
+A **Plugin**'s result: evidence (such as a raw Overpass response) that the **TownDO** validates and turns into **Facts** itself. Never Facts directly.
 
 **Question pack**:
 A versioned set of typed questions answered by a decision model.
@@ -100,6 +107,7 @@ One step of the **Ladder**.
 - A **Town** contains 7⁴ ≈ 2,401 **Cells**; a **Cell** belongs to exactly one **Town**.
 - A **Bundle** is a pure function of one **Cell**'s **Resolved values** and the **Generator** versions used.
 - A **Capsule** snapshots the **Facts** it needs and never ships a **Bundle**.
+- A **Plugin** holds at most one lease per **Job**; a **Job**'s accepted **Proposal** becomes **Facts** only through its **Town**'s validator.
 - A **Session** plays one **Ruleset** in the world frame of its origin **Cell**; its **Match state** is shared, while fog decides who each player sees.
 
 ## Example dialogue
