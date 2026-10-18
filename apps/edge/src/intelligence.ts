@@ -92,6 +92,22 @@ async function observe(req: Request, env: Env, featureId: string): Promise<Respo
       502,
     );
   }
+  // The visibility gate is a decision like any other: log it with its cost and answer.
+  const gate = result.gate;
+  await opsStub(env).logDecision({
+    id: crypto.randomUUID(),
+    at: new Date().toISOString(),
+    pack: 'pack.building.visible',
+    packVersion: '1.0.0',
+    subject: featureId,
+    rung: 'jev',
+    outcome: 'noul' in gate ? 'accepted' : gate.skipped === 'refused' ? 'refused' : 'unavailable',
+    costUsd: 'noul' in gate ? gate.costUsd : 0,
+    latencyMs: 0,
+    confidence: 'noul' in gate ? Math.max(gate.noul, 1 - gate.noul) : 0,
+    answers: 'noul' in gate ? { visible: { type: 'noul', noul: gate.noul } } : null,
+    ...('detail' in gate && gate.detail ? { error: gate.detail } : {}),
+  });
   if (result.facts.length) await town.putFacts(result.facts);
   const bundle = await town.bundleFor(cell);
   return json({
@@ -99,6 +115,7 @@ async function observe(req: Request, env: Env, featureId: string): Promise<Respo
     rung: result.result?.rung ?? null,
     accepted: result.result?.accepted ?? false,
     confidence: result.result?.decision.confidence ?? 0,
+    gate: 'noul' in result.gate ? { visible: result.gate.noul } : { skipped: result.gate.skipped },
     facts: result.facts,
     inputsHash: bundle.manifest.inputsHash,
   });

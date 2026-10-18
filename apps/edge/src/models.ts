@@ -15,7 +15,13 @@ import { opsLedger, opsStub } from './ops';
 /** Daily USD caps per provider. Conservative defaults; override with the MODEL_CAPS_USD var. */
 const DEFAULT_CAPS = { jev: 1, groq: 1, minimax: 1, claude: 2 };
 
-export type Models = { vision: ChatProvider; ladder: Ladder; claude: ClaudeProvider | null };
+export type Models = {
+  vision: ChatProvider;
+  ladder: Ladder;
+  claude: ClaudeProvider | null;
+  /** Jev reading the photo itself, only to decide whether it shows one building. */
+  gate?: JevProvider;
+};
 
 /**
  * Build the model stack for one request, or null if no vision provider is
@@ -49,8 +55,10 @@ export function makeModels(env: Env): Models | null {
   if (!vision) return null;
 
   const rungs: LadderRung[] = [];
-  if (keys.TYPESAFE_KEY)
-    rungs.push(jevRung(new JevProvider(router, { apiKey: keys.TYPESAFE_KEY, fetch })));
+  const jev = keys.TYPESAFE_KEY
+    ? new JevProvider(router, { apiKey: keys.TYPESAFE_KEY, fetch })
+    : undefined;
+  if (jev) rungs.push(jevRung(jev));
   if (keys.MINIMAX_KEY)
     rungs.push(
       llmRung(
@@ -64,7 +72,12 @@ export function makeModels(env: Env): Models | null {
   if (!rungs.length) return null;
 
   const ops = opsStub(env);
-  return { vision, ladder: new Ladder(rungs, { log: (d) => ops.logDecision(d) }), claude };
+  return {
+    vision,
+    ladder: new Ladder(rungs, { log: (d) => ops.logDecision(d) }),
+    claude,
+    ...(jev ? { gate: jev } : {}),
+  };
 }
 
 /** Canned provider responses for tests and offline development (MODEL_FAKE=true). */
