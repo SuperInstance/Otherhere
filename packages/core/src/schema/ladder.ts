@@ -15,7 +15,7 @@ export const DecisionLog = z.strictObject({
   /** What the decision was about, e.g. a Feature ID. */
   subject: z.string(),
   rung: Rung,
-  outcome: z.enum(['accepted', 'escalated', 'unavailable', 'error']),
+  outcome: z.enum(['accepted', 'escalated', 'refused', 'unavailable', 'error']),
   costUsd: z.number().min(0),
   latencyMs: z.number().min(0),
   confidence: z.number().min(0).max(1),

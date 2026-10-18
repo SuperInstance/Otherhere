@@ -9,7 +9,7 @@ import {
   type Rung,
 } from '@otherhere/core';
 import { BudgetExceeded } from './router';
-import type { JevProvider } from './providers/jev';
+import { JevRejected, type JevProvider } from './providers/jev';
 import type { ChatProvider } from './providers/chat';
 import type { ClaudeProvider } from './providers/claude';
 
@@ -18,7 +18,8 @@ export type LadderResult = { decision: Decision; rung: Rung; accepted: boolean }
 /**
  * Escalate a decision from the cheapest rung to the most expensive until one is
  * confident enough (ADR-0013). Every attempt is logged with rung, cost, and
- * confidence. If no rung clears the bar, the most confident answer is returned
+ * confidence. Each rung is asked once; a rung that declines the input (`refused`)
+ * is logged as a refusal, not a low score, and the next rung is asked. If no rung clears the bar, the most confident answer is returned
  * with `accepted: false`, so callers can treat it as a weak hint or ignore it.
  */
 export class Ladder {
@@ -49,10 +50,14 @@ export class Ladder {
       try {
         d = await rung.decide(req);
       } catch (err) {
-        const unavailable = err instanceof BudgetExceeded;
         await this.opts.log({
           ...base,
-          outcome: unavailable ? 'unavailable' : 'error',
+          outcome:
+            err instanceof BudgetExceeded
+              ? 'unavailable'
+              : err instanceof JevRejected
+                ? 'refused'
+                : 'error',
           costUsd: 0,
           latencyMs: Date.now() - t0,
           confidence: 0,

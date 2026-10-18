@@ -4,6 +4,7 @@ import { Ladder, humanRung, llmRung, ruleRung } from '../src/ladder';
 import { observeBuilding } from '../src/observe';
 import { BudgetExceeded, MemoryLedger, ModelRouter } from '../src/router';
 import { ChatProvider } from '../src/providers/chat';
+import { JevRejected } from '../src/providers/jev';
 
 const sure: Answers = {
   visible: { type: 'noul', noul: 0.98 },
@@ -63,6 +64,22 @@ describe('Ladder', () => {
     }).decide(req);
     expect(r?.rung).toBe('groq');
     expect(logs[0]).toMatchObject({ rung: 'jev', outcome: 'unavailable' });
+  });
+
+  it('logs a declined input as a refusal and asks the next rung', async () => {
+    const logs: DecisionLog[] = [];
+    const declines: LadderRung = {
+      rung: 'jev',
+      decide: () => Promise.reject(new JevRejected(400, 'Invalid image dimensions')),
+    };
+    const r = await new Ladder([declines, fixed('groq', sure)], {
+      log: (d) => void logs.push(d),
+    }).decide(req);
+    expect(r).toMatchObject({ rung: 'groq', accepted: true });
+    expect(logs.map((l) => [l.rung, l.outcome])).toEqual([
+      ['jev', 'refused'],
+      ['groq', 'accepted'],
+    ]);
   });
 
   it('turns unanswerable questions into quests for people', async () => {
