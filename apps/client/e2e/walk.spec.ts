@@ -67,9 +67,15 @@ test('walk a real neighbourhood; reload gives the identical scene', async ({
   expect(after.equals(before)).toBe(true);
 });
 
-test('rejects malformed coordinates with a recoverable message', async ({ page }) => {
+test('starts in downtown Sitka when no place is given', async ({ page }) => {
   await page.goto('/');
-  await page.getByLabel('Coordinates').fill('zurich');
+  await expect(page.getByLabel('Address, place or coordinates')).toHaveValue('57.0531, -135.3351');
+});
+
+test('an address that cannot be looked up gets a recoverable message', async ({ page }) => {
+  // Tests point the edge's Nominatim at a closed port, so every lookup fails.
+  await page.goto('/?at=47.3769,8.5417');
+  await page.getByLabel('Address, place or coordinates').fill('Lincoln St, Sitka, AK');
   await page.getByRole('button', { name: 'Walk here' }).click();
-  await expect(page.getByRole('alert')).toContainText('Enter latitude and longitude');
+  await expect(page.getByRole('alert')).toContainText('use coordinates');
 });

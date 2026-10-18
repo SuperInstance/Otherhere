@@ -15,6 +15,9 @@ export function parseCoords(text: string): { lat: number; lng: number } | null {
   return { lat, lng };
 }
 
+/** Where a visit without a place starts: downtown Sitka, Alaska (Lincoln Street, by St. Michael's Cathedral). */
+export const DEFAULT_PLACE = { lat: 57.0531, lng: -135.3351 } as const;
+
 export function parseStart(search: string): Start {
   const p = new URLSearchParams(search);
   if (p.get('demo') === 'generators') return { demo: true };

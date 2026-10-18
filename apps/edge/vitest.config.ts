@@ -9,6 +9,7 @@ export default defineConfig({
       miniflare: {
         bindings: {
           OVERPASS_ENDPOINTS: 'http://127.0.0.1:9/api/interpreter',
+          NOMINATIM_URL: 'http://127.0.0.1:9/search',
           MODEL_FAKE: 'true',
           OPS_TOKEN: 'test-ops',
           AGENT_TOKEN: 'test-agent',

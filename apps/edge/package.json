@@ -9,7 +9,7 @@
     "test": "mkdir -p ../client/dist && vitest run",
     "typecheck": "tsc -p tsconfig.json",
     "build": "mkdir -p ../client/dist && wrangler deploy --dry-run --outdir dist",
-    "dev:e2e": "mkdir -p ../client/dist && wrangler dev --port 8787 --var ALLOW_DEV_ROUTES:true --var MODEL_FAKE:true --var OVERPASS_ENDPOINTS:http://127.0.0.1:9/api/interpreter"
+    "dev:e2e": "mkdir -p ../client/dist && wrangler dev --port 8787 --var ALLOW_DEV_ROUTES:true --var MODEL_FAKE:true --var OVERPASS_ENDPOINTS:http://127.0.0.1:9/api/interpreter --var NOMINATIM_URL:http://127.0.0.1:9/search"
   },
   "dependencies": {
     "@otherhere/core": "workspace:*",
