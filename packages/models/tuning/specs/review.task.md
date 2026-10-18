@@ -1,0 +1,5 @@
+Review task, not a writing task: write no files. Reply with only the "=== NOTES ===" section.
+
+You are reviewing a pull request that adds streaming terrain to a three.js (0.186, WebGPU/WebGL2 node materials) walk view. The context files are the changed client files. Find real bugs: wrong maths (Web Mercator tiles, local frame projection, bilinear sampling), memory leaks (GPU resources not disposed, ImageBitmaps not closed, records never evicted, maps that grow without bound), race conditions (aborts, evictions while loading, ready() waiters, a record destroyed and recreated with the same key), quadtree selection errors (overlap or holes), places where buildings or the camera could end up under or far above the ground, and anything that breaks when the tile proxy is unreachable.
+
+For each finding give: severity (high/medium/low), file and function, the concrete scenario that triggers it, and a minimal fix. Order by severity. Do not report style, naming or missing comments. If something is fine, don't mention it. At most 12 findings; quality over quantity.

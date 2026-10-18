@@ -7,8 +7,16 @@ const CACHE_SECONDS = 30 * 24 * 3600;
 const MAX_ZOOM = 15;
 
 const LAYERS = {
-  elev: { ext: 'png', type: 'image/png', upstream: (env: Env) => env.ELEVATION_TILES_URL ?? ELEVATION },
-  sat: { ext: 'jpg', type: 'image/jpeg', upstream: (env: Env) => env.SATELLITE_TILES_URL ?? SATELLITE },
+  elev: {
+    ext: 'png',
+    type: 'image/png',
+    upstream: (env: Env) => env.ELEVATION_TILES_URL ?? ELEVATION,
+  },
+  sat: {
+    ext: 'jpg',
+    type: 'image/jpeg',
+    upstream: (env: Env) => env.SATELLITE_TILES_URL ?? SATELLITE,
+  },
 } as const;
 
 /**

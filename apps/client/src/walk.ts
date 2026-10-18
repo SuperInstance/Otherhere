@@ -155,7 +155,9 @@ export class WalkControls {
     // but never let the eye sink below it.
     const g = this.groundAt(this.pose.x, this.pose.z);
     this.ground =
-      this.ground === null || dt === 0 ? g : Math.max(g, this.ground + (g - this.ground) * Math.min(1, dt * 8));
+      this.ground === null || dt === 0
+        ? g
+        : Math.max(g, this.ground + (g - this.ground) * Math.min(1, dt * 8));
     this.camera.position.set(this.pose.x, this.ground + this.pose.y, this.pose.z);
     this.camera.rotation.set(this.pose.pitch, this.pose.yaw, 0, 'YXZ');
   }

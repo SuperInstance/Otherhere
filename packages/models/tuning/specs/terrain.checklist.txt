@@ -1,0 +1,23 @@
+# Terrain spec, as literal claims about the code
+terrarium_decode: Heights are decoded from pixel bytes as R*256 + G + B/256 - 32768.
+no_color_conversion: The image is decoded with colorSpaceConversion 'none' and premultiplyAlpha 'none'.
+bitmap_closed: Each ImageBitmap's close() method is called after its pixels are read.
+concurrency_cap: No more than 6 tile fetches are in flight at the same time.
+abort_unneeded: Fetches for tiles that are no longer needed are cancelled with an AbortController.
+lru_evict: When there are more tile records than the maximum, the least recently used unused ones are removed.
+dispose_geometry: Evicting a tile calls dispose() on its geometry.
+dispose_texture: Evicting a tile calls dispose() on its satellite texture and its own material.
+heightmap_lru: Fine (zoom 15) heightmaps are kept in their own cache of at most 64 entries.
+ancestor_fallback: When a tile's mesh is not loaded yet, a loaded ancestor tile is drawn in its place.
+hysteresis: Tiles split and merge at different distance thresholds.
+skirts: Tile meshes have skirts: an extra ring of vertices lowered below the tile's edge.
+per_vertex_projection: Every vertex position is computed by converting its latitude and longitude with frame.project.
+build_budget: At most 4 tile meshes are built per update call.
+contours_fwidth: Contour lines use fwidth for anti-aliasing.
+flat_fallback: If the first elevation request fails before anything loads, the layer stops making requests and heightAt returns 0.
+ready_timeout: ready() resolves after at most about 4 seconds even if tiles have not loaded.
+ocean_follows: The ocean plane moves with the camera in x and z.
+satellite_lazy: Satellite textures are only requested when the mode is satellite.
+no_overlap: A tile drawn in place of its children is never drawn at the same time as any of those children.
+mercator_rows: Vertex rows are spaced evenly in Web Mercator y, not evenly in latitude.
+pixel_centres: Bilinear sampling treats each pixel's value as belonging at the pixel's centre.

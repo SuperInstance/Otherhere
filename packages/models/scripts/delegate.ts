@@ -14,7 +14,13 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-type Provider = { url: string; key: string | undefined; inPerM: number; hitPerM: number; outPerM: number };
+type Provider = {
+  url: string;
+  key: string | undefined;
+  inPerM: number;
+  hitPerM: number;
+  outPerM: number;
+};
 
 /** OpenAI-compatible endpoints. Prices are USD per million tokens, for the log only. */
 const PROVIDERS: Record<string, Provider> = {
@@ -52,7 +58,10 @@ export const SYSTEM = [
 ].join('\n');
 
 /** Parse `=== FILE: p ===` blocks. Paths are kept inside the output directory. */
-export function parseFiles(text: string): { files: { path: string; body: string }[]; notes: string } {
+export function parseFiles(text: string): {
+  files: { path: string; body: string }[];
+  notes: string;
+} {
   const files: { path: string; body: string }[] = [];
   const re = /=== FILE: (.+?) ===\n([\s\S]*?)\n=== END FILE ===/g;
   for (const m of text.matchAll(re)) {
@@ -62,6 +71,50 @@ export function parseFiles(text: string): { files: { path: string; body: string 
   }
   const notes = text.split('=== NOTES ===')[1]?.trim() ?? '';
   return { files, notes };
+}
+
+type Usage = {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  completion_tokens_details?: { reasoning_tokens?: number };
+  prompt_cache_hit_tokens?: number;
+  prompt_tokens_details?: { cached_tokens?: number };
+};
+
+/** Collect an OpenAI-style server-sent event stream into the reply, its usage and finish reason. */
+async function readStream(stream: ReadableStream<Uint8Array>) {
+  const out = {
+    content: '',
+    reasoningChars: 0,
+    finish: undefined as string | undefined,
+    usage: {} as Usage,
+  };
+  const decoder = new TextDecoder();
+  let buf = '';
+  for await (const chunk of stream) {
+    buf += decoder.decode(chunk, { stream: true });
+    let nl: number;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      if (data === '[DONE]') continue;
+      const ev = JSON.parse(data) as {
+        choices?: {
+          delta?: { content?: string; reasoning_content?: string };
+          finish_reason?: string | null;
+        }[];
+        usage?: Usage;
+      };
+      const c = ev.choices?.[0];
+      out.content += c?.delta?.content ?? '';
+      out.reasoningChars += c?.delta?.reasoning_content?.length ?? 0;
+      if (c?.finish_reason) out.finish = c.finish_reason;
+      if (ev.usage) out.usage = ev.usage;
+    }
+  }
+  return out;
 }
 
 function arg(name: string): string | undefined {
@@ -85,11 +138,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     .map((f) => `=== CONTEXT: ${f} ===\n${readFileSync(join(root, f), 'utf8')}`)
     .join('\n\n');
   const t0 = Date.now();
+  // Streamed: a long non-streamed generation sends no headers until it is done, and
+  // Node's fetch gives up after 300 s (MiniMax-M3's first terrain draft).
   const res = await fetch(p.url, {
     method: 'POST',
     headers: { authorization: `Bearer ${p.key}`, 'content-type': 'application/json' },
     body: JSON.stringify({
       model,
+      stream: true,
+      stream_options: { include_usage: true },
       // Reasoning tokens count toward this: at 32k, deepseek-flash spent all of them
       // thinking and returned no content (tuning/delegate-log.jsonl, first entry).
       max_tokens: 160_000,
@@ -100,19 +157,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       ],
     }),
   });
-  if (!res.ok) throw new Error(`${model}: HTTP ${res.status} ${(await res.text()).slice(0, 300)}`);
-  const body = (await res.json()) as {
-    choices: { message: { content: string; reasoning_content?: string }; finish_reason?: string }[];
-    usage?: {
-      prompt_tokens?: number;
-      completion_tokens?: number;
-      completion_tokens_details?: { reasoning_tokens?: number };
-      prompt_cache_hit_tokens?: number;
-      prompt_tokens_details?: { cached_tokens?: number };
-    };
-  };
-  const text = (body.choices[0]!.message.content ?? '').replace(/<think>[\s\S]*?(<\/think>|$)/g, '');
-  const u = body.usage ?? {};
+  if (!res.ok || !res.body)
+    throw new Error(`${model}: HTTP ${res.status} ${(await res.text()).slice(0, 300)}`);
+  const body = await readStream(res.body);
+  const text = body.content.replace(/<think>[\s\S]*?(<\/think>|$)/g, '');
+  const u = body.usage;
   const hit = u.prompt_cache_hit_tokens ?? u.prompt_tokens_details?.cached_tokens ?? 0;
   const miss = (u.prompt_tokens ?? 0) - hit;
   const usd = (miss * p.inPerM + hit * p.hitPerM + (u.completion_tokens ?? 0) * p.outPerM) / 1e6;
@@ -132,15 +181,17 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     cacheHitTokens: hit,
     outputTokens: u.completion_tokens,
     reasoningTokens:
-      u.completion_tokens_details?.reasoning_tokens ??
-      Math.round((body.choices[0]!.message.reasoning_content?.length ?? 0) / 4),
-    finish: body.choices[0]!.finish_reason,
+      u.completion_tokens_details?.reasoning_tokens ?? Math.round(body.reasoningChars / 4),
+    finish: body.finish,
     effort: arg('--effort') ?? 'default',
     usd: Number(usd.toFixed(5)),
     seconds: (Date.now() - t0) / 1000,
     files: parsed.files.map((f) => f.path),
   };
-  appendFileSync(join(root, 'packages/models/tuning/delegate-log.jsonl'), JSON.stringify(entry) + '\n');
+  appendFileSync(
+    join(root, 'packages/models/tuning/delegate-log.jsonl'),
+    JSON.stringify(entry) + '\n',
+  );
   console.log(JSON.stringify(entry, null, 2));
   if (parsed.notes) console.log(`\nNOTES:\n${parsed.notes}`);
 }

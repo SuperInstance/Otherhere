@@ -44,6 +44,10 @@ type CellState = {
   /** Buildings worth photographing here, each marked by a beacon. */
   quests?: Quest[];
   beacons?: Group;
+  /** The mesh's positions as built (flat), to stand it on the ground again when finer heights arrive. */
+  flat?: Float32Array;
+  /** World-space footprint, for matching new ground to Cells. */
+  box?: { minX: number; minZ: number; maxX: number; maxZ: number };
 };
 
 export type WorldStats = {
@@ -67,6 +71,8 @@ export type Ground = {
   readonly active: boolean;
   heightAt(x: number, z: number): number;
   ready(minX: number, minZ: number, maxX: number, maxZ: number): Promise<void>;
+  /** Called when finer ground arrives for a world rectangle. */
+  onGround: (minX: number, minZ: number, maxX: number, maxZ: number) => void;
 };
 
 /**
@@ -89,6 +95,8 @@ export class World {
     return m;
   })();
   onChange: () => void = () => {};
+  /** Cells whose ground got finer since they were stood on it. */
+  private resnap = new Set<string>();
 
   constructor(
     scene: Scene,
@@ -97,6 +105,7 @@ export class World {
     private ground?: Ground,
   ) {
     this.frame = localFrame(cellCenter(originCell));
+    if (ground) ground.onGround = (...rect) => this.groundChanged(...rect);
     scene.add(this.root);
     scene.add(this.beaconRoot);
   }
@@ -109,6 +118,7 @@ export class World {
 
   /** Keep the walker's Cell and its ring loaded; drop Cells more than 2 rings away. */
   update(x: number, z: number): void {
+    this.standAgain();
     if (this.source === 'demo') {
       this.want(DEMO_CELL);
       return;
@@ -224,7 +234,13 @@ export class World {
     });
     const c = this.frame.project(cellCenter(cell));
     group.position.set(c.e, 0, -c.n);
-    if (this.ground) await this.standOnGround(group, gltf.userData);
+    const featureRanges =
+      (
+        gltf.userData as {
+          otherhere?: { features?: { id: string; first: number; count: number }[] };
+        }
+      ).otherhere?.features ?? [];
+    const footing = this.ground ? await this.standOnGround(group, featureRanges) : undefined;
     for (const p of roadPoints) {
       p.x += c.e;
       p.z -= c.n;
@@ -232,12 +248,7 @@ export class World {
 
     const state = this.cells.get(cell);
     if (!state) return; // evicted while loading
-    const ranges =
-      (
-        gltf.userData as {
-          otherhere?: { features?: { id: string; first: number; count: number }[] };
-        }
-      ).otherhere?.features ?? [];
+    const ranges = featureRanges;
     const beacons = this.beaconsFor(group, ranges, quests);
     beacons.position.copy(group.position);
     Object.assign(state, {
@@ -250,6 +261,7 @@ export class World {
       ranges,
       quests,
       beacons,
+      ...footing,
     });
     this.root.add(group);
     this.beaconRoot.add(beacons);
@@ -273,45 +285,89 @@ export class World {
    * display layer from public elevation data. After the hash is checked, each Feature is
    * moved onto it: anything with height (a building) as one rigid piece onto the lowest
    * ground under it, so floors stay level; flat things (roads, paths) per vertex. The
-   * Cell's flat ground hexagon is collapsed: the terrain is the ground now.
+   * Cell's flat ground hexagon is collapsed: the terrain is the ground now. The flat
+   * positions are kept, so the Cell can be stood again when finer ground arrives.
    */
-  private async standOnGround(group: Group, userData: Record<string, unknown>) {
-    const g = this.ground!;
+  private async standOnGround(
+    group: Group,
+    ranges: { first: number; count: number }[],
+  ): Promise<{ flat: Float32Array; box: NonNullable<CellState['box']> } | undefined> {
+    // A Bundle is one merged mesh, as pick() and roofSpot() assume.
+    const mesh = group.children.find((o) => (o as Mesh).isMesh) as Mesh | undefined;
+    if (!mesh) return undefined;
+    const flat = (mesh.geometry.getAttribute('position').array as Float32Array).slice();
+    mesh.geometry.computeBoundingBox();
+    const b = mesh.geometry.boundingBox!;
     const o = group.position;
-    group.updateMatrixWorld();
-    const meshes = group.children.filter((m) => (m as Mesh).isMesh) as Mesh[];
-    for (const m of meshes) m.geometry.computeBoundingBox();
-    const box = meshes[0]?.geometry.boundingBox;
-    if (!box) return;
-    await g.ready(o.x + box.min.x, o.z + box.min.z, o.x + box.max.x, o.z + box.max.z);
+    const box = {
+      minX: o.x + b.min.x,
+      minZ: o.z + b.min.z,
+      maxX: o.x + b.max.x,
+      maxZ: o.z + b.max.z,
+    };
+    await this.ground!.ready(box.minX, box.minZ, box.maxX, box.maxZ);
+    this.stand(mesh, flat, ranges, o.x, o.z);
+    return { flat, box };
+  }
+
+  private stand(
+    mesh: Mesh,
+    flat: Float32Array,
+    ranges: { first: number; count: number }[],
+    ox: number,
+    oz: number,
+  ) {
+    const g = this.ground!;
     if (!g.active) return;
-    const ranges =
-      (userData as { otherhere?: { features?: { first: number; count: number }[] } }).otherhere
-        ?.features ?? [];
-    for (const m of meshes) {
-      const pos = m.geometry.getAttribute('position');
-      const groundAt = (i: number) => g.heightAt(o.x + pos.getX(i), o.z + pos.getZ(i));
-      const first = ranges[0]?.first ?? pos.count;
-      for (let i = 0; i < first; i++) pos.setXYZ(i, 0, -1000, 0);
-      for (const r of ranges) {
-        let [lo, hi, floor] = [Infinity, -Infinity, Infinity];
-        for (let i = r.first; i < r.first + r.count; i++) {
-          lo = Math.min(lo, pos.getY(i));
-          hi = Math.max(hi, pos.getY(i));
-          floor = Math.min(floor, groundAt(i));
-        }
-        if (hi - lo > 1.5) {
-          // Sink a little so the downhill side has no visible gap under it.
-          for (let i = r.first; i < r.first + r.count; i++) pos.setY(i, pos.getY(i) + floor - 0.3);
-        } else {
-          for (let i = r.first; i < r.first + r.count; i++)
-            pos.setY(i, pos.getY(i) + groundAt(i) + 0.15);
-        }
+    const pos = mesh.geometry.getAttribute('position');
+    (pos.array as Float32Array).set(flat);
+    const groundAt = (i: number) => g.heightAt(ox + pos.getX(i), oz + pos.getZ(i));
+    const first = ranges[0]?.first ?? pos.count;
+    for (let i = 0; i < first; i++) pos.setXYZ(i, 0, -1000, 0);
+    for (const r of ranges) {
+      let [lo, hi, floor] = [Infinity, -Infinity, Infinity];
+      for (let i = r.first; i < r.first + r.count; i++) {
+        lo = Math.min(lo, pos.getY(i));
+        hi = Math.max(hi, pos.getY(i));
+        floor = Math.min(floor, groundAt(i));
       }
-      pos.needsUpdate = true;
-      m.geometry.computeBoundingBox();
-      m.geometry.computeBoundingSphere();
+      if (hi - lo > 1.5) {
+        // Sink a little so the downhill side has no visible gap under it.
+        for (let i = r.first; i < r.first + r.count; i++) pos.setY(i, pos.getY(i) + floor - 0.3);
+      } else {
+        for (let i = r.first; i < r.first + r.count; i++)
+          pos.setY(i, pos.getY(i) + groundAt(i) + 0.15);
+      }
     }
+    pos.needsUpdate = true;
+    mesh.geometry.computeBoundingBox();
+    mesh.geometry.computeBoundingSphere();
+  }
+
+  private groundChanged(minX: number, minZ: number, maxX: number, maxZ: number) {
+    for (const [cell, s] of this.cells) {
+      const b = s.box;
+      if (b && b.minX <= maxX && b.maxX >= minX && b.minZ <= maxZ && b.maxZ >= minZ)
+        this.resnap.add(cell);
+    }
+  }
+
+  /** Stand one Cell on newly arrived ground per frame, and move its beacons with it. */
+  private standAgain() {
+    const cell = this.resnap.values().next().value;
+    if (cell === undefined) return;
+    this.resnap.delete(cell);
+    const s = this.cells.get(cell);
+    const mesh = s?.group?.children.find((o) => (o as Mesh).isMesh) as Mesh | undefined;
+    if (!s || !mesh || !s.flat || s.state !== 'ready') return;
+    this.stand(mesh, s.flat, s.ranges ?? [], s.group!.position.x, s.group!.position.z);
+    if (s.beacons) {
+      this.beaconRoot.remove(s.beacons);
+      s.beacons.traverse((o) => (o as Mesh).geometry?.dispose());
+    }
+    s.beacons = this.beaconsFor(s.group!, s.ranges ?? [], s.quests ?? []);
+    s.beacons.position.copy(s.group!.position);
+    this.beaconRoot.add(s.beacons);
   }
 
   /** A tall amber column with a marker above each Quest building, placed from its vertices. */

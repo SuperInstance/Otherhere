@@ -103,7 +103,7 @@ $('demo').addEventListener('click', () => location.assign('?demo=generators'));
 
 // --- Scene ---------------------------------------------------------------------
 // A logarithmic depth buffer keeps roads on hillsides and mountains 20 km away both crisp.
-const renderer = new WebGPURenderer({ canvas, antialias: true, logarithmicDepthBuffer: true });
+const renderer = new WebGPURenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 await renderer.init();
@@ -216,7 +216,7 @@ if (!originCell) {
   spawned ||= isDemo;
   const walk = new WalkControls(camera, canvas, initial);
   if (terrain) {
-    walk.groundAt = (x, z) => terrain.heightAt(x, z);
+    walk.groundAt = (x, z) => terrain.standAt(x, z);
     addEventListener('keydown', (e) => {
       if (e.code !== 'KeyM' || e.target instanceof HTMLInputElement) return;
       terrain.mode = terrain.mode === 'topo' ? 'satellite' : ('topo' satisfies TerrainMode);
@@ -231,7 +231,9 @@ if (!originCell) {
       `${s.verified}/${s.ready} bundle hashes verified${s.mismatched ? ` · ${s.mismatched} MISMATCHED` : ''}`,
     ];
     if (terrain?.active)
-      lines.push(`${terrain.mode === 'topo' ? 'Topographic' : 'Satellite'} (M to switch) · ${TERRAIN_ATTRIBUTION[terrain.mode]}`);
+      lines.push(
+        `${terrain.mode === 'topo' ? 'Topographic' : 'Satellite'} (M to switch) · ${TERRAIN_ATTRIBUTION[terrain.mode]}`,
+      );
     if (s.sketch) {
       const are = s.sketch === 1 ? '1 cell is' : `${s.sketch} cells are`;
       lines.push(`${are} still a sketch: waiting for OpenStreetMap, trying again shortly.`);
@@ -257,6 +259,13 @@ if (!originCell) {
       quests: world.questTargets(),
       backend,
       pose: walk.pose,
+      terrain: terrain && {
+        ...terrain.stats(),
+        active: terrain.active,
+        ground: terrain.heightAt(walk.pose.x, walk.pose.z),
+        stand: terrain.standAt(walk.pose.x, walk.pose.z),
+        eye: camera.position.y,
+      },
       session: session && {
         code: session.code,
         me: session.me,
