@@ -48,6 +48,15 @@ The GitHub **Deploy** workflow does the same with repository secrets `CLOUDFLARE
 | Many 429s for real users                          | Rate limit too low for a shared IP (school, office)              | Raise the `ratelimits` values and redeploy.                                                                                                         |
 | `MISMATCHED` bundle hashes in the client          | A generator or interpreter changed output without a version bump | Bump `INTERPRETER_VERSION` or the generator version (see README, Determinism).                                                                      |
 
+## Moderation
+
+Remove one source's Facts from a Feature, for example a bad or abusive photo capture. The building resolves from its remaining sources again and its Bundle rebuilds on the next request:
+
+```sh
+curl -X DELETE -H "authorization: Bearer $OPS_TOKEN" \
+  "https://<host>/api/ops/cells/<cell>/features/<feature-id>/facts?source=capture"
+```
+
 ## Rollback
 
 `wrangler rollback` in `apps/edge` restores the previous Worker version. Durable Object data and R2 Bundles are untouched. Bundles are content-addressed, so old and new versions can share the bucket.

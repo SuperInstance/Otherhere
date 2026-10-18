@@ -163,6 +163,19 @@ export class TownDO extends DurableObject<Env> {
     );
   }
 
+  /**
+   * Moderation: remove one source's Facts about a Feature (e.g. a bad or abusive
+   * capture). The Feature resolves from its remaining sources again, so its Bundle
+   * rebuilds on the next request. Returns how many Facts were removed.
+   */
+  async removeFacts(featureId: string, source: string): Promise<number> {
+    const n = this.sql
+      .exec('DELETE FROM facts WHERE feature_id = ? AND source = ? RETURNING 1', featureId, source)
+      .toArray().length;
+    if (n) this.sql.exec("DELETE FROM meta WHERE key = 'essence'");
+    return n;
+  }
+
   /** Facts from any source. Validated; the TownDO is the gatekeeper for what enters a World. */
   async putFacts(facts: unknown[]): Promise<number> {
     const parsed = facts.map((f, i) => {
