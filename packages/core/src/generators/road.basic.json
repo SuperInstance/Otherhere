@@ -1,0 +1,59 @@
+{
+  "id": "road.basic",
+  "version": "0.1.0",
+  "description": "A road or path segment as a flat ribbon; width from OSM or by highway class.",
+  "appliesTo": ["road"],
+  "geometry": "path",
+  "ops": [
+    { "op": "let", "name": "hw", "value": { "attr": "highway", "default": "road" } },
+    {
+      "op": "let",
+      "name": "minor",
+      "value": {
+        "op": "or",
+        "args": [
+          { "op": "eq", "args": [{ "param": "hw" }, "footway"] },
+          { "op": "eq", "args": [{ "param": "hw" }, "path"] },
+          { "op": "eq", "args": [{ "param": "hw" }, "cycleway"] },
+          { "op": "eq", "args": [{ "param": "hw" }, "pedestrian"] },
+          { "op": "eq", "args": [{ "param": "hw" }, "steps"] },
+          { "op": "eq", "args": [{ "param": "hw" }, "track"] }
+        ]
+      }
+    },
+    {
+      "op": "let",
+      "name": "major",
+      "value": {
+        "op": "or",
+        "args": [
+          { "op": "eq", "args": [{ "param": "hw" }, "motorway"] },
+          { "op": "eq", "args": [{ "param": "hw" }, "trunk"] },
+          { "op": "eq", "args": [{ "param": "hw" }, "primary"] },
+          { "op": "eq", "args": [{ "param": "hw" }, "secondary"] }
+        ]
+      }
+    },
+    {
+      "op": "ribbon",
+      "width": {
+        "op": "if",
+        "cond": { "op": "has", "attr": "width" },
+        "then": { "attr": "width" },
+        "else": {
+          "op": "if",
+          "cond": { "param": "minor" },
+          "then": 2,
+          "else": { "op": "if", "cond": { "param": "major" }, "then": 11, "else": 6.5 }
+        }
+      },
+      "y": {
+        "op": "if",
+        "cond": { "param": "minor" },
+        "then": 0.04,
+        "else": { "op": "if", "cond": { "param": "major" }, "then": 0.08, "else": 0.06 }
+      },
+      "colour": { "op": "if", "cond": { "param": "minor" }, "then": "#cbbd9f", "else": "#6d6e73" }
+    }
+  ]
+}

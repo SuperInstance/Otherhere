@@ -1,0 +1,21 @@
+{
+  "name": "@otherhere/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Optional Plugin runtime: a device that pulls jobs from the edge and returns proposals (ADR-0015).",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@otherhere/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "tsx": "^4.23.15",
+    "typescript": "6.0.3",
+    "vitest": "4.1.12"
+  }
+}

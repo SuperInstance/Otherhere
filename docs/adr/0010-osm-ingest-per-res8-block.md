@@ -1,0 +1,3 @@
+# OSM is ingested per H3 res-8 block, not per Cell
+
+OSM data is fetched from Overpass one **ingest block** at a time: the res-8 parent of a Cell, whose 7 res-9 children are exactly a Cell plus its ring. One Overpass request covers the cells a walker needs at once, which keeps us well inside the public Overpass usage policy (a per-Cell fetch would make 7× the requests). Only Features whose anchor Cell (ADR-0003) is inside the block are kept; anything else belongs to the neighbouring block and will arrive when that block is ingested, so no Feature is ever written twice. Overpass endpoints are tried in order with fallback, and every request sends an identifying User-Agent.

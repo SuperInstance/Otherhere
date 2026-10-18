@@ -1,0 +1,71 @@
+{
+  "id": "pack.building",
+  "version": "1.0.0",
+  "description": "What a street-level observation says about one building's shape and colour.",
+  "questions": {
+    "visible": {
+      "type": "noul",
+      "instructions": "The observation clearly describes a single building's exterior.",
+      "criteria": {
+        "true": "One building's walls or roof are described well enough to judge its shape or colour.",
+        "false": "No building, several indistinguishable buildings, or only an interior is described."
+      }
+    },
+    "roof_shape": {
+      "type": "choice",
+      "instructions": "Which roof shape does the building have?",
+      "criteria": {
+        "flat": "No visible slope; possibly a parapet.",
+        "gable": "Two slopes meeting at a ridge, with triangular walls at the two ends.",
+        "hip": "Slopes on all four sides, including pyramid and mansard roofs.",
+        "shed": "One single slope (skillion, lean-to).",
+        "unknown": "The roof cannot be seen or judged."
+      }
+    },
+    "floors": {
+      "type": "choice",
+      "instructions": "How many above-ground floors does the building have?",
+      "criteria": {
+        "1": "One storey.",
+        "2": "Two storeys.",
+        "3": "Three storeys.",
+        "4": "Four storeys.",
+        "5": "Five storeys.",
+        "6-8": "Six to eight storeys.",
+        "9-14": "Nine to fourteen storeys.",
+        "15+": "Fifteen or more storeys.",
+        "unknown": "The number of floors cannot be judged."
+      }
+    },
+    "wall_colour": {
+      "type": "choice",
+      "instructions": "What is the main colour of the building's walls?",
+      "criteria": {
+        "white": "White or near-white render or paint.",
+        "cream": "Cream, ivory, or pale yellow.",
+        "beige": "Beige, sand, or light tan stone.",
+        "brick": "Red or brown brick.",
+        "ochre": "Ochre, mustard, or saturated yellow.",
+        "terracotta": "Terracotta, salmon, or orange.",
+        "pink": "Pink or rose.",
+        "grey": "Grey concrete, stone, or render.",
+        "blue": "Blue or blue-grey.",
+        "green": "Green.",
+        "dark": "Black, charcoal, or very dark brown.",
+        "unknown": "The wall colour cannot be judged."
+      }
+    },
+    "roof_colour": {
+      "type": "choice",
+      "instructions": "What colour is the roof?",
+      "criteria": {
+        "red": "Red or orange clay tiles.",
+        "brown": "Brown tiles or shingles.",
+        "dark": "Dark grey or black slate, shingles, or metal.",
+        "light": "Light grey, white, or gravel.",
+        "green": "Green, including copper patina or a planted roof.",
+        "unknown": "The roof colour cannot be judged."
+      }
+    }
+  }
+}

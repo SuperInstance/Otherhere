@@ -1,0 +1,2 @@
+# The judge is fixed (invariant 6): eval sets and scoring code change only with human review.
+/packages/judge/ @SuperInstance

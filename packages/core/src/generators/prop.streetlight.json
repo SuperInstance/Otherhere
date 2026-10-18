@@ -1,0 +1,19 @@
+{
+  "id": "prop.streetlight",
+  "version": "0.1.0",
+  "description": "A street lamp: a thin pole with a lamp head.",
+  "appliesTo": ["streetlight"],
+  "geometry": "position",
+  "ops": [
+    {
+      "op": "cylinder",
+      "at": [0, 0, 0],
+      "radius": 0.09,
+      "topRadius": 0.06,
+      "height": 5,
+      "segments": 6,
+      "colour": "#3b3f45"
+    },
+    { "op": "box", "at": [0, 5, 0], "size": [0.45, 0.45, 0.25], "colour": "#f3dc8c" }
+  ]
+}

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#d9d4c7" />
+    <title>Otherhere</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="view" aria-label="Walkable view of the place"></canvas>
+    <div id="joystick" aria-hidden="true"><div class="knob"></div></div>
+    <main id="hud">
+      <form id="goto" autocomplete="off">
+        <label for="coords">Coordinates</label>
+        <div class="row">
+          <input
+            id="coords"
+            name="coords"
+            inputmode="decimal"
+            placeholder="47.3769, 8.5417"
+            required
+          />
+          <button type="submit">Walk here</button>
+        </div>
+        <p class="hint" id="coords-error" role="alert" hidden></p>
+        <div class="row secondary">
+          <button type="button" id="locate">Use my location</button>
+          <button type="button" id="demo">Show generator demo</button>
+          <button type="button" id="host" hidden>Start a match here</button>
+        </div>
+      </form>
+      <form id="postcard" hidden autocomplete="off" aria-label="Save a postcard">
+        <details>
+          <summary>Save a postcard</summary>
+          <label for="pc-title">Postcard title</label>
+          <input id="pc-title" name="title" maxlength="200" placeholder="The trail to the falls" />
+          <label for="pc-scope" class="spaced">Who can open it</label>
+          <div class="row">
+            <select id="pc-scope" name="scope">
+              <option value="private">Only me (private link)</option>
+              <option value="friends" selected>Anyone with the link</option>
+              <option value="public">Public</option>
+            </select>
+            <button type="submit">Save postcard</button>
+          </div>
+        </details>
+        <p class="note" id="pc-result" aria-live="polite"></p>
+      </form>
+      <form id="walk-import" hidden aria-label="Import a walk">
+        <details>
+          <summary>Learn from a filmed walk</summary>
+          <label for="walk-video">Video</label>
+          <input type="file" id="walk-video" accept="video/*" />
+          <label for="walk-gpx" class="spaced">GPS track of the same walk (.gpx)</label>
+          <input type="file" id="walk-gpx" accept=".gpx,application/gpx+xml" />
+          <div class="row secondary">
+            <button type="submit">Learn from this walk</button>
+          </div>
+          <p class="note">
+            Frames are sent to an image model to describe the buildings you passed, then discarded.
+            The video is assumed to start when the track does.
+          </p>
+        </details>
+        <p class="note" id="walk-result" aria-live="polite"></p>
+      </form>
+      <section id="feature" hidden aria-labelledby="feature-title">
+        <p id="feature-title"></p>
+        <ul id="feature-facts"></ul>
+        <label for="photo" class="spaced">Add a photo of this building</label>
+        <input type="file" id="photo" accept="image/*" capture="environment" />
+        <p class="note">
+          Your photo is sent to an image model to describe the building, then discarded. Only what
+          it says about the building is kept.
+        </p>
+        <p class="note" id="feature-result" aria-live="polite"></p>
+      </section>
+      <section id="match" hidden aria-label="Match">
+        <p id="match-line"></p>
+        <div class="row secondary">
+          <button type="button" id="match-start" hidden>Start the match</button>
+          <button type="button" id="match-invite">Copy invite link</button>
+        </div>
+        <ol id="match-log" aria-live="polite"></ol>
+      </section>
+      <p id="status" aria-live="polite"></p>
+    </main>
+    <p id="help">WASD or arrows to walk · drag to look · Shift to run · scroll to rise</p>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

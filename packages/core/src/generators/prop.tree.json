@@ -1,0 +1,47 @@
+{
+  "id": "prop.tree",
+  "version": "0.1.0",
+  "description": "A stylised tree: tapered trunk and a squashed low-poly canopy.",
+  "appliesTo": ["tree"],
+  "geometry": "position",
+  "ops": [
+    {
+      "op": "let",
+      "name": "trunk",
+      "value": { "op": "rand", "min": 1.6, "max": 2.6, "key": "trunk" }
+    },
+    {
+      "op": "let",
+      "name": "crown",
+      "value": { "op": "rand", "min": 1.6, "max": 3.2, "key": "crown" }
+    },
+    {
+      "op": "cylinder",
+      "at": [0, 0, 0],
+      "radius": 0.2,
+      "topRadius": 0.13,
+      "height": { "param": "trunk" },
+      "segments": 6,
+      "colour": "#6b4f3a"
+    },
+    {
+      "op": "blob",
+      "at": [
+        0,
+        {
+          "op": "add",
+          "args": [{ "param": "trunk" }, { "op": "mul", "args": [{ "param": "crown" }, 0.6] }]
+        },
+        0
+      ],
+      "radius": { "param": "crown" },
+      "squash": 0.85,
+      "detail": 1,
+      "colour": {
+        "op": "pick",
+        "options": ["#5f8a4a", "#6f9a52", "#4f7a45", "#7da35a"],
+        "key": "canopy"
+      }
+    }
+  ]
+}

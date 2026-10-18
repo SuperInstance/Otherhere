@@ -1,0 +1,26 @@
+name: Deploy
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency: deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Needs repository secrets CLOUDFLARE_API_TOKEN (Workers Scripts + R2 edit) and CLOUDFLARE_ACCOUNT_ID.
+    if: ${{ vars.DEPLOY_ENABLED == 'true' || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
