@@ -1,0 +1,10 @@
+analytic_normal: The ocean normal is built from the analytic derivative of the sum of sine waves.
+four_waves: The ocean height field sums four sine waves with different wavelengths and directions.
+dispersion: Wave speed follows sqrt(g * wavelength / (2 * pi)).
+ripple_fade: Ripple strength fades out with distance from the camera.
+fresnel: The water colour blends deep to light by a fresnel term.
+glint: A sun glint is added from the reflected view direction and the sun direction.
+uses_time: Animation uses the time node from three/tsl.
+no_textures: No textures or extra render passes are used.
+foam_band: Shore foam is strongest just above height 0 and gone above about 1.5 m.
+cloud_range: The cloud shadow multiplier stays between 0.78 and 1.

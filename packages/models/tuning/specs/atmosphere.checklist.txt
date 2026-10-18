@@ -1,0 +1,9 @@
+tone_mapping: The renderer's toneMapping is set to ACESFilmicToneMapping.
+dome_backside: The sky dome uses a BackSide material that does not write depth and is not affected by fog.
+dome_follows: The sky dome is moved to the camera position in update().
+fog_node: The fog is set through scene.fogNode, and scene.fog is set to null.
+height_fog: The fog factor grows with distance and is stronger at low world heights than at high ones.
+fog_uniforms: Fog distances are uniforms updated in update(), not recompiled materials.
+sun_glow: The sky colour brightens toward SUN_DIRECTION.
+no_per_frame_alloc: update() does not create new objects, materials or nodes.
+dispose_all: dispose() removes the dome and disposes its geometry and material.
