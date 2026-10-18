@@ -31,10 +31,10 @@ describe('building pack v1', () => {
       opts,
     );
     for (const f of facts) Fact.parse(f);
+    // Walls (0.7 × 0.9 = 0.63) fall under the bar; the others are kept on their own.
     expect(facts.map((f) => [f.attribute, f.value, f.confidence])).toEqual([
       ['roof.shape', 'gable', 0.9],
       ['levels', 7, 0.72],
-      ['colour', '#a5543f', 0.63],
     ]);
   });
 

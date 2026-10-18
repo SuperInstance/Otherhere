@@ -170,3 +170,31 @@ describe('observeBuilding', () => {
     expect(r.facts.every((f) => f.source === 'capture')).toBe(true);
   });
 });
+
+describe('observeBuilding field gating', () => {
+  it('keeps confident fields even when one answer is unsure', async () => {
+    const router = new ModelRouter({ caps: { groq: 1 }, ledger: new MemoryLedger() });
+    const vision = new ChatProvider(router, 'groq', {
+      apiKey: 'k',
+      fetch: async () =>
+        Response.json({
+          model: 'm',
+          choices: [{ message: { content: 'A brick house.' } }],
+          usage: { prompt_tokens: 10, completion_tokens: 5 },
+        }),
+    });
+    const ladder = new Ladder([fixed('jev', unsure)], { log: () => {} });
+    const r = await observeBuilding(
+      {
+        jpegBase64: 'AAAA',
+        featureId: 'osm:w1',
+        source: 'capture',
+        observedAt: '2026-10-17T00:00:00.000Z',
+      },
+      { vision, ladder },
+    );
+    expect(r.result?.accepted).toBe(false);
+    // The unsure roof (0.4) is dropped; floors, walls and roof colour are kept.
+    expect(r.facts.map((f) => f.attribute).sort()).toEqual(['colour', 'levels', 'roof.colour']);
+  });
+});

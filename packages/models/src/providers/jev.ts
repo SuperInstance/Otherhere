@@ -3,8 +3,15 @@ import { ProviderUnavailable, type ModelRouter, type Pricing, type Priced } from
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
-/** Placeholder pricing until TypeSafe publishes rates; override in config. Output is free. */
-export const JEV_PRICING: Pricing = { inputPerM: 0.5, outputPerM: 0 };
+/** TypeSafe's published price (2026-10): $0.042 per million input tokens; output is free. */
+export const JEV_PRICING: Pricing = { inputPerM: 0.042, outputPerM: 0 };
+
+/**
+ * Pinned, not `jev-latest`: the alias moves when a release ships, and on our photo
+ * sets jev-1.14.0 scored below jev-1.13.0 (docs/notes/model-field-notes.md). Move
+ * the pin after re-running the photo eval on the new version.
+ */
+export const JEV_MODEL = 'jev-1.13.0';
 
 /** Jev's direct-image path accepts an image when every side is in this range, at any aspect (measured 2026-10-18). */
 export const JEV_IMAGE_SIDE = { min: 280, max: 1568 } as const;
@@ -61,7 +68,7 @@ export class JevProvider {
 
   async ask(pack: QuestionPack, state: unknown): Promise<Priced<Answers>> {
     return this.post(
-      JSON.stringify({ model: this.opts.model ?? 'jev-latest', state, questions: pack.questions }),
+      JSON.stringify({ model: this.opts.model ?? JEV_MODEL, state, questions: pack.questions }),
       {},
     );
   }
@@ -77,7 +84,7 @@ export class JevProvider {
   ): Promise<Priced<Answers>> {
     const placeholder = `img-${crypto.randomUUID()}`;
     const body = JSON.stringify({
-      model: this.opts.model ?? 'jev-latest',
+      model: this.opts.model ?? JEV_MODEL,
       state: `${prompt}\n${placeholder}`,
       assets: { [placeholder]: { type: 'image', format: 'jpg', data_base64: jpegBase64 } },
       questions: pack.questions,

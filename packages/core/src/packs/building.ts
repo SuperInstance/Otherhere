@@ -37,7 +37,14 @@ const FLOORS: Record<string, number> = {
 };
 
 /** Below this, an answer becomes no Fact at all: imagined beats wrong. */
-export const MIN_ANSWER_CONFIDENCE = 0.55;
+/**
+ * A field becomes a Fact only when its own confidence times P(one building
+ * visible) reaches this. Gating each field, not the whole pack, keeps the good
+ * answers when one is shaky: on our photo sets it wrote over 3× as many correct
+ * Facts with no more wrong ones (docs/notes/model-field-notes.md). Capture Facts
+ * outrank OSM, so the bar favours precision.
+ */
+export const MIN_ANSWER_CONFIDENCE = 0.7;
 
 /**
  * Turn building-pack answers into Facts. Each Fact's confidence is the answer's

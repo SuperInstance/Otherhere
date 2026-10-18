@@ -28,6 +28,9 @@ export async function observeBuilding(
     state: seen.value,
     subject: input.featureId,
   });
-  const facts = result?.accepted ? buildingFacts(result.decision.answers, input) : [];
+  // Each field is gated on its own confidence (buildingFacts), so a shaky floor count
+  // does not throw away a confident roof. The Ladder still escalates on the pack's
+  // weakest answer, and returns its most confident answer when no rung clears the bar.
+  const facts = result ? buildingFacts(result.decision.answers, input) : [];
   return { observation: seen.value, visionCostUsd: seen.costUsd, result, facts };
 }

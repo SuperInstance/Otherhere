@@ -39,7 +39,7 @@ describe('JevProvider', () => {
     expect(r.costUsd).toBeCloseTo(0.4, 6);
     expect(fetch.calls[0]!.url).toBe('https://api.typesafe.ai/v1/systemone');
     const sent = JSON.parse(fetch.calls[0]!.init.body as string);
-    expect(sent).toMatchObject({ model: 'jev-latest', state: 'a house' });
+    expect(sent).toMatchObject({ model: 'jev-1.13.0', state: 'a house' });
     expect(Object.keys(sent.questions)).toEqual(Object.keys(BUILDING_PACK.questions));
     expect((fetch.calls[0]!.init.headers as Record<string, string>).authorization).toBe('Bearer k');
   });

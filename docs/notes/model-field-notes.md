@@ -16,7 +16,7 @@ _In code:_ `fitForJev` only scales up when a side is under 280.
 _In code:_ `JevRejected`; the Ladder logs `outcome: "refused"` and moves to the next rung.
 
 **Direct reads are steadier than describe-then-answer, but not perfectly steady.** Over two 3-run sets, Jev reading the photo moved by at most 1 answer; the describe-first path moved by 3–5. Scores near a threshold still flip occasionally (see ADR-0013), so one reading is a sample.
-_In code:_ only accepted answers become Facts; the Ladder never re-asks a rung to clear its bar.
+_In code:_ only confident fields become Facts; the Ladder never re-asks a rung to clear its bar.
 
 **Its remaining errors are systematic, not noise.** A confidence-weighted vote over three harmless views (original, mirrored, 90% centre crop) scored the same as a single read: dev 54 vs 54, held-out 26 vs 26. Every view made the same mistakes: floors off by one, and a bias toward "shed" for flat or gabled roofs.
 _In code:_ nothing. Self-consistency on one model doesn't fix systematic errors, so it isn't worth 3× the calls.
@@ -51,8 +51,57 @@ _In code:_ not adopted (no gain on the dev set). The lesson stands for any descr
 - **When models disagree with a label, re-examine it, but never flip it to their answer.** Three tuning labels (d07, d08, d10) were genuinely ambiguous and were removed (see `packages/models/tuning/photos/ATTRIBUTION.md`).
 - **Small sets mean ±1–2 answers of noise.** Run everything at least twice and treat differences of 1–2 as unresolved.
 
+## Round 2: what TypeSafe's docs and recent research said, tested
+
+Read in full: TypeSafe's Box, Images, Models, Choice and "Jev 1.13 jaggedness" pages, plus five 2026 papers and the community project lists (sources below). Each idea was then tested on both photo sets, two runs each, picking on dev (56 answers) and reporting held-out (31). The whole round cost about $0.10 at Jev's real price.
+
+| Variant (Jev reading the photo)                                                  | Dev        | Held-out |
+| -------------------------------------------------------------------------------- | ---------- | -------- |
+| V0: today's request, Jev 1.13                                                    | 54, 55     | 26, 26   |
+| V1: same on Jev 1.14                                                             | 53, 53     | 26, 27   |
+| V2: image under `photo` in the state, every question rewritten to point at it    | 48, 48     | 26, 26   |
+| V3: V2 on 1.14, floors counted in code from "at least N floors" yes/no questions | 48, 46     | 27, 26   |
+| V4: V2 on 1.14, both option orders, probabilities averaged                       | 48, 49     | 28, 27   |
+| V5: V2 on 1.14, a Box finds the building, attributes asked on the crop           | 47, 48     | 27, 27   |
+| V6: V0 asked in both option orders                                               | **55, 56** | 26, 26   |
+| V7: photo-native questions but the original `visible` wording                    | 54, 53     | 27, 27   |
+| V8: V7 in both option orders                                                     | 54, 54     | 27, 27   |
+| V9: V8 on Jev 1.14                                                               | 50, 50     | 25, 26   |
+
+**Jev 1.14 is worse than 1.13 on our photos,** in every pairing (V0/V1, V2, V8/V9). `jev-latest` points at 1.13 today but will move.
+_In code:_ requests pin `JEV_MODEL = 'jev-1.13.0'`.
+
+**The `visible` wording is fragile.** Every rewrite that referred to `photo` said "yes" to skylines, terraces and timber frames (V2–V5 lost 5–6 dev points, all on `visible`). The original wording, written for text, works best. This matches "JevOut" (natural context redirects decisions) and the docs' "literal reading" warning: small wording changes move a gate a lot, so change the gate only with an eval.
+
+**Counting in code, Box crops and option-order averaging helped on held-out but not on dev.** The docs say Jev "does not count reliably" and recommend counting in code. V4 removed both held-out floor errors, but none of these held up on dev. Not adopted; worth re-testing with a bigger dev set.
+
+**Readouts: the ordinal median of the floor probabilities scored the same as argmax (32/36).** The RLCD paper's "soft beats argmax" result is about ranking (AUROC), not about picking one label.
+
+**Gate each field, not the whole pack: the biggest win so far.** The paper reports that keeping only the most confident half of decisions raised accuracy from 0.79 to 0.93. Our Ladder gated the whole pack on its least confident answer, so one shaky floor count threw away three good answers. Replayed over all saved answers:
+
+| Gate                                            | Correct Facts | Wrong Facts |
+| ----------------------------------------------- | ------------- | ----------- |
+| Whole pack, minimum ≥ 0.7 (before)              | 19            | 4           |
+| Each field: confidence × P(visible) ≥ 0.7 (now) | 63            | 4           |
+| Each field at 0.55                              | 78            | 7           |
+
+No Facts were written for photos without a single building. The wrong ones that remain are confident (0.7–0.9), so they are Jev's systematic errors, not noise.
+_In code:_ `MIN_ANSWER_CONFIDENCE = 0.7`, and `observeBuilding` writes a field's Fact whenever that field clears it, accepted pack or not (ADR-0013 amendment).
+
+**Jev's real price is $0.042 per million input tokens, and output is free.** Our placeholder was $0.50, so earlier cost figures in this file and in ADR-0013 are about 12× too high.
+_In code:_ `JEV_PRICING` corrected.
+
+### From the research, not yet built
+
+- **Distilled rung.** Open decision models with the same `/v1/systemone` shape exist (StartLux-Decision, 0.8B–27B, with vision; weights are non-commercial). Jevstiller trains a local head on Jev's answers and answers locally only where it agrees. Both fit the brief's "distilled" Ladder rung, run as a Plugin job (ADR-0015).
+- **Answer caching** keyed by state hash (pg-jev, jevql): makes repeat readings reproducible and free.
+- **Per-question thresholds** fitted on labelled data (jevcal). Its authors warn that under about 100 labelled rows a fitted threshold is unreliable; our sets are 31 and 56, so 0.7 stays a single hand-picked bar.
+- **Name polarity** ("Type-safe is not error-free"): option names can override their definitions, worst with yes/no names. Our options are short descriptive names, which is the safer case; worth checking if a pack ever uses yes/no option names.
+
+Sources: [TypeSafe docs](https://docs.typesafe.ai/llms.txt) (Box, Images, Models, Jev 1.13 jaggedness); [Just Ask Jev (RLCD), arXiv 2609.29429](https://arxiv.org/html/2609.29429v1); [JevOut, arXiv 2609.30243](https://arxiv.org/html/2609.30243); [Type-safe is not error-free, arXiv 2609.26758](https://arxiv.org/abs/2609.26758); [ufakzeka-karar (order-invariant scoring), arXiv 2610.06744](https://arxiv.org/html/2610.06744v1); [StartLux-Decision](https://github.com/StartLuxLabs/Startlux-Decision); [awesome-typesafe-jev](https://github.com/AbdelStark/awesome-typesafe-jev).
+
 ## Keys and environment (2026-10-18)
 
 - Variable names changed mid-session: `TYPESAFE_AI_TOKEN` (was `TYPESAFEAI_KEY`), `CF_TOKEN`, `Z_AI_TOKEN`. Scripts read the new name and fall back to the old one.
 - Z.ai authenticates, but every model returns error 1113 "Insufficient balance or no resource package". The plan needs topping up before it can be used.
-- `GROQ_KEY` is gone from this environment, so describe-first experiments now use MiniMax-M3 for vision.
+- `GROQ_KEY` is gone from this environment, so describe-first experiments now use MiniMax-M3 for vision. A new Groq key is stored as `GROQ_TOKEN`; it reaches new sessions only.
