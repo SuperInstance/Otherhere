@@ -2,7 +2,6 @@ import {
   CircleGeometry,
   Color,
   DirectionalLight,
-  Fog,
   HemisphereLight,
   Mesh,
   MeshStandardNodeMaterial,
@@ -27,6 +26,7 @@ import {
   type SessionInfo,
   type Team,
 } from '@otherhere/core';
+import { createAtmosphere } from './atmosphere';
 import { World } from './world';
 import { Terrain, TERRAIN_ATTRIBUTION, type TerrainMode } from './terrain';
 import { SessionClient } from './net';
@@ -113,7 +113,8 @@ const backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBack
 
 const scene = new Scene();
 scene.background = new Color(SKY);
-scene.fog = new Fog(SKY, 80, 520);
+// Sky dome, valley mist and filmic tone mapping: a few ALU ops per pixel, no extra passes.
+const atmosphere = createAtmosphere(scene, renderer);
 scene.add(new HemisphereLight('#f6f2ea', '#b7ab92', 1.7));
 const sun = new DirectionalLight('#fff4e2', 1.9);
 sun.position.set(-0.45, 1, 0.3); // fixed: the same light on every device
@@ -619,12 +620,10 @@ if (!originCell) {
         lastStatus = now;
       }
     }
-    // Higher up, see further: the fog recedes as you rise.
-    const fog = scene.fog as Fog;
-    // With terrain there are mountains to see: push the fog out so they read as distance.
-    const reach = terrain?.active ? 4 : 1;
-    fog.near = (80 + walk.pose.y * 2) * reach;
-    fog.far = (520 + walk.pose.y * 6) * reach * 2;
+    // Higher up, see further; with terrain there are mountains to see, so the haze
+    // reaches much further and mist pools in the valleys.
+    atmosphere.setTerrain(!!terrain?.active);
+    atmosphere.update(camera.position);
     if (moved && now - lastHash > 400) {
       history.replaceState(null, '', formatPose(walk.pose));
       lastHash = now;
