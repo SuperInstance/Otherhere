@@ -8,7 +8,7 @@ How Otherhere runs in production and what to do when something goes wrong. One W
 
 ```sh
 pnpm install
-CLOUDFLARE_API_TOKEN=… CLOUDFLARE_ACCOUNT_ID=… pnpm deploy   # builds the client, then wrangler deploy
+CLOUDFLARE_API_TOKEN=… CLOUDFLARE_ACCOUNT_ID=… pnpm run deploy   # builds the client, then wrangler deploy
 ```
 
 The token needs, for your account, Workers Scripts edit, Workers R2 Storage edit and Account Settings read; and, for the `superinstance.dev` zone (the custom domain in `wrangler.jsonc`), Workers Routes edit, DNS edit and Zone read. Migrations for new Durable Object classes are listed in `apps/edge/wrangler.jsonc` and run on deploy; never edit or remove an existing migration tag.

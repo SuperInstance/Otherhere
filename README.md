@@ -68,7 +68,7 @@ Live at **https://otherhere.superinstance.dev**.
 The Worker serves both the client and the API. Deploying needs an R2 bucket named `otherhere-bundles`, which already exists in the account this was built against.
 
 ```sh
-CLOUDFLARE_API_TOKEN=... pnpm deploy
+CLOUDFLARE_API_TOKEN=... pnpm run deploy
 ```
 
 See [`docs/RUNBOOK.md`](docs/RUNBOOK.md) for secrets, limits, health checks, troubleshooting and rollback.
