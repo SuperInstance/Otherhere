@@ -62,6 +62,13 @@ type Source = 'api' | 'demo' | { capsule: Map<string, CapsuleCellInput> };
 
 const MAX_PARALLEL = 3;
 
+/** What the World needs from the terrain layer to stand Bundles on real ground. */
+export type Ground = {
+  readonly active: boolean;
+  heightAt(x: number, z: number): number;
+  ready(minX: number, minZ: number, maxX: number, maxZ: number): Promise<void>;
+};
+
 /**
  * Loads Bundles around the walker. Each Bundle is in its own Cell-centred frame;
  * here it is offset into one world frame centred on the starting Cell.
@@ -87,6 +94,7 @@ export class World {
     scene: Scene,
     readonly originCell: string,
     private source: Source = 'api',
+    private ground?: Ground,
   ) {
     this.frame = localFrame(cellCenter(originCell));
     scene.add(this.root);
@@ -216,6 +224,7 @@ export class World {
     });
     const c = this.frame.project(cellCenter(cell));
     group.position.set(c.e, 0, -c.n);
+    if (this.ground) await this.standOnGround(group, gltf.userData);
     for (const p of roadPoints) {
       p.x += c.e;
       p.z -= c.n;
@@ -256,6 +265,52 @@ export class World {
         },
         ingest === 'loading' ? 10_000 : 30_000,
       );
+    }
+  }
+
+  /**
+   * Bundles are built on flat ground (Derived = f(Facts), invariant 1); the terrain is a
+   * display layer from public elevation data. After the hash is checked, each Feature is
+   * moved onto it: anything with height (a building) as one rigid piece onto the lowest
+   * ground under it, so floors stay level; flat things (roads, paths) per vertex. The
+   * Cell's flat ground hexagon is collapsed: the terrain is the ground now.
+   */
+  private async standOnGround(group: Group, userData: Record<string, unknown>) {
+    const g = this.ground!;
+    const o = group.position;
+    group.updateMatrixWorld();
+    const meshes = group.children.filter((m) => (m as Mesh).isMesh) as Mesh[];
+    for (const m of meshes) m.geometry.computeBoundingBox();
+    const box = meshes[0]?.geometry.boundingBox;
+    if (!box) return;
+    await g.ready(o.x + box.min.x, o.z + box.min.z, o.x + box.max.x, o.z + box.max.z);
+    if (!g.active) return;
+    const ranges =
+      (userData as { otherhere?: { features?: { first: number; count: number }[] } }).otherhere
+        ?.features ?? [];
+    for (const m of meshes) {
+      const pos = m.geometry.getAttribute('position');
+      const groundAt = (i: number) => g.heightAt(o.x + pos.getX(i), o.z + pos.getZ(i));
+      const first = ranges[0]?.first ?? pos.count;
+      for (let i = 0; i < first; i++) pos.setXYZ(i, 0, -1000, 0);
+      for (const r of ranges) {
+        let [lo, hi, floor] = [Infinity, -Infinity, Infinity];
+        for (let i = r.first; i < r.first + r.count; i++) {
+          lo = Math.min(lo, pos.getY(i));
+          hi = Math.max(hi, pos.getY(i));
+          floor = Math.min(floor, groundAt(i));
+        }
+        if (hi - lo > 1.5) {
+          // Sink a little so the downhill side has no visible gap under it.
+          for (let i = r.first; i < r.first + r.count; i++) pos.setY(i, pos.getY(i) + floor - 0.3);
+        } else {
+          for (let i = r.first; i < r.first + r.count; i++)
+            pos.setY(i, pos.getY(i) + groundAt(i) + 0.15);
+        }
+      }
+      pos.needsUpdate = true;
+      m.geometry.computeBoundingBox();
+      m.geometry.computeBoundingSphere();
     }
   }
 
@@ -342,7 +397,8 @@ export class World {
       const a = (deg * Math.PI) / 180;
       const dx = dir.x * Math.cos(a) - dir.z * Math.sin(a);
       const dz = dir.x * Math.sin(a) + dir.z * Math.cos(a);
-      ray.set(new Vector3(x, 1.6, z), new Vector3(dx, 0, dz).normalize());
+      const eye = (this.ground?.active ? this.ground.heightAt(x, z) : 0) + 1.6;
+      ray.set(new Vector3(x, eye, z), new Vector3(dx, 0, dz).normalize());
       for (const hit of ray.intersectObject(this.root, true)) {
         const cell = hit.object.parent?.name;
         const s = cell ? this.cells.get(cell) : undefined;

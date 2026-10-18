@@ -22,6 +22,10 @@ export interface Env {
   OVERPASS_ENDPOINTS: string;
   /** Nominatim search endpoint; set only to point tests or a mirror elsewhere. */
   NOMINATIM_URL?: string;
+  /** Override the map tile sources (tests point them at nothing, so the client falls back to flat). */
+  ELEVATION_TILES_URL?: string;
+  SATELLITE_TILES_URL?: string;
+  TILE_LIMIT?: RateLimit;
   /** Address lookups (Nominatim asks clients to keep requests low). */
   GEOCODE_LIMIT?: RateLimit;
   /** 'true' only under `wrangler dev`. */

@@ -28,6 +28,7 @@ import {
   type Team,
 } from '@otherhere/core';
 import { World } from './world';
+import { Terrain, TERRAIN_ATTRIBUTION, type TerrainMode } from './terrain';
 import { SessionClient } from './net';
 import { describeEvent, MatchView, TEAM_NAMES } from './match';
 import { describeFacts, photoToJpegBase64, questLine, questsDone } from './feature';
@@ -101,7 +102,8 @@ $('locate').addEventListener('click', () => {
 $('demo').addEventListener('click', () => location.assign('?demo=generators'));
 
 // --- Scene ---------------------------------------------------------------------
-const renderer = new WebGPURenderer({ canvas, antialias: true });
+// A logarithmic depth buffer keeps roads on hillsides and mountains 20 km away both crisp.
+const renderer = new WebGPURenderer({ canvas, antialias: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 await renderer.init();
@@ -124,7 +126,7 @@ ground.rotation.x = -Math.PI / 2;
 ground.position.y = -0.05;
 scene.add(ground);
 
-const camera = new PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 3000);
+const camera = new PerspectiveCamera(70, innerWidth / innerHeight, 0.3, 40_000);
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
@@ -185,10 +187,18 @@ if (!originCell) {
   camera.position.set(0, 40, 80);
   camera.lookAt(0, 0, 0);
 } else {
+  // Real places stand on real ground; the generator demo stays on its flat test lot.
+  const mapParam = new URLSearchParams(location.search).get('map');
+  const terrain = isDemo
+    ? null
+    : new Terrain(scene, localFrame(cellCenter(originCell)), {
+        mode: mapParam === 'satellite' ? 'satellite' : 'topo',
+      });
   const world = new World(
     scene,
     originCell,
     isDemo ? 'demo' : capsule ? { capsule: capsuleBundleInputs(capsule) } : 'api',
+    terrain ?? undefined,
   );
   const pose = capsule?.view?.pose;
   const saved =
@@ -205,6 +215,14 @@ if (!originCell) {
       : { x: startAt.e, y: 1.7, z: -startAt.n, yaw: 0, pitch: 0 });
   spawned ||= isDemo;
   const walk = new WalkControls(camera, canvas, initial);
+  if (terrain) {
+    walk.groundAt = (x, z) => terrain.heightAt(x, z);
+    addEventListener('keydown', (e) => {
+      if (e.code !== 'KeyM' || e.target instanceof HTMLInputElement) return;
+      terrain.mode = terrain.mode === 'topo' ? 'satellite' : ('topo' satisfies TerrainMode);
+      showStatus();
+    });
+  }
 
   const showStatus = () => {
     const s = world.stats();
@@ -212,6 +230,8 @@ if (!originCell) {
       `${backend} · ${s.ready} cell${s.ready === 1 ? '' : 's'}${s.loading ? ` (+${s.loading} loading)` : ''} · ${s.features.toLocaleString()} features`,
       `${s.verified}/${s.ready} bundle hashes verified${s.mismatched ? ` · ${s.mismatched} MISMATCHED` : ''}`,
     ];
+    if (terrain?.active)
+      lines.push(`${terrain.mode === 'topo' ? 'Topographic' : 'Satellite'} (M to switch) · ${TERRAIN_ATTRIBUTION[terrain.mode]}`);
     if (s.sketch) {
       const are = s.sketch === 1 ? '1 cell is' : `${s.sketch} cells are`;
       lines.push(`${are} still a sketch: waiting for OpenStreetMap, trying again shortly.`);
@@ -573,6 +593,11 @@ if (!originCell) {
     last = now;
     const moved = walk.update(dt);
     world.update(walk.pose.x, walk.pose.z);
+    terrain?.update(camera.position.x, camera.position.y, camera.position.z);
+    if (terrain?.active && ground.visible) {
+      ground.visible = false; // the terrain and the sea replace the paper disc
+      showStatus();
+    }
     if (session?.me && matchView) {
       session.sendPose(walk.pose.x, walk.pose.z, walk.pose.yaw, now);
       matchView.update(
@@ -587,8 +612,10 @@ if (!originCell) {
     }
     // Higher up, see further: the fog recedes as you rise.
     const fog = scene.fog as Fog;
-    fog.near = 80 + walk.pose.y * 2;
-    fog.far = 520 + walk.pose.y * 6;
+    // With terrain there are mountains to see: push the fog out so they read as distance.
+    const reach = terrain?.active ? 4 : 1;
+    fog.near = (80 + walk.pose.y * 2) * reach;
+    fog.far = (520 + walk.pose.y * 6) * reach * 2;
     if (moved && now - lastHash > 400) {
       history.replaceState(null, '', formatPose(walk.pose));
       lastHash = now;

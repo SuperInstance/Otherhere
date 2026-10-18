@@ -36,3 +36,13 @@ describe('geocode', () => {
     expect(((await down.json()) as { error: string }).error).toContain('use coordinates');
   });
 });
+
+describe('map tiles', () => {
+  it('accepts only real tile addresses, and fails softly when the source is unreachable', async () => {
+    for (const bad of ['elev/16/0/0.png', 'elev/2/4/0.png', 'sat/3/1/1.png', 'elev/x/1/1.png'])
+      expect((await SELF.fetch(`https://x/api/tiles/${bad}`)).status).toBe(404);
+    // Tests point both tile sources at a closed port: the client then stays flat.
+    const down = await SELF.fetch('https://x/api/tiles/elev/12/655/1149.png');
+    expect(down.status).toBe(502);
+  });
+});
