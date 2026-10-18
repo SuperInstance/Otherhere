@@ -33,6 +33,24 @@ With preprocessing for B (centre-crop to at most 2:1, upscale so the short side 
 | 2, crop only        | 67.7%           | 67.7% (panorama still rejected: too small) |
 | 3, crop + upscale   | 83.9%           | 83.9%                                      |
 
-B gave the same answers on every run for the images it accepted. A swings between 68% and 84% because the vision model's observation text varies from run to run. B is also about 10% cheaper and one network hop shorter.
+Those three rows changed the preprocessing and the run at the same time, and A saw the raw photo while B saw the crop, so they could not separate a crop effect from a path effect.
 
-**Open decision for the owner:** A remains the default as accepted. The evidence now favours trying B first (it is consistent, cheaper, and as accurate) and falling back to A when B is unsure. That would change the default this ADR accepted, so it needs an explicit decision.
+### Like-for-like re-run (3 runs per column)
+
+Each pipeline ran on the raw photo and on the same preprocessed bytes. Rows count correct field-answers out of 31. "Stable" means a photo got the same answers on all three runs. Reproduce with `RUNS=3 pnpm --filter @otherhere/judge photos`.
+
+| Column          | Runs     | Mean  | Spread | Stable photos | Refused | $/run  |
+| --------------- | -------- | ----- | ------ | ------------- | ------- | ------ |
+| A, raw photo    | 26 21 26 | 78.5% | 5      | 2/10          | none    | $0.011 |
+| A, preprocessed | 23 22 25 | 75.3% | 3      | 2/10          | none    | $0.011 |
+| B, raw photo    | 21 21 21 | 67.7% | 0      | 9/10          | p03     | $0.009 |
+| B, preprocessed | 26 26 26 | 83.9% | 0      | 10/10         | none    | $0.010 |
+
+What this does and does not show:
+
+- **Reproducibility is the solid finding.** B returned identical answers on every run. A's answers changed on 8 of 10 photos, because the vision model's observation text varies and Jev faithfully follows it. This is a difference in kind and needs no larger sample: a reproducible answer can be cached, diffed and re-derived.
+- **Preprocessing only buys B coverage.** On the nine photos B accepts raw, raw and preprocessed B score the same (21/26). The whole raw-vs-preprocessed gap is p03, the 2.5:1 panorama B refuses raw. For A, the raw-vs-preprocessed difference (78.5% vs 75.3%) is smaller than A's own run-to-run spread, so no crop effect is visible.
+- **Accuracy is unresolved.** A ranges 21–26 of 31 across runs; B sits at 26, A's best. The gap is no larger than A's noise. 31 field-answers is a smoke test, not a comparison; more photos are needed to rank them on accuracy.
+- **Coverage on real input is unknown.** Raw B refused 1 of 10 photos here (refusals are scored zero, and now surface as `JevRejected`). Preprocessing removed that, but the refusal rate on a real capture feed is what decides whether B can be the default, and it has not been measured.
+
+**Open decision for the owner:** A remains the default as accepted. The case for B-first is reproducibility and cost, not accuracy. B-first would preprocess the photo, ask Jev directly, and fall back to A on `JevRejected` or low confidence. Changing the default this ADR accepted needs an explicit decision, ideally after measuring B's refusal rate on real captures.

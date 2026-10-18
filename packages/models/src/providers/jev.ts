@@ -6,6 +6,21 @@ export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 /** Placeholder pricing until TypeSafe publishes rates; override in config. Output is free. */
 export const JEV_PRICING: Pricing = { inputPerM: 0.5, outputPerM: 0 };
 
+/**
+ * Jev declined the input itself (a 4xx other than auth or rate limiting), e.g.
+ * "Invalid image dimensions". Callers can fall back to another rung on this,
+ * unlike a transport or budget failure.
+ */
+export class JevRejected extends Error {
+  constructor(
+    readonly status: number,
+    readonly detail: string,
+  ) {
+    super(`jev: rejected (HTTP ${status}) ${detail}`);
+    this.name = 'JevRejected';
+  }
+}
+
 /** TypeSafe Jev: typed answers to a question pack about some state (ADR-0013). */
 export class JevProvider {
   readonly id = 'jev';
@@ -63,7 +78,13 @@ export class JevProvider {
           body,
         },
       );
-      if (!res.ok) throw new Error(`jev: HTTP ${res.status} ${(await res.text()).slice(0, 300)}`);
+      if (!res.ok) {
+        const detail = (await res.text()).slice(0, 300);
+        if (res.status >= 400 && res.status < 500 && ![401, 403, 429].includes(res.status)) {
+          throw new JevRejected(res.status, detail);
+        }
+        throw new Error(`jev: HTTP ${res.status} ${detail}`);
+      }
       const json = (await res.json()) as {
         model: string;
         answers: Record<string, unknown>;

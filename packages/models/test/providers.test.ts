@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDING_PACK } from '@otherhere/core';
 import { MemoryLedger, ModelRouter } from '../src/router';
-import { JevProvider } from '../src/providers/jev';
+import { JevProvider, JevRejected } from '../src/providers/jev';
 import { ChatProvider, stripThinking } from '../src/providers/chat';
 
 const router = () =>
@@ -69,6 +69,20 @@ describe('JevProvider', () => {
       fetch: fakeFetch({ detail: 'nope' }, 422),
     });
     await expect(jev.ask(BUILDING_PACK, 'x')).rejects.toThrow(/HTTP 422/);
+  });
+
+  it('marks an input Jev declines as a rejection, but not auth or rate limits', async () => {
+    const declined = new JevProvider(router(), {
+      apiKey: 'k',
+      fetch: fakeFetch({ detail: 'Invalid image dimensions' }, 400),
+    });
+    await expect(declined.askAboutImage(BUILDING_PACK, 'AAAA', 'p')).rejects.toBeInstanceOf(
+      JevRejected,
+    );
+    const limited = new JevProvider(router(), { apiKey: 'k', fetch: fakeFetch({}, 429) });
+    const err = await limited.ask(BUILDING_PACK, 'x').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(JevRejected);
   });
 });
 
