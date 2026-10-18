@@ -63,6 +63,8 @@ Bundles are a pure function of Facts and generator versions (invariants 1 and 2)
 
 ## Deploy
 
+Live at **https://otherhere.superinstance.dev**.
+
 The Worker serves both the client and the API. Deploying needs an R2 bucket named `otherhere-bundles`, which already exists in the account this was built against.
 
 ```sh

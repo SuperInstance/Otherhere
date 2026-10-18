@@ -4,6 +4,10 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
+  // Served at otherhere.superinstance.dev (Cloudflare creates the DNS record and certificate).
+  // The workers.dev address stays on as a fallback.
+  "routes": [{ "pattern": "otherhere.superinstance.dev", "custom_domain": true }],
+  "workers_dev": true,
   // The client is served as static assets; the Worker only handles /api/*.
   "assets": {
     "directory": "../client/dist",
