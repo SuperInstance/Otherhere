@@ -1,5 +1,5 @@
 // Live smoke test of the real providers (spends real money, a fraction of a cent).
-// Never run in CI. Usage: GROQ_KEY=… TYPESAFEAI_KEY=… pnpm --filter @otherhere/models smoke <image.(png|jpg)>
+// Never run in CI. Usage: GROQ_KEY=… TYPESAFE_AI_TOKEN=… pnpm --filter @otherhere/models smoke <image.(png|jpg)>
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import type { DecisionLog } from '@otherhere/core';
@@ -15,8 +15,9 @@ import {
 } from '../src/index';
 
 const path = process.argv[2];
-if (!path || !process.env.GROQ_KEY || !process.env.TYPESAFEAI_KEY) {
-  console.error('usage: GROQ_KEY=… TYPESAFEAI_KEY=… [MINIMAX_KEY=…] smoke <image>');
+const jevKey = process.env.TYPESAFE_AI_TOKEN ?? process.env.TYPESAFEAI_KEY;
+if (!path || !process.env.GROQ_KEY || !jevKey) {
+  console.error('usage: GROQ_KEY=… TYPESAFE_AI_TOKEN=… [MINIMAX_KEY=…] smoke <image>');
   process.exit(1);
 }
 // Send a JPEG; convert with Python/Pillow if given something else.
@@ -32,7 +33,13 @@ const jpeg = path.endsWith('.jpg')
 const ledger = new MemoryLedger();
 const router = new ModelRouter({ caps: { groq: 0.1, jev: 0.1, minimax: 0.1 }, ledger });
 const vision = new ChatProvider(router, 'groq', { apiKey: process.env.GROQ_KEY });
-const rungs = [jevRung(new JevProvider(router, { apiKey: process.env.TYPESAFEAI_KEY }))];
+const rungs = [
+  jevRung(
+    new JevProvider(router, {
+      apiKey: jevKey,
+    }),
+  ),
+];
 if (process.env.MINIMAX_KEY)
   rungs.push(
     llmRung(

@@ -1,4 +1,10 @@
-import { ROOF_COLOURS, WALL_COLOURS, type Quest, type ResolvedAttrs } from '@otherhere/core';
+import {
+  fitForJev,
+  ROOF_COLOURS,
+  WALL_COLOURS,
+  type Quest,
+  type ResolvedAttrs,
+} from '@otherhere/core';
 
 const SOURCE_NAMES: Record<string, string> = {
   osm: 'OpenStreetMap',
@@ -42,14 +48,26 @@ export function describeFacts(attrs: ResolvedAttrs): string[] {
   return lines;
 }
 
-/** Downscale a photo on the device before it leaves it: max 1280 px, JPEG. Returns base64. */
+/**
+ * How to draw a `width`×`height` source so it leaves the device small (long side at
+ * most `max`) and is still a size Jev accepts (every side 280–1568 px): a centred
+ * source rectangle and the output size. Only extreme panoramas lose their edges.
+ */
+export function sendSize(width: number, height: number, max = 1280) {
+  const k = Math.min(1, max / Math.max(width, height));
+  const f = fitForJev(Math.round(width * k), Math.round(height * k));
+  const [sw, sh] = [f.crop.width / k, f.crop.height / k];
+  return { sx: (width - sw) / 2, sy: (height - sh) / 2, sw, sh, width: f.width, height: f.height };
+}
+
+/** Prepare a photo on the device before it leaves it (see `sendSize`), as base64 JPEG. */
 export async function photoToJpegBase64(file: File, max = 1280): Promise<string> {
   const bitmap = await createImageBitmap(file);
-  const k = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+  const s = sendSize(bitmap.width, bitmap.height, max);
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(bitmap.width * k);
-  canvas.height = Math.round(bitmap.height * k);
-  canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  canvas.width = s.width;
+  canvas.height = s.height;
+  canvas.getContext('2d')!.drawImage(bitmap, s.sx, s.sy, s.sw, s.sh, 0, 0, s.width, s.height);
   const blob = await new Promise<Blob>((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('encode failed'))), 'image/jpeg', 0.85),
   );

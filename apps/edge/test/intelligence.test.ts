@@ -67,11 +67,16 @@ describe('photo → Facts', () => {
     const id = await aBuilding();
     await observe(id, { cell: CELL, image: '/9j/AAAA' });
     const decisions = (await (await ops('decisions?limit=5')).json()) as DecisionLog[];
-    expect(decisions[0]).toMatchObject({
+    // Two decisions per photo: the Ladder's answers and the visibility gate's.
+    expect(decisions.find((d) => d.pack === 'pack.building')).toMatchObject({
       subject: id,
       rung: 'jev',
       outcome: 'accepted',
-      pack: 'pack.building',
+    });
+    expect(decisions.find((d) => d.pack === 'pack.building.visible')).toMatchObject({
+      subject: id,
+      rung: 'jev',
+      outcome: 'accepted',
     });
     const spend = (await (await ops('spend')).json()) as Record<string, number>;
     expect(spend.groq).toBeGreaterThan(0);

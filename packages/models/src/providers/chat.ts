@@ -1,4 +1,4 @@
-import type { ModelRouter, Pricing, Priced } from '../router';
+import { failedResponse, type ModelRouter, type Pricing, type Priced } from '../router';
 import type { FetchLike } from './jev';
 
 export type ChatMessage = {
@@ -21,8 +21,15 @@ export const CHAT_DEFAULTS = {
   },
 } as const;
 
-/** Reasoning models may prefix their answer with a <think> block; we keep only the answer. */
-export const stripThinking = (s: string) => s.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+/**
+ * Reasoning models may prefix their answer with a <think> block; we keep only the answer.
+ * A block left open (the reply ran out of tokens while thinking) leaves no answer at all.
+ */
+export const stripThinking = (s: string) =>
+  s
+    .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .replace(/<think>[\s\S]*$/, '')
+    .trim();
 
 /**
  * An OpenAI-compatible chat endpoint (Groq, MiniMax). Used as the vision rung
@@ -70,8 +77,7 @@ export class ChatProvider {
           }),
         },
       );
-      if (!res.ok)
-        throw new Error(`${this.id}: HTTP ${res.status} ${(await res.text()).slice(0, 300)}`);
+      if (!res.ok) await failedResponse(this.id, res);
       const json = (await res.json()) as {
         model: string;
         choices: { message: { content: string } }[];

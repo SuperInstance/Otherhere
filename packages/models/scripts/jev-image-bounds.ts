@@ -1,7 +1,7 @@
 // Map which image sizes Jev's direct-image path accepts (ADR-0013), using one
 // real photo resized to a grid of short sides and aspect ratios, both orientations.
 // Spends real money, but little: one single-question call per size (~$0.0005 each).
-// Usage: TYPESAFEAI_KEY=… pnpm --filter @otherhere/models exec tsx scripts/jev-image-bounds.ts <photo.jpg>
+// Usage: TYPESAFE_AI_TOKEN=… pnpm --filter @otherhere/models exec tsx scripts/jev-image-bounds.ts <photo.jpg>
 import { execFileSync } from 'node:child_process';
 import type { QuestionPack } from '@otherhere/core';
 import { JevProvider, JevRejected, MemoryLedger, ModelRouter } from '../src/index';
@@ -9,7 +9,9 @@ import { JevProvider, JevRejected, MemoryLedger, ModelRouter } from '../src/inde
 const photo = process.argv[2];
 if (!photo) throw new Error('usage: jev-image-bounds.ts <photo.jpg>');
 const router = new ModelRouter({ caps: { jev: 1 }, ledger: new MemoryLedger() });
-const jev = new JevProvider(router, { apiKey: process.env.TYPESAFEAI_KEY ?? '' });
+const jev = new JevProvider(router, {
+  apiKey: process.env.TYPESAFE_AI_TOKEN ?? process.env.TYPESAFEAI_KEY ?? '',
+});
 const PACK: QuestionPack = {
   id: 'probe',
   version: '1',

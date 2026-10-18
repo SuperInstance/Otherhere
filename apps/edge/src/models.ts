@@ -15,7 +15,13 @@ import { opsLedger, opsStub } from './ops';
 /** Daily USD caps per provider. Conservative defaults; override with the MODEL_CAPS_USD var. */
 const DEFAULT_CAPS = { jev: 1, groq: 1, minimax: 1, claude: 2 };
 
-export type Models = { vision: ChatProvider; ladder: Ladder; claude: ClaudeProvider | null };
+export type Models = {
+  vision: ChatProvider;
+  ladder: Ladder;
+  claude: ClaudeProvider | null;
+  /** Jev reading the photo itself, only to decide whether it shows one building. */
+  gate?: JevProvider;
+};
 
 /**
  * Build the model stack for one request, or null if no vision provider is
@@ -42,13 +48,17 @@ export function makeModels(env: Env): Models | null {
   const vision = keys.GROQ_KEY
     ? new ChatProvider(router, 'groq', { apiKey: keys.GROQ_KEY, fetch })
     : keys.MINIMAX_KEY
-      ? new ChatProvider(router, 'minimax', { apiKey: keys.MINIMAX_KEY, fetch, maxTokens: 2000 })
+      ? // MiniMax-M3 reads images. It reasons before answering, so leave room: a reply cut
+        // off mid-thought has no description at all.
+        new ChatProvider(router, 'minimax', { apiKey: keys.MINIMAX_KEY, fetch, maxTokens: 4000 })
       : null;
   if (!vision) return null;
 
   const rungs: LadderRung[] = [];
-  if (keys.TYPESAFE_KEY)
-    rungs.push(jevRung(new JevProvider(router, { apiKey: keys.TYPESAFE_KEY, fetch })));
+  const jev = keys.TYPESAFE_KEY
+    ? new JevProvider(router, { apiKey: keys.TYPESAFE_KEY, fetch })
+    : undefined;
+  if (jev) rungs.push(jevRung(jev));
   if (keys.MINIMAX_KEY)
     rungs.push(
       llmRung(
@@ -62,7 +72,12 @@ export function makeModels(env: Env): Models | null {
   if (!rungs.length) return null;
 
   const ops = opsStub(env);
-  return { vision, ladder: new Ladder(rungs, { log: (d) => ops.logDecision(d) }), claude };
+  return {
+    vision,
+    ladder: new Ladder(rungs, { log: (d) => ops.logDecision(d) }),
+    claude,
+    ...(jev ? { gate: jev } : {}),
+  };
 }
 
 /** Canned provider responses for tests and offline development (MODEL_FAKE=true). */

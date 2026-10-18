@@ -8,7 +8,7 @@ import {
   type LadderRung,
   type Rung,
 } from '@otherhere/core';
-import { BudgetExceeded } from './router';
+import { BudgetExceeded, ProviderUnavailable } from './router';
 import { JevRejected, type JevProvider } from './providers/jev';
 import type { ChatProvider } from './providers/chat';
 import type { ClaudeProvider } from './providers/claude';
@@ -53,7 +53,7 @@ export class Ladder {
         await this.opts.log({
           ...base,
           outcome:
-            err instanceof BudgetExceeded
+            err instanceof BudgetExceeded || err instanceof ProviderUnavailable
               ? 'unavailable'
               : err instanceof JevRejected
                 ? 'refused'

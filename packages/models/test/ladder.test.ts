@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { BUILDING_PACK, type Answers, type DecisionLog, type LadderRung } from '@otherhere/core';
 import { Ladder, humanRung, llmRung, ruleRung } from '../src/ladder';
 import { observeBuilding } from '../src/observe';
-import { BudgetExceeded, MemoryLedger, ModelRouter } from '../src/router';
+import { BudgetExceeded, MemoryLedger, ModelRouter, ProviderUnavailable } from '../src/router';
 import { ChatProvider } from '../src/providers/chat';
-import { JevRejected } from '../src/providers/jev';
+import { JevProvider, JevRejected } from '../src/providers/jev';
 
 const sure: Answers = {
   visible: { type: 'noul', noul: 0.98 },
@@ -82,6 +82,20 @@ describe('Ladder', () => {
     ]);
   });
 
+  it('skips a rate-limited rung as unavailable', async () => {
+    const logs: DecisionLog[] = [];
+    const limited: LadderRung = {
+      rung: 'minimax',
+      decide: () =>
+        Promise.reject(new ProviderUnavailable('minimax', 429, 'Token Plan rate limit')),
+    };
+    const r = await new Ladder([limited, fixed('claude', sure)], {
+      log: (d) => void logs.push(d),
+    }).decide(req);
+    expect(r?.rung).toBe('claude');
+    expect(logs[0]).toMatchObject({ rung: 'minimax', outcome: 'unavailable' });
+  });
+
   it('turns unanswerable questions into quests for people', async () => {
     const quests: string[] = [];
     await new Ladder([humanRung((r) => void quests.push(r.subject))], { log: () => {} }).decide(
@@ -154,5 +168,87 @@ describe('observeBuilding', () => {
       'roof.shape',
     ]);
     expect(r.facts.every((f) => f.source === 'capture')).toBe(true);
+  });
+});
+
+describe('observeBuilding field gating', () => {
+  it('keeps confident fields even when one answer is unsure', async () => {
+    const router = new ModelRouter({ caps: { groq: 1 }, ledger: new MemoryLedger() });
+    const vision = new ChatProvider(router, 'groq', {
+      apiKey: 'k',
+      fetch: async () =>
+        Response.json({
+          model: 'm',
+          choices: [{ message: { content: 'A brick house.' } }],
+          usage: { prompt_tokens: 10, completion_tokens: 5 },
+        }),
+    });
+    const ladder = new Ladder([fixed('jev', unsure)], { log: () => {} });
+    const r = await observeBuilding(
+      {
+        jpegBase64: 'AAAA',
+        featureId: 'osm:w1',
+        source: 'capture',
+        observedAt: '2026-10-17T00:00:00.000Z',
+      },
+      { vision, ladder },
+    );
+    expect(r.result?.accepted).toBe(false);
+    // The unsure roof (0.4) is dropped; floors, walls and roof colour are kept.
+    expect(r.facts.map((f) => f.attribute).sort()).toEqual(['colour', 'levels', 'roof.colour']);
+  });
+});
+
+describe('observeBuilding visibility gate', () => {
+  const router = () => new ModelRouter({ caps: { groq: 1, jev: 1 }, ledger: new MemoryLedger() });
+  // A vision model that always finds "the building nearest the centre".
+  const vision = (r: ModelRouter) =>
+    new ChatProvider(r, 'groq', {
+      apiKey: 'k',
+      fetch: async () =>
+        Response.json({
+          model: 'm',
+          choices: [{ message: { content: 'A two-storey brick house with a gable roof.' } }],
+          usage: { prompt_tokens: 10, completion_tokens: 5 },
+        }),
+    });
+  const gate = (r: ModelRouter, response: Response) =>
+    new JevProvider(r, { apiKey: 'k', fetch: async () => response.clone() });
+  const input = {
+    jpegBase64: 'AAAA',
+    featureId: 'osm:w1',
+    source: 'capture' as const,
+    observedAt: '2026-10-17T00:00:00.000Z',
+  };
+
+  it("Jev reading the photo overrules the vision model's building", async () => {
+    const r = router();
+    const noBuilding = Response.json({
+      model: 'jev-1.13.0',
+      answers: { visible: { type: 'noul', noul: 0.04 } },
+      usage: { input_tokens: 300, output_tokens: 1 },
+    });
+    const obs = await observeBuilding(input, {
+      vision: vision(r),
+      ladder: new Ladder([fixed('jev', sure)], { log: () => {} }),
+      gate: gate(r, noBuilding),
+    });
+    expect(obs.gate).toMatchObject({ noul: 0.04 });
+    expect(obs.facts).toEqual([]);
+    // Sure enough that the vision call was never made.
+    expect(obs.visionCostUsd).toBe(0);
+    expect(obs.result).toBeNull();
+  });
+
+  it('falls back to the observation when Jev refuses the image', async () => {
+    const r = router();
+    const refused = Response.json({ detail: 'Invalid image dimensions.' }, { status: 400 });
+    const obs = await observeBuilding(input, {
+      vision: vision(r),
+      ladder: new Ladder([fixed('jev', sure)], { log: () => {} }),
+      gate: gate(r, refused),
+    });
+    expect(obs.gate).toMatchObject({ skipped: 'refused' });
+    expect(obs.facts.length).toBe(4);
   });
 });

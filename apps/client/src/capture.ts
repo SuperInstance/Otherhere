@@ -1,6 +1,7 @@
 import { parseGpx, poseAt, sampleTimes, type TrackPoint } from '@otherhere/core';
 import type { World } from './world';
 import type { Pose } from './url';
+import { sendSize } from './feature';
 
 export type WalkProgress = {
   done: number;
@@ -26,17 +27,17 @@ export async function* videoFrames(
       video.onloadeddata = () => resolve();
       video.onerror = () => reject(new Error('This video format cannot be read by the browser.'));
     });
-    const k = Math.min(1, max / Math.max(video.videoWidth, video.videoHeight));
+    const s = sendSize(video.videoWidth, video.videoHeight, max);
     const canvas = document.createElement('canvas');
-    canvas.width = Math.round(video.videoWidth * k);
-    canvas.height = Math.round(video.videoHeight * k);
+    canvas.width = s.width;
+    canvas.height = s.height;
     const ctx = canvas.getContext('2d')!;
     for (const t of times) {
       await new Promise<void>((resolve) => {
         video.onseeked = () => resolve();
         video.currentTime = Math.min(t, Math.max(0, video.duration - 0.05));
       });
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, s.sx, s.sy, s.sw, s.sh, 0, 0, s.width, s.height);
       const url = canvas.toDataURL('image/jpeg', 0.85);
       yield { t, jpeg: url.slice(url.indexOf(',') + 1) };
     }

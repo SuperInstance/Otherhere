@@ -34,5 +34,6 @@ export * from './capsule/place';
 export * from './packs/building';
 export * from './essence/compute';
 export * from './capture/track';
+export * from './capture/image';
 export * from './schema/agent';
 export * from './quests/derive';

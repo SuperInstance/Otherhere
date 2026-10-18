@@ -1,34 +1,20 @@
 import { Answer, type Answers, type QuestionPack } from '@otherhere/core';
-import type { ModelRouter, Pricing, Priced } from '../router';
+import { ProviderUnavailable, type ModelRouter, type Pricing, type Priced } from '../router';
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
-/** Placeholder pricing until TypeSafe publishes rates; override in config. Output is free. */
-export const JEV_PRICING: Pricing = { inputPerM: 0.5, outputPerM: 0 };
-
-/** Jev's direct-image path accepts an image when every side is in this range, at any aspect (measured 2026-10-18). */
-export const JEV_IMAGE_SIDE = { min: 280, max: 1568 } as const;
+/** TypeSafe's published price (2026-10): $0.042 per million input tokens; output is free. */
+export const JEV_PRICING: Pricing = { inputPerM: 0.042, outputPerM: 0 };
 
 /**
- * The smallest change that makes a `width`×`height` image acceptable to Jev:
- * scale it so every side fits {@link JEV_IMAGE_SIDE}, centre-cropping the long
- * side first only if the image is more elongated than max/min (5.6:1).
+ * Pinned, not `jev-latest`: the alias moves when a release ships, and on our photo
+ * sets jev-1.14.0 scored below jev-1.13.0 (docs/notes/model-field-notes.md). Move
+ * the pin after re-running the photo eval on the new version.
  */
-export function fitForJev(
-  width: number,
-  height: number,
-): { crop: { width: number; height: number }; width: number; height: number } {
-  const { min, max } = JEV_IMAGE_SIDE;
-  const short = Math.min(width, height);
-  const long = Math.max(width, height);
-  const keptLong = Math.min(long, Math.floor((short * max) / min));
-  const crop = width >= height ? { width: keptLong, height } : { width, height: keptLong };
-  let k = 1;
-  if (short < min) k = min / short;
-  if (keptLong * k > max) k = max / keptLong;
-  const fit = (n: number) => Math.min(max, Math.max(min, Math.round(n * k)));
-  return { crop, width: fit(crop.width), height: fit(crop.height) };
-}
+export const JEV_MODEL = 'jev-1.13.0';
+
+// Image sizing lives in core so the client can fit photos before sending them.
+export { JEV_IMAGE_SIDE, fitForJev } from '@otherhere/core';
 
 /**
  * Jev declined the input itself (a 4xx other than auth or rate limiting), e.g.
@@ -61,7 +47,7 @@ export class JevProvider {
 
   async ask(pack: QuestionPack, state: unknown): Promise<Priced<Answers>> {
     return this.post(
-      JSON.stringify({ model: this.opts.model ?? 'jev-latest', state, questions: pack.questions }),
+      JSON.stringify({ model: this.opts.model ?? JEV_MODEL, state, questions: pack.questions }),
       {},
     );
   }
@@ -77,7 +63,7 @@ export class JevProvider {
   ): Promise<Priced<Answers>> {
     const placeholder = `img-${crypto.randomUUID()}`;
     const body = JSON.stringify({
-      model: this.opts.model ?? 'jev-latest',
+      model: this.opts.model ?? JEV_MODEL,
       state: `${prompt}\n${placeholder}`,
       assets: { [placeholder]: { type: 'image', format: 'jpg', data_base64: jpegBase64 } },
       questions: pack.questions,
@@ -107,6 +93,8 @@ export class JevProvider {
         if (res.status >= 400 && res.status < 500 && ![401, 403, 429].includes(res.status)) {
           throw new JevRejected(res.status, detail);
         }
+        if (res.status === 429 || res.status === 503)
+          throw new ProviderUnavailable('jev', res.status, detail);
         throw new Error(`jev: HTTP ${res.status} ${detail}`);
       }
       const json = (await res.json()) as {
