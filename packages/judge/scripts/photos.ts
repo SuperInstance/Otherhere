@@ -1,8 +1,9 @@
 // Compare the two ADR-0013 pipelines on the fixed photo eval (spends real money: ~$0.02).
 //   A: Groq vision → written observation → Jev        (the accepted default)
-//   B: Jev reading the image directly ("danger zone")  (the candidate)
+//   B: Jev reading the image directly ("danger zone"), centre-cropped to ≤ 2:1, short side ≥ 448 px  (the candidate)
 // Usage: GROQ_KEY=… TYPESAFEAI_KEY=… pnpm --filter @otherhere/judge photos
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { BUILDING_PACK } from '@otherhere/core';
 import {
   ChatProvider,
@@ -19,6 +20,18 @@ const router = new ModelRouter({ caps: { jev: 0.5, groq: 0.5 }, ledger: new Memo
 const jev = new JevProvider(router, { apiKey: process.env.TYPESAFEAI_KEY ?? '' });
 const groq = new ChatProvider(router, 'groq', { apiKey: process.env.GROQ_KEY ?? '' });
 
+/** Centre-crop to at most 2:1 and upscale so the short side is ≥ 448 px (Jev rejects small or extreme images). */
+const cropForJev = (path: string): string =>
+  execFileSync('python3', [
+    '-I',
+    '-c',
+    'import sys,io;from PIL import Image;im=Image.open(sys.argv[1]).convert("RGB");w,h=im.size;' +
+      'W=min(w,2*h);H=min(h,2*w);im=im.crop(((w-W)//2,(h-H)//2,(w-W)//2+W,(h-H)//2+H));' +
+      'k=max(1,448/min(W,H));im=im.resize((round(W*k),round(H*k)));' +
+      'b=io.BytesIO();im.save(b,"JPEG",quality=90);sys.stdout.buffer.write(b.getvalue())',
+    path,
+  ]).toString('base64');
+
 const a: CaseScore[] = [];
 const b: CaseScore[] = [];
 let costA = 0;
@@ -30,7 +43,11 @@ for (const c of cases) {
   costA += seen.costUsd + viaText.costUsd;
   a.push(scoreCase(c, viaText.value));
   try {
-    const direct = await jev.askAboutImage(BUILDING_PACK, img, VISION_PROMPT);
+    const direct = await jev.askAboutImage(
+      BUILDING_PACK,
+      cropForJev(new URL(c.image, root).pathname),
+      VISION_PROMPT,
+    );
     costB += direct.costUsd;
     b.push(scoreCase(c, direct.value));
   } catch (err) {

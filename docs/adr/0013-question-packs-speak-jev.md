@@ -25,4 +25,14 @@ Accepted by the project owner on 2026-10-18.
 
 B rejected a wide panorama (aspect 2.5:1) with "Invalid image dimensions". On the other nine photos B scored 21/26 (81%) against A's 18/26 (69%). B recognised a crowded street as "no single building" and read a log cabin correctly, where A did not. Both called the Hearst Tower's roof a hip.
 
-The default stays A, because it is more robust and its observations are loggable. Next: crop images to a supported aspect ratio before the direct rung, re-run `pnpm --filter @otherhere/judge photos`, and add B as a Ladder rung if it wins.
+With preprocessing for B (centre-crop to at most 2:1, upscale so the short side is at least 448 px), B accepts every photo:
+
+| Run                 | A: vision → Jev | B: Jev direct                              |
+| ------------------- | --------------- | ------------------------------------------ |
+| 1, no preprocessing | 74.2%           | 67.7% (panorama rejected)                  |
+| 2, crop only        | 67.7%           | 67.7% (panorama still rejected: too small) |
+| 3, crop + upscale   | 83.9%           | 83.9%                                      |
+
+B gave the same answers on every run for the images it accepted. A swings between 68% and 84% because the vision model's observation text varies from run to run. B is also about 10% cheaper and one network hop shorter.
+
+**Open decision for the owner:** A remains the default as accepted. The evidence now favours trying B first (it is consistent, cheaper, and as accurate) and falling back to A when B is unsure. That would change the default this ADR accepted, so it needs an explicit decision.
