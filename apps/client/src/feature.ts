@@ -1,4 +1,4 @@
-import { ROOF_COLOURS, WALL_COLOURS, type ResolvedAttrs } from '@otherhere/core';
+import { ROOF_COLOURS, WALL_COLOURS, type Quest, type ResolvedAttrs } from '@otherhere/core';
 
 const SOURCE_NAMES: Record<string, string> = {
   osm: 'OpenStreetMap',
@@ -59,3 +59,38 @@ export async function photoToJpegBase64(file: File, max = 1280): Promise<string>
     bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(bin);
 }
+
+const ASK_NAMES: Record<string, string> = {
+  'roof.shape': 'its roof',
+  levels: 'how many floors it has',
+  colour: 'its wall colour',
+};
+
+/** What a Quest asks for, in a sentence. */
+export function questLine(q: Quest): string {
+  if (q.reason === 'unsure')
+    return 'Quest: the last photo of this building was not clear enough. Take one straight on to settle it.';
+  const asks = q.ask.map((a) => ASK_NAMES[a] ?? a);
+  const list = asks.length > 1 ? `${asks.slice(0, -1).join(', ')} and ${asks.at(-1)}` : asks[0];
+  return `Quest: nobody has told us ${list}. Photograph it to sharpen it.`;
+}
+
+/** How many Quests this device has completed (a per-device convenience, not a score anyone else sees). */
+export const questsDone = {
+  get(): number {
+    try {
+      return Number(localStorage.getItem('otherhere.questsDone') ?? 0) || 0;
+    } catch {
+      return 0;
+    }
+  },
+  add(): number {
+    const n = this.get() + 1;
+    try {
+      localStorage.setItem('otherhere.questsDone', String(n));
+    } catch {
+      // Storage may be unavailable (private mode): the count just won't persist.
+    }
+    return n;
+  },
+};

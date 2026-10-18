@@ -35,3 +35,4 @@ export * from './packs/building';
 export * from './essence/compute';
 export * from './capture/track';
 export * from './schema/agent';
+export * from './quests/derive';
