@@ -108,10 +108,18 @@ export async function learnFromWalk(opts: {
       if (!hit) p.noBuilding++;
       else if (!seen.has(hit.featureId)) {
         seen.add(hit.featureId);
-        const res = await fetch(`/api/features/${encodeURIComponent(hit.featureId)}/observe`, {
-          method: 'POST',
-          body: JSON.stringify({ cell: hit.cell, image: frame.jpeg }),
-        });
+        const send = () =>
+          fetch(`/api/features/${encodeURIComponent(hit.featureId)}/observe`, {
+            method: 'POST',
+            body: JSON.stringify({ cell: hit.cell, image: frame.jpeg }),
+          });
+        let res = await send();
+        if (res.status === 429) {
+          // Rate-limited: wait as long as the edge asks, then try this building once more.
+          const wait = Number(res.headers.get('retry-after') ?? 60);
+          await new Promise((r) => setTimeout(r, Math.min(wait, 120) * 1000));
+          res = await send();
+        }
         if (res.ok && ((await res.json()) as { facts: unknown[] }).facts.length) {
           p.sharpened++;
           opts.onSharpened(hit.cell);
