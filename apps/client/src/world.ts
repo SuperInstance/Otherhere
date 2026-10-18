@@ -1,4 +1,4 @@
-import { Group, Mesh, type BufferGeometry, type Raycaster, type Scene } from 'three/webgpu';
+import { Group, Mesh, Raycaster, Vector3, type BufferGeometry, type Scene } from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { gridDisk } from 'h3-js';
 import {
@@ -214,6 +214,36 @@ export class World {
       const f = s.ranges.find((r) => v >= r.first && v < r.first + r.count);
       if (f) return { cell: cell!, featureId: f.id, distance: hit.distance };
       return null; // hit the ground
+    }
+    return null;
+  }
+
+  /**
+   * The building a walker at (x, z) is most likely filming when walking along
+   * `dir`: a fan of eye-level rays, centre first, nearest building wins ties.
+   */
+  buildingAlong(
+    x: number,
+    z: number,
+    dir: { x: number; z: number },
+    range = 80,
+  ): { cell: string; featureId: string } | null {
+    const ray = new Raycaster();
+    ray.far = range;
+    for (const deg of [0, -12, 12, -24, 24, -36, 36]) {
+      const a = (deg * Math.PI) / 180;
+      const dx = dir.x * Math.cos(a) - dir.z * Math.sin(a);
+      const dz = dir.x * Math.sin(a) + dir.z * Math.cos(a);
+      ray.set(new Vector3(x, 1.6, z), new Vector3(dx, 0, dz).normalize());
+      for (const hit of ray.intersectObject(this.root, true)) {
+        const cell = hit.object.parent?.name;
+        const s = cell ? this.cells.get(cell) : undefined;
+        if (!s?.ranges || !hit.face) continue;
+        const v = hit.face.a;
+        const f = s.ranges.find((r) => v >= r.first && v < r.first + r.count);
+        if (f && /^osm:w\d+$/.test(f.id)) return { cell: cell!, featureId: f.id };
+        if (f && !/^osm:n\d+$/.test(f.id)) break; // a road or the ground: look along the next ray
+      }
     }
     return null;
   }

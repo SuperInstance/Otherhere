@@ -37,11 +37,13 @@ Controls: WASD or arrows to walk, drag to look, Shift to run, scroll (or R/F) to
 
 **Sharpen a building with a photo:** tap a building to see what is known about it and where each Fact came from. Then add a photo. A vision model writes an observation, the building question pack climbs the Ladder (TypeSafe Jev first), and confident answers become Facts with `source: "capture"`. Those outrank OpenStreetMap, so the building redraws crisper. The photo is never stored. This needs Worker secrets: `GROQ_KEY` (vision) and `TYPESAFE_KEY` (Jev), plus optionally `MINIMAX_KEY` and `ANTHROPIC_API_KEY` as higher rungs. Every paid call goes through one router with daily caps per provider (`MODEL_CAPS_USD`, default $1–2/day each). Spend and every Ladder decision are kept in the `OpsDO`; set `OPS_TOKEN` to read them at `/api/ops/spend` and `/api/ops/decisions`.
 
+**Learn from a filmed walk:** under **Learn from a filmed walk**, give a phone video and the GPS track (.gpx) of the same walk. The browser samples a frame every few seconds, flies the camera along your track, finds the building you were facing, and sends that frame through the same photo pipeline. Buildings you passed sharpen; frames are never stored. It runs entirely in the browser plus the edge, so no plugin is needed (invariant 7).
+
 **Play capture the flag:** while walking a place, choose **Start a match here** and share the invite link. Players join the smaller team and start at their bases. Grab the enemy flag and bring it home; defenders tag intruders in their half. Enemies stay hidden unless a teammate is within 45 m (team fog). Motion travels peer to peer over WebRTC, and the match's Durable Object decides pickups, captures, tags, and score (ADR-0011). To relay through TURN behind strict NATs, set the `TURN_KEY_ID` and `TURN_KEY_API_TOKEN` Worker secrets (Cloudflare Realtime).
 
 ```sh
 pnpm test         # core (Node), edge (workerd), client unit tests
-pnpm --filter @otherhere/client e2e   # Playwright: demo, real neighbourhood, pixel-identical reload, two-player match, postcards
+pnpm --filter @otherhere/client e2e   # Playwright: demo, real neighbourhood, pixel-identical reload, two-player match, postcards, photo and walk capture
 pnpm lint && pnpm typecheck
 pnpm ingest <lat> <lng>               # fetch OSM around a point and summarise the Facts
 pnpm --filter @otherhere/models smoke <image>   # live: photo → observation → Jev → Facts (needs keys, ~$0.001)

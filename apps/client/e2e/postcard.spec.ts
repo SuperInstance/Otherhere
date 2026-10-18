@@ -37,6 +37,7 @@ test('save a postcard, open it by link, and see the same place', async ({
 
   await page.goto('/?at=47.3769,8.5417#0,1.7,0,0.6,-0.05');
   await settle(page);
+  await page.getByText('Save a postcard', { exact: true }).click();
   await page.getByLabel('Postcard title').fill('Bahnhofplatz at dusk');
   await page.getByLabel('Who can open it').selectOption('friends');
   await page.getByRole('button', { name: 'Save postcard' }).click();

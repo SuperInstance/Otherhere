@@ -240,3 +240,22 @@ input[type='file'] {
   background: none;
   font-size: 14px;
 }
+#walk-import {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  min-height: 24px;
+  color: var(--ink);
+}
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+details[open] > summary {
+  margin-bottom: 8px;
+}

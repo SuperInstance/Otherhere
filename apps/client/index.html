@@ -31,18 +31,38 @@
         </div>
       </form>
       <form id="postcard" hidden autocomplete="off" aria-label="Save a postcard">
-        <label for="pc-title">Postcard title</label>
-        <input id="pc-title" name="title" maxlength="200" placeholder="The trail to the falls" />
-        <label for="pc-scope" class="spaced">Who can open it</label>
-        <div class="row">
-          <select id="pc-scope" name="scope">
-            <option value="private">Only me (private link)</option>
-            <option value="friends" selected>Anyone with the link</option>
-            <option value="public">Public</option>
-          </select>
-          <button type="submit">Save postcard</button>
-        </div>
+        <details>
+          <summary>Save a postcard</summary>
+          <label for="pc-title">Postcard title</label>
+          <input id="pc-title" name="title" maxlength="200" placeholder="The trail to the falls" />
+          <label for="pc-scope" class="spaced">Who can open it</label>
+          <div class="row">
+            <select id="pc-scope" name="scope">
+              <option value="private">Only me (private link)</option>
+              <option value="friends" selected>Anyone with the link</option>
+              <option value="public">Public</option>
+            </select>
+            <button type="submit">Save postcard</button>
+          </div>
+        </details>
         <p class="note" id="pc-result" aria-live="polite"></p>
+      </form>
+      <form id="walk-import" hidden aria-label="Import a walk">
+        <details>
+          <summary>Learn from a filmed walk</summary>
+          <label for="walk-video">Video</label>
+          <input type="file" id="walk-video" accept="video/*" />
+          <label for="walk-gpx" class="spaced">GPS track of the same walk (.gpx)</label>
+          <input type="file" id="walk-gpx" accept=".gpx,application/gpx+xml" />
+          <div class="row secondary">
+            <button type="submit">Learn from this walk</button>
+          </div>
+          <p class="note">
+            Frames are sent to an image model to describe the buildings you passed, then discarded.
+            The video is assumed to start when the track does.
+          </p>
+        </details>
+        <p class="note" id="walk-result" aria-live="polite"></p>
       </form>
       <section id="feature" hidden aria-labelledby="feature-title">
         <p id="feature-title"></p>

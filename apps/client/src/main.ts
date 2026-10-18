@@ -31,6 +31,7 @@ import { World } from './world';
 import { SessionClient } from './net';
 import { describeEvent, MatchView, TEAM_NAMES } from './match';
 import { describeFacts, photoToJpegBase64 } from './feature';
+import { learnFromWalk } from './capture';
 import { WalkControls } from './walk';
 import { PAPER } from './material';
 import { formatPose, parseCoords, parsePose, parseStart, type Pose } from './url';
@@ -363,6 +364,54 @@ if (!originCell) {
       } finally {
         photo.disabled = false;
         photo.value = '';
+      }
+    });
+  }
+
+  // --- Import a filmed walk ------------------------------------------------------------
+  if (!isDemo && !capsule && !sessionInfo) {
+    const walkForm = $<HTMLFormElement>('walk-import');
+    const walkResult = $('walk-result');
+    walkForm.hidden = false;
+    walkForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const video = $<HTMLInputElement>('walk-video').files?.[0];
+      const gpxFile = $<HTMLInputElement>('walk-gpx').files?.[0];
+      if (!video || !gpxFile) {
+        walkResult.textContent = 'Choose both the video and its GPS track.';
+        return;
+      }
+      const btn = walkForm.querySelector('button')!;
+      btn.disabled = true;
+      const sharpened = new Set<string>();
+      try {
+        const result = await learnFromWalk({
+          video,
+          gpx: await gpxFile.text(),
+          world,
+          pose: walk.pose,
+          waitForCell: async (x, z) => {
+            const cell = world.cellAtWorld(x, z);
+            for (let i = 0; i < 300 && !world.isReady(cell); i++)
+              await new Promise((r) => setTimeout(r, 100));
+          },
+          onSharpened: (cell) => sharpened.add(cell),
+          onProgress: (p) => {
+            walkResult.textContent = `Frame ${p.done} of ${p.total} · ${p.sharpened} building${p.sharpened === 1 ? '' : 's'} sharpened`;
+          },
+        });
+        for (const cell of sharpened) world.reload(cell);
+        const notes = [];
+        if (result.noBuilding)
+          notes.push(
+            `${result.noBuilding} frame${result.noBuilding === 1 ? '' : 's'} faced no building`,
+          );
+        if (result.outsideTrack) notes.push(`${result.outsideTrack} fell outside the GPS track`);
+        walkResult.textContent = `Done: ${result.sharpened} building${result.sharpened === 1 ? '' : 's'} sharpened from ${result.total} frames${notes.length ? ` (${notes.join(', ')})` : ''}.`;
+      } catch (err) {
+        walkResult.textContent = `Could not use this walk: ${(err as Error).message}`;
+      } finally {
+        btn.disabled = false;
       }
     });
   }

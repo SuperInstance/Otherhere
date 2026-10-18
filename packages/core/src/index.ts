@@ -33,3 +33,4 @@ export * from './game/protocol';
 export * from './capsule/place';
 export * from './packs/building';
 export * from './essence/compute';
+export * from './capture/track';
