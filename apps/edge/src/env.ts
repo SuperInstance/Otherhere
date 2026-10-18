@@ -20,6 +20,10 @@ export interface Env {
   WRITE_LIMIT?: RateLimit;
   ASSETS: Fetcher;
   OVERPASS_ENDPOINTS: string;
+  /** Nominatim search endpoint; set only to point tests or a mirror elsewhere. */
+  NOMINATIM_URL?: string;
+  /** Address lookups (Nominatim asks clients to keep requests low). */
+  GEOCODE_LIMIT?: RateLimit;
   /** 'true' only under `wrangler dev`. */
   ALLOW_DEV_ROUTES?: string;
   /** Optional Cloudflare Realtime TURN key (secrets). Without them, ICE is STUN-only. */

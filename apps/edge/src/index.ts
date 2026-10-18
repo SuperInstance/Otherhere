@@ -14,6 +14,7 @@ import { sessionRoutes } from './sessions';
 import { capsuleRoutes } from './capsules';
 import { intelligenceRoutes } from './intelligence';
 import { agentRoutes } from './agents';
+import { geocodeRoute } from './geocode';
 
 export { TownDO } from './town';
 export { SessionDO } from './session';
@@ -32,6 +33,7 @@ const townFor = (env: Env, cell: string) => env.TOWN.get(env.TOWN.idFromName(tow
 
 /** Which limiter, if any, guards a request. Token-gated owner and Plugin routes are not limited. */
 function limiterFor(req: Request, env: Env, path: string) {
+  if (path === '/api/geocode') return env.GEOCODE_LIMIT;
   if (req.method !== 'POST') return undefined;
   if (/^\/api\/features\/[^/]+\/observe$/.test(path)) return env.PHOTO_LIMIT;
   if (/^\/api\/(sessions|capsules|judge\/taste)\b/.test(path)) return env.WRITE_LIMIT;
@@ -92,6 +94,8 @@ async function route(req: Request, env: Env, url: URL, path: string): Promise<Re
   if (intelligence) return intelligence;
 
   if (req.method !== 'GET') return error(405, 'method not allowed');
+
+  if (path === '/api/geocode') return geocodeRoute(req, env, url);
 
   if (path === '/api/health') return json({ ok: true, interpreter: INTERPRETER_VERSION });
 

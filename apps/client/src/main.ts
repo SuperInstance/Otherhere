@@ -34,7 +34,7 @@ import { describeFacts, photoToJpegBase64, questLine, questsDone } from './featu
 import { learnFromWalk } from './capture';
 import { WalkControls } from './walk';
 import { PAPER } from './material';
-import { formatPose, parseCoords, parsePose, parseStart, type Pose } from './url';
+import { DEFAULT_PLACE, formatPose, parseCoords, parsePose, parseStart, type Pose } from './url';
 
 const SKY = '#e7e2d8';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -52,17 +52,34 @@ input.addEventListener('input', () => {
   input.removeAttribute('aria-invalid');
   errorEl.hidden = true;
 });
-form.addEventListener('submit', (e) => {
+form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const c = parseCoords(input.value);
-  if (!c) {
+  const fail = (message: string) => {
     input.setAttribute('aria-invalid', 'true');
-    errorEl.textContent = 'Enter latitude and longitude, like 47.3769, 8.5417.';
+    errorEl.textContent = message;
     errorEl.hidden = false;
     input.focus();
-    return;
+  };
+  const c = parseCoords(input.value);
+  if (c) return location.assign(`?at=${c.lat},${c.lng}`);
+  const q = input.value.trim();
+  if (!q) return fail('Type an address, a place name, or coordinates like 57.0531, -135.3351.');
+  // Anything that is not coordinates is looked up as an address or place (OpenStreetMap).
+  const button = form.querySelector('button[type=submit]') as HTMLButtonElement;
+  button.disabled = true;
+  try {
+    const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+    const body = (await res.json()) as { lat?: number; lng?: number; error?: string };
+    if (!res.ok || body.lat === undefined || body.lng === undefined)
+      return fail(
+        body.error ?? 'Could not find that place. Try adding the town, or use coordinates.',
+      );
+    location.assign(`?at=${body.lat.toFixed(6)},${body.lng.toFixed(6)}`);
+  } catch {
+    fail('Could not reach the server. Check your connection, or use coordinates.');
+  } finally {
+    button.disabled = false;
   }
-  location.assign(`?at=${c.lat},${c.lng}`);
 });
 $('locate').addEventListener('click', () => {
   if (!navigator.geolocation) {
@@ -150,7 +167,9 @@ if (start && 'capsule' in start) {
 // --- World -----------------------------------------------------------------------
 const isDemo = !!start && 'demo' in start;
 const place =
-  start && 'lat' in start ? start : (sessionInfo?.origin ?? capsule?.view?.center ?? null);
+  start && 'lat' in start
+    ? start
+    : (sessionInfo?.origin ?? capsule?.view?.center ?? (start ? null : DEFAULT_PLACE));
 if (place && !isDemo) input.value = `${place.lat}, ${place.lng}`;
 const originCell = isDemo
   ? DEMO_CELL

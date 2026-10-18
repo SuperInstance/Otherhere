@@ -12,13 +12,13 @@
     <div id="joystick" aria-hidden="true"><div class="knob"></div></div>
     <main id="hud">
       <form id="goto" autocomplete="off">
-        <label for="coords">Coordinates</label>
+        <label for="coords">Address, place or coordinates</label>
         <div class="row">
           <input
             id="coords"
             name="coords"
-            inputmode="decimal"
-            placeholder="47.3769, 8.5417"
+            autocomplete="street-address"
+            placeholder="Lincoln St, Sitka, AK"
             required
           />
           <button type="submit">Walk here</button>

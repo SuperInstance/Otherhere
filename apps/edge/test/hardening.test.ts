@@ -25,3 +25,14 @@ describe('production hardening', () => {
     expect(await res.json()).toEqual({ error: 'not found' });
   });
 });
+
+describe('geocode', () => {
+  it('needs a query, and fails softly when the lookup service is unreachable', async () => {
+    const empty = await SELF.fetch('https://x/api/geocode?q=%20');
+    expect(empty.status).toBe(400);
+    // Tests point Nominatim at a closed port.
+    const down = await SELF.fetch('https://x/api/geocode?q=Lincoln%20St%2C%20Sitka');
+    expect(down.status).toBe(502);
+    expect(((await down.json()) as { error: string }).error).toContain('use coordinates');
+  });
+});
