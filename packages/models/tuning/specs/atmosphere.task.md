@@ -16,6 +16,7 @@ export function createAtmosphere(scene: Scene, renderer: WebGPURenderer): Atmosp
 ```
 
 What it does:
+
 1. Tone mapping: `renderer.toneMapping = ACESFilmicToneMapping`, `toneMappingExposure` about 1.0 (choose so the existing palette, paper '#ddd6c6' buildings and forest '#3f5a3a' ground, is not washed out).
 2. Sky dome: a SphereGeometry (radius 50 km, 32×16) with side BackSide, depthWrite false, `fog = false`, renderOrder -1, frustumCulled false, kept centred on the camera in update(). MeshBasicNodeMaterial whose colorNode is a function of the view direction `dir = normalize(positionWorld - cameraPosition)`: horizon haze '#d9dcd6' blending to zenith '#8fb3c9' with smoothstep over dir.y in [0, 0.45]; below the horizon stay at the horizon colour (so the gap under far terrain never shows a seam); a soft sun glow around SUN_DIRECTION, mix in a warm '#fff1d6' by pow(max(dot(dir, sun), 0), 8) * 0.35 plus a tight disc pow(…, 600) * 1.5. Set `scene.background = null` (the dome replaces it).
 3. Fog via `scene.fogNode` (a custom node; three 0.186 reads `scene.fogNode` before `scene.fog`, so also set `scene.fog = null`). Build it from `fog(colorNode, factorNode)` exported by 'three/tsl'. Factor = max(range fog, height fog):

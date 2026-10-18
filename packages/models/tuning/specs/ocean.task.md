@@ -8,9 +8,11 @@ export function shoreFoam(height: Node, world: Node /* positionWorld */): Node;
 /** A multiplier 0.78..1 for diffuse colour: large soft cloud shadows drifting across the land. */
 export function cloudShadow(world: Node /* positionWorld */): Node;
 ```
+
 (`Node` = the TSL node type that the other functions in terrain.ts already pass around; use the type three exports, `ShaderNodeObject<Node>` or whatever 0.186 calls it, and say which in NOTES.)
 
 oceanMaterial:
+
 - Ripple normal from a sum of 4 directional sine waves in world x/z (wavelengths 7, 13, 29, 61 m, different directions, amplitudes decreasing, speeds by the deep-water relation c = sqrt(g·λ/2π)). Compute the analytic derivative to build the normal: n = normalize(vec3(-dh/dx, 1, -dh/dz)). Assign to `normalNode` (world-space normal; check that MeshStandardNodeMaterial in 0.186 accepts a normalNode in the space you give it, and transform to view space with `transformNormalToView` if it needs view space; say which in NOTES). Fade the ripple strength with distance from the camera (gone by 2 km) so far water does not shimmer.
 - Colour: deep '#1f4552' to sky-tinted '#6f97a8' by fresnel (1 - max(dot(viewDir, n), 0))^4; roughness 0.18, metalness 0.
 - Sun glint: add emissive warm white by pow(max(dot(reflect(-viewDir, n), sun), 0), 180) * 2.5 (cheap stand-in for a specular highlight, so it reads even without an environment map).
