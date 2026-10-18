@@ -111,6 +111,13 @@ describe('fitForJev', () => {
   });
 });
 
+describe('stripThinking', () => {
+  it('drops closed and unclosed thinking blocks', () => {
+    expect(stripThinking('<think>a</think> answer')).toBe('answer');
+    expect(stripThinking('<think>ran out of tok')).toBe('');
+  });
+});
+
 describe('ChatProvider', () => {
   it('sends an image as a data URL and strips reasoning from the answer', async () => {
     const fetch = fakeFetch({

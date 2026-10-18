@@ -50,7 +50,7 @@ pnpm --filter @otherhere/client e2e   # Playwright: demo, real neighbourhood, pi
 pnpm lint && pnpm typecheck
 pnpm ingest <lat> <lng>               # fetch OSM around a point and summarise the Facts
 pnpm --filter @otherhere/models smoke <image>   # live: photo → observation → Jev → Facts (needs keys, ~$0.001)
-pnpm --filter @otherhere/judge truth            # live: score Jev on the fixed text truth eval (needs TYPESAFEAI_KEY, ~$0.01)
+pnpm --filter @otherhere/judge truth            # live: score Jev on the fixed text truth eval (needs TYPESAFE_AI_TOKEN, ~$0.01)
 pnpm --filter @otherhere/judge photos           # live: vision→Jev vs Jev-direct, raw and fitted, RUNS=3 (needs GROQ_KEY too, ~$0.05/run)
 ```
 

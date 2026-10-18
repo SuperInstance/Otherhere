@@ -6,7 +6,7 @@
 // preprocessing's effect and the path's effect can be told apart. B also runs on the
 // earlier preprocessing (crop to ≤ 2:1, short side ≥ 448 px) for comparison. Every column runs RUNS times: the run-to-run spread and per-photo stability are
 // reported, and so is coverage (how many photos Jev refused outright).
-// Usage: GROQ_KEY=… TYPESAFEAI_KEY=… RUNS=3 pnpm --filter @otherhere/judge photos
+// Usage: GROQ_KEY=… TYPESAFE_AI_TOKEN=… RUNS=3 pnpm --filter @otherhere/judge photos
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { BUILDING_PACK, type Answers } from '@otherhere/core';
@@ -25,7 +25,9 @@ const RUNS = Number(process.env.RUNS ?? 3);
 const root = new URL('../evals/truth/', import.meta.url);
 const cases = parsePhotos(readFileSync(new URL('building-photos.v1.jsonl', root), 'utf8'));
 const router = new ModelRouter({ caps: { jev: 2, groq: 2 }, ledger: new MemoryLedger() });
-const jev = new JevProvider(router, { apiKey: process.env.TYPESAFEAI_KEY ?? '' });
+const jev = new JevProvider(router, {
+  apiKey: process.env.TYPESAFE_AI_TOKEN ?? process.env.TYPESAFEAI_KEY ?? '',
+});
 const groq = new ChatProvider(router, 'groq', { apiKey: process.env.GROQ_KEY ?? '' });
 
 const PIL = (script: string, ...args: string[]): string =>

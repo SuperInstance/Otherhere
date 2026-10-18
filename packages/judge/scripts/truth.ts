@@ -1,5 +1,5 @@
 // Score the live Ladder against the truth eval (spends real money: ~$0.01).
-// Usage: TYPESAFEAI_KEY=… pnpm --filter @otherhere/judge truth
+// Usage: TYPESAFE_AI_TOKEN=… pnpm --filter @otherhere/judge truth
 import { readFileSync } from 'node:fs';
 import { BUILDING_PACK } from '@otherhere/core';
 import { JevProvider, MemoryLedger, ModelRouter } from '@otherhere/models';
@@ -9,7 +9,9 @@ const cases = parseTruth(
   readFileSync(new URL('../evals/truth/building-observations.v1.jsonl', import.meta.url), 'utf8'),
 );
 const router = new ModelRouter({ caps: { jev: 0.25 }, ledger: new MemoryLedger() });
-const jev = new JevProvider(router, { apiKey: process.env.TYPESAFEAI_KEY ?? '' });
+const jev = new JevProvider(router, {
+  apiKey: process.env.TYPESAFE_AI_TOKEN ?? process.env.TYPESAFEAI_KEY ?? '',
+});
 let cost = 0;
 const scores = [];
 for (const c of cases) {

@@ -21,8 +21,15 @@ export const CHAT_DEFAULTS = {
   },
 } as const;
 
-/** Reasoning models may prefix their answer with a <think> block; we keep only the answer. */
-export const stripThinking = (s: string) => s.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+/**
+ * Reasoning models may prefix their answer with a <think> block; we keep only the answer.
+ * A block left open (the reply ran out of tokens while thinking) leaves no answer at all.
+ */
+export const stripThinking = (s: string) =>
+  s
+    .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .replace(/<think>[\s\S]*$/, '')
+    .trim();
 
 /**
  * An OpenAI-compatible chat endpoint (Groq, MiniMax). Used as the vision rung
