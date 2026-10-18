@@ -6,12 +6,20 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { BUILDING_PACK, type Answers, type Answer } from '@otherhere/core';
-import { fitForJev, VISION_PROMPT } from '@otherhere/models';
+import {
+  fitForJev,
+  JEV_PRICING,
+  MemoryLedger,
+  ModelRouter,
+  VISION_PROMPT,
+} from '@otherhere/models';
 import { parsePhotos, scoreCase, summarize } from '../src/index';
 
 const KEY = process.env.TYPESAFE_AI_TOKEN ?? '';
 const OUT = process.env.OUT ?? 'jev-lab.result.json';
 let tokens = 0;
+// Raw requests (any state shape, any model) still go through the router: capped and costed (invariant 9).
+const router = new ModelRouter({ caps: { jev: 1 }, ledger: new MemoryLedger() });
 async function jev(
   model: string,
   state: unknown,
@@ -29,30 +37,39 @@ async function jev(
     ),
     questions,
   };
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const res = await fetch('https://api.typesafe.ai/v1/systemone', {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${KEY}`,
-        'content-type': 'application/json',
-        'TypeSafe-Danger-Zone-Images': 'true',
-      },
-      body: JSON.stringify(body),
-    });
-    if (res.status === 429) {
-      await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
-      continue;
-    }
-    if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
-    const j = (await res.json()) as {
-      answers: Record<string, unknown>;
-      usage: { input_tokens: number };
-      model: string;
-    };
-    tokens += j.usage.input_tokens;
-    return j;
-  }
-  throw new Error('rate limited');
+  const estimate = (JSON.stringify(body).length / 3 / 1e6) * JEV_PRICING.inputPerM;
+  return (
+    await router.run('jev', estimate, JEV_PRICING, async () => {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const res = await fetch('https://api.typesafe.ai/v1/systemone', {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${KEY}`,
+            'content-type': 'application/json',
+            'TypeSafe-Danger-Zone-Images': 'true',
+          },
+          body: JSON.stringify(body),
+        });
+        if (res.status === 429) {
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+          continue;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+        const j = (await res.json()) as {
+          answers: Record<string, unknown>;
+          usage: { input_tokens: number };
+          model: string;
+        };
+        tokens += j.usage.input_tokens;
+        return {
+          value: j,
+          model: j.model,
+          usage: { inputTokens: j.usage.input_tokens, outputTokens: 0 },
+        };
+      }
+      throw new Error('rate limited');
+    })
+  ).value;
 }
 
 const py = (script: string, ...args: string[]) =>

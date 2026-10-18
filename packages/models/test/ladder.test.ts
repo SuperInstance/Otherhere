@@ -235,6 +235,9 @@ describe('observeBuilding visibility gate', () => {
     });
     expect(obs.gate).toMatchObject({ noul: 0.04 });
     expect(obs.facts).toEqual([]);
+    // Sure enough that the vision call was never made.
+    expect(obs.visionCostUsd).toBe(0);
+    expect(obs.result).toBeNull();
   });
 
   it('falls back to the observation when Jev refuses the image', async () => {

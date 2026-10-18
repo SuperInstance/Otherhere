@@ -100,6 +100,44 @@ _In code:_ `JEV_PRICING` corrected.
 
 Sources: [TypeSafe docs](https://docs.typesafe.ai/llms.txt) (Box, Images, Models, Jev 1.13 jaggedness); [Just Ask Jev (RLCD), arXiv 2609.29429](https://arxiv.org/html/2609.29429v1); [JevOut, arXiv 2609.30243](https://arxiv.org/html/2609.30243); [Type-safe is not error-free, arXiv 2609.26758](https://arxiv.org/abs/2609.26758); [ufakzeka-karar (order-invariant scoring), arXiv 2610.06744](https://arxiv.org/html/2610.06744v1); [StartLux-Decision](https://github.com/StartLuxLabs/Startlux-Decision); [awesome-typesafe-jev](https://github.com/AbdelStark/awesome-typesafe-jev).
 
+## Round 3: Jev as a gate in front of other models, and as a reviewer of my own work
+
+### For the app: a visibility gate
+
+**Check each technique on the pipeline production actually runs.** Round 2's per-field gating was measured on Jev reading photos (path B). Production's default is path A: a vision model describes the photo, then Jev answers from the text. Replaying path A′ (MiniMax describing, then Jev) showed a worse, older problem. Told to describe "the building nearest the centre", the vision model always finds one, so path A writes Facts for skylines, terraces, interiors and timber frames.
+
+**Jev reading the pixels is reliable at exactly that one decision.** Path B never wrote a Fact for a photo without a single building. So `observeBuilding` now also asks Jev, from the photo itself and in parallel with the vision call, the one `visible` question, and uses that answer when making Facts.
+
+| Facts written (right / wrong / for photos with no building)         | Dev             | Held-out       |
+| ------------------------------------------------------------------- | --------------- | -------------- |
+| Path A′, replayed                                                   | 101 / 11 / 42   | 35 / 4 / 5     |
+| Path A′ with Jev's visibility gate, replayed                        | 78 / 10 / 0     | 33 / 4 / 0     |
+| Live, real `observeBuilding` (MiniMax vision, 2 runs): without gate | 26/2/12, 22/5/9 | 15/2/3, 16/4/3 |
+| Live: with gate                                                     | 19/2/0, 17/4/0  | 15/2/0, 16/4/0 |
+
+Live and replayed agree: the gate removes every no-building Fact, costs nothing on held-out, and costs a few correct Facts on dev. The live check costs $0.007 of Jev and $0.04 of MiniMax.
+_In code:_ `VISIBLE_PACK` and the `gate` in `observeBuilding`; the edge wires the Jev provider in as the gate and logs each gate decision (`pack.building.visible`). If Jev refuses the image, the observation's own answer is used. The client now sizes photos and video frames with `fitForJev` (`sendSize`), so the gate isn't refused for size. The live check is `packages/judge/scripts/observe-eval.ts`.
+
+**Combining the two paths didn't pay.** Writing a Fact only when both paths agree trimmed held-out wrong Facts (4 → 2 over two runs) but cost 10–25% of the correct ones. Path B's fields with path A′ filling gaps (dev 91/2, held-out 34/6) is the best mix by count, but needs your B-first decision (ADR-0013).
+
+### For my work: Jev reviews my diffs against the invariants
+
+`packages/models/scripts/jev-review.ts` splits a diff into hunks of added lines, using windows of at most 80 lines because a small state answers better. It asks Jev one literal Noul per semantic invariant: a paid call outside the router, executing model output, nondeterministic output, Google imagery, sharing private data, and a secret in code. All of a hunk's questions go in one request. Exact checks, such as "this edits the judge", stay in code, as TypeSafe's docs advise. It's a local tool, not CI, because it calls a paid API.
+
+- **Its first run found a real problem in my code.** `jev-lab.ts` called TypeSafe with a raw `fetch`, outside the ModelRouter, so its spend was uncapped (p = 0.96). Fixed. Re-run on the commit before the fix, it still catches it (0.84), and the current branch reviews clean.
+- **It also found a bug in itself.** Run from `packages/models`, `git diff -- .` only covered that package, so the first "0 of 36 hunks flagged" meant nothing. It now diffs from the repository root.
+- **Text about a violation reads as a violation.** Its own source, which quotes every invariant question, was flagged on all five checks. This is the literal-reading and natural-context failure that TypeSafe's jaggedness page and the JevOut paper describe. A companion Noul ("these lines only mention or describe these things") discounts every check (p × (1 − mentions)), which cleared it. This is the Box docs' companion-question pattern, reused.
+- **Measured on 60 synthetic hunks:** MiniMax wrote five violations and five hard negatives per invariant in this project's style. I read every label and excluded one as ambiguous (Google Places JSON). Result: 29 of 30 violations caught and no false positives among 30 hard negatives (28 of 30 after the fake keys in the set were replaced with `EXAMPLE…` placeholders, because GitGuardian flagged the realistic ones; a key that is obviously a placeholder no longer reads as "real-looking"). The one miss is borderline (`Date.now()` in a cache key). There was one cross-check alarm, a provider file that hard-codes a key and also calls Anthropic directly, which is arguably real. Costs about $0.001 a run.
+- **Jev reads literally, so name the cases.** The randomness question first said only `Math.random` and missed `crypto.getRandomValues`. Naming "any unseeded source of randomness" with examples fixed it.
+  _In code:_ `scripts/jev-review.ts` and `scripts/jev-review-eval.ts`, with the labelled set in `packages/models/tuning/review-hunks.jsonl`.
+
+**The gate now runs first and can skip the vision call.** Over saved readings, photos of a building scored at least 0.49 and photos without one at most 0.34. Below `SKIP_BELOW = 0.25` the vision call and the Ladder are skipped. That saves about 25× the gate's cost on about half the no-building readings, adds the gate's latency (under a second) to every photo, and would have skipped no photo of a building.
+
+### Ideas queued
+
+- Run `jev-review` before every push.
+- Have Jev gate other places where a cheap typed check beats a big model. Candidates: deciding whether a filmed-walk frame is worth sending at all (motion blur, no building in view), and judging whether an Overpass response looks truncated before it is ingested.
+
 ## Keys and environment (2026-10-18)
 
 - Variable names changed mid-session: `TYPESAFE_AI_TOKEN` (was `TYPESAFEAI_KEY`), `CF_TOKEN`, `Z_AI_TOKEN`. Scripts read the new name and fall back to the old one.

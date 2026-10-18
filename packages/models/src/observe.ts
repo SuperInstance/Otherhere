@@ -26,6 +26,13 @@ export const VISIBLE_PACK: QuestionPack = {
 export type Gate =
   { noul: number; costUsd: number } | { skipped: 'no gate' | 'refused' | 'error'; detail?: string };
 
+/**
+ * Below this P(one building) from the gate, the vision call and the Ladder are skipped:
+ * nothing could become a Fact anyway. On our photo sets every photo of a building scored
+ * at least 0.49 and every photo without one at most 0.34.
+ */
+export const SKIP_BELOW = 0.25;
+
 export type Observation = {
   observation: string;
   visionCostUsd: number;
@@ -49,10 +56,12 @@ export async function observeBuilding(
   input: { jpegBase64: string; featureId: string; source: Source; observedAt: string },
   deps: { vision: ChatProvider; ladder: Ladder; gate?: JevProvider },
 ): Promise<Observation> {
-  const [seen, gate] = await Promise.all([
-    deps.vision.describe(input.jpegBase64, VISION_PROMPT),
-    visibilityGate(deps.gate, input.jpegBase64),
-  ]);
+  // Jev answers first (≈$0.00004, well under a second); a sure "no building" saves the
+  // vision call (≈25× the cost) and the Ladder.
+  const gate = await visibilityGate(deps.gate, input.jpegBase64);
+  if ('noul' in gate && gate.noul < SKIP_BELOW)
+    return { observation: '', visionCostUsd: 0, result: null, gate, facts: [] };
+  const seen = await deps.vision.describe(input.jpegBase64, VISION_PROMPT);
   const result = await deps.ladder.decide({
     pack: BUILDING_PACK,
     state: seen.value,
