@@ -13,10 +13,8 @@ import {
 import {
   attribute,
   cameraPosition,
-  clamp,
   color,
   distance,
-  dot,
   float,
   fract,
   fwidth,
@@ -24,15 +22,14 @@ import {
   min,
   mix,
   normalWorld,
-  normalize,
   positionWorld,
-  pow,
   sin,
   smoothstep,
   texture,
-  vec3,
 } from 'three/tsl';
 import type { LocalFrame } from '@otherhere/core';
+import { SUN_DIRECTION } from './atmosphere';
+import { cloudShadow, oceanMaterial, shoreFoam } from './ocean';
 
 export type TerrainMode = 'topo' | 'satellite';
 
@@ -77,8 +74,6 @@ const CONTOUR_NEAR = 1_200;
 const CONTOUR_FAR = 3_000;
 
 const OCEAN_SIZE = 60_000;
-const OCEAN_DEEP = '#2d5563';
-const OCEAN_SHEEN = '#5f8ea0';
 
 /* ------------------------------------------------------------------ tile maths */
 
@@ -950,7 +945,9 @@ function topoMaterial(): MeshStandardNodeMaterial {
   );
   const lines = contour(20).mul(0.1).add(contour(100).mul(0.25)).mul(reach);
 
-  m.colorNode = ground.mul(float(1).sub(lines));
+  // Cloud shadows drift across the land; surf foam breathes along the waterline.
+  const lit = ground.mul(float(1).sub(lines)).mul(cloudShadow(positionWorld));
+  m.colorNode = mix(lit, color('#f4f6f2'), shoreFoam(h, positionWorld).mul(0.85));
   m.name = 'terrain-topo';
   return m;
 }
@@ -958,23 +955,13 @@ function topoMaterial(): MeshStandardNodeMaterial {
 function oceanMesh(): Mesh {
   const geometry = new PlaneGeometry(OCEAN_SIZE, OCEAN_SIZE, 1, 1);
   geometry.rotateX(-Math.PI / 2);
-  const mesh = new Mesh(geometry, oceanMaterial());
+  const mesh = new Mesh(geometry, oceanMaterial(SUN_DIRECTION));
   mesh.name = 'ocean';
   // Opaque terrain draws in any order; the sea goes last so its fresnel never
   // fights the coastline at y = 0.
   mesh.renderOrder = 1;
   mesh.visible = false;
   return mesh;
-}
-
-function oceanMaterial(): MeshStandardNodeMaterial {
-  const m = new MeshStandardNodeMaterial({ roughness: 0.35, metalness: 0 });
-  m.color.set(OCEAN_DEEP);
-  const view = normalize(cameraPosition.sub(positionWorld));
-  const fresnel = pow(float(1).sub(clamp(dot(view, vec3(0, 1, 0)), 0, 1)), 3);
-  m.colorNode = mix(color(OCEAN_DEEP), color(OCEAN_SHEEN), fresnel);
-  m.name = 'ocean';
-  return m;
 }
 
 function oceanMaterialOf(mesh: Mesh): MeshStandardNodeMaterial {

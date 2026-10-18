@@ -29,6 +29,11 @@ How we hand coding work to cheaper models and check it before anyone reads it cl
 - **Models notice wrong hints when the task invites notes.** I gave MiniMax a wrong expected tile for Sitka (655/1149; it is 508/1253). It computed the right value, used it, and said why in its notes. Keep asking for an assumptions section.
 - **Verify in a real browser at the real place.** Unit tests and both reviews passed while buildings were buried: `ready()` timed out on slow tiles and snapped them to coarse ground. Only screenshots of Sitka showed it. Cells now stand again when finer ground arrives.
 
+- **Small, sharply specified modules come back nearly ready.** The atmosphere spec (exact API, colours, formulas, cost budget) came back from `deepseek-flash` in 82 s for $0.007, type-checked first time and scored ≥0.90 on every Jev claim. Its notes caught an integration bug in our own spec: a 50 km sky dome outside the camera's 40 km far plane.
+- **Models write against old typings.** MiniMax-M3 typed TSL values as bare `Node`; three 0.186's typings are generic (`Node<'float'>`, `Node<'vec3'>`). Put the exact type names in the spec.
+- **"Cheap noise" needs a look before it ships.** The ocean draft's product of two axis-aligned sines turned the shore into a 3 m checkerboard. Incommensurate, rotated, drifting sines read as natural. Only a screenshot shows this; no checklist would.
+- **Jev hedges on equivalent formulas.** `dispersion` scored 0.66 because the draft wrote ω = √(gk), not the spec's c = √(gλ/2π). Same physics. A middling score on a maths claim means "check it", not "it's wrong".
+
 ## Costs so far
 
 | Run                                                | Model          | Seconds | Cost       |
