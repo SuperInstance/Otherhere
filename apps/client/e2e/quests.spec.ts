@@ -33,7 +33,8 @@ test('quest beacons mark imagined buildings, and a photo completes one', async (
   await page.screenshot({ path: 'test-results/quests.png' });
 
   // Hover straight above one quest building and tap the middle of the screen.
-  const q = quests[0]!;
+  // Cells load in network order, so pick by ID to test the same building every run.
+  const q = [...quests].sort((a, b) => a.featureId.localeCompare(b.featureId))[0]!;
   await page.goto('about:blank');
   await page.goto(`/?at=47.3769,8.5417#${q.x},${q.top + 40},${q.z},0,-1.5707`);
   await expect.poll(async () => (await debug(page))?.stats.loading, { timeout: 60_000 }).toBe(0);

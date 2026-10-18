@@ -272,15 +272,9 @@ export class World {
     for (const q of quests) {
       const r = ranges.find((x) => x.id === q.featureId);
       if (!r) continue;
-      let [minX, maxX, minZ, maxZ, top] = [Infinity, -Infinity, Infinity, -Infinity, 0];
-      for (let i = r.first; i < r.first + r.count; i++) {
-        minX = Math.min(minX, pos.getX(i));
-        maxX = Math.max(maxX, pos.getX(i));
-        minZ = Math.min(minZ, pos.getZ(i));
-        maxZ = Math.max(maxZ, pos.getZ(i));
-        top = Math.max(top, pos.getY(i));
-      }
-      const [x, z] = [(minX + maxX) / 2, (minZ + maxZ) / 2];
+      const spot = roofSpot(mesh!.geometry, r);
+      if (!spot) continue;
+      const { x, z, top } = spot;
       const column = new Mesh(new CylinderGeometry(0.6, 0.6, 30, 8, 1, true), this.beaconMaterial);
       column.position.set(x, top + 15, z);
       const marker = new Mesh(new OctahedronGeometry(1.6), this.beaconMaterial);
@@ -412,6 +406,43 @@ export class World {
     }
     return s;
   }
+}
+
+/**
+ * A point on a Feature's roof: the centroid of its highest triangle (largest on ties).
+ * Unlike the centre of the bounding box, it is always on the building, even for
+ * L-shaped or courtyard footprints, so a beacon sits on it and a tap below hits it.
+ */
+function roofSpot(
+  geometry: BufferGeometry,
+  r: { first: number; count: number },
+): { x: number; z: number; top: number } | null {
+  const pos = geometry.getAttribute('position');
+  const index = geometry.getIndex();
+  const n = index ? index.count : pos.count;
+  const v = (k: number) => (index ? index.getX(k) : k);
+  let best: { y: number; area: number; x: number; z: number } | null = null;
+  for (let k = 0; k + 2 < n; k += 3) {
+    const [a, b, c] = [v(k), v(k + 1), v(k + 2)];
+    if ([a, b, c].some((i) => i < r.first || i >= r.first + r.count)) continue;
+    const y = Math.min(pos.getY(a), pos.getY(b), pos.getY(c));
+    const [ux, uz] = [pos.getX(b) - pos.getX(a), pos.getZ(b) - pos.getZ(a)];
+    const [wx, wz] = [pos.getX(c) - pos.getX(a), pos.getZ(c) - pos.getZ(a)];
+    const area = Math.abs(ux * wz - uz * wx) / 2; // footprint area: walls have ~0
+    if (area < 0.5) continue;
+    if (!best || y > best.y + 0.01 || (Math.abs(y - best.y) <= 0.01 && area > best.area)) {
+      best = {
+        y,
+        area,
+        x: (pos.getX(a) + pos.getX(b) + pos.getX(c)) / 3,
+        z: (pos.getZ(a) + pos.getZ(b) + pos.getZ(c)) / 3,
+      };
+    }
+  }
+  if (!best) return null;
+  let top = 0;
+  for (let i = r.first; i < r.first + r.count; i++) top = Math.max(top, pos.getY(i));
+  return { x: best.x, z: best.z, top };
 }
 
 /** Vertices belonging to road segments (IDs like `osm:w1:n2-n3`), from the Bundle's feature ranges. */
