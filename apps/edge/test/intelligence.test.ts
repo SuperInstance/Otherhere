@@ -149,3 +149,22 @@ describe('Quests', () => {
     expect((await quests()).find((q) => q.featureId === id)?.reason).not.toBe('unsure');
   });
 });
+
+describe('moderation', () => {
+  it("removes one source's Facts from a Feature, owner only", async () => {
+    const id = await aBuilding();
+    await observe(id, { cell: CELL, image: '/9j/AAAA' });
+    const del = (auth: string | null) =>
+      SELF.fetch(
+        `https://x/api/ops/cells/${CELL}/features/${encodeURIComponent(id)}/facts?source=capture`,
+        { method: 'DELETE', headers: auth ? { authorization: auth } : {} },
+      );
+    expect((await del(null)).status).toBe(404);
+    const res = await del('Bearer test-ops');
+    expect(await res.json()).toMatchObject({ removed: 4 });
+    const { resolved } = (await town().cellFacts(CELL)) as unknown as {
+      resolved: Record<string, ResolvedAttrs>;
+    };
+    expect(Object.values(resolved[id] ?? {}).every((r) => r.source !== 'capture')).toBe(true);
+  });
+});

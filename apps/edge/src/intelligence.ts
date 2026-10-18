@@ -1,4 +1,4 @@
-import { isCell, townOf, type Fact, type Feature } from '@otherhere/core';
+import { isCell, SOURCES, townOf, type Fact, type Feature, type Source } from '@otherhere/core';
 import { observeBuilding } from '@otherhere/models';
 import type { Env } from './env';
 import { makeModels } from './models';
@@ -32,6 +32,18 @@ export async function intelligenceRoutes(
     // Owner-only. Without an OPS_TOKEN configured these routes do not exist.
     if (!env.OPS_TOKEN || req.headers.get('authorization') !== `Bearer ${env.OPS_TOKEN}`)
       return json({ error: 'not found' }, 404);
+    // DELETE /api/ops/cells/:cell/features/:id/facts?source=capture — moderation.
+    const mod = /^\/api\/ops\/cells\/([^/]+)\/features\/([^/]+)\/facts$/.exec(path);
+    if (mod && req.method === 'DELETE') {
+      const [cell, featureId] = [mod[1]!, decodeURIComponent(mod[2]!)];
+      const source = new URL(req.url).searchParams.get('source') ?? '';
+      if (!isCell(cell) || !SOURCES.includes(source as Source))
+        return json({ error: 'needs an H3 res-9 cell and ?source=<one of the Fact sources>' }, 400);
+      const town = env.TOWN.get(env.TOWN.idFromName(townOf(cell))) as unknown as {
+        removeFacts(featureId: string, source: string): Promise<number>;
+      };
+      return json({ removed: await town.removeFacts(featureId, source) });
+    }
     // RPC typing of recursive JSON is too deep for tsc; the shapes are OpsDO's.
     const ops = opsStub(env) as unknown as {
       recentDecisions(limit: number): Promise<unknown[]>;
