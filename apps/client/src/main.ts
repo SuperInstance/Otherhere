@@ -30,7 +30,7 @@ import {
 import { World } from './world';
 import { SessionClient } from './net';
 import { describeEvent, MatchView, TEAM_NAMES } from './match';
-import { describeFacts, photoToJpegBase64 } from './feature';
+import { describeFacts, photoToJpegBase64, questLine, questsDone } from './feature';
 import { learnFromWalk } from './capture';
 import { WalkControls } from './walk';
 import { PAPER } from './material';
@@ -199,6 +199,12 @@ if (!originCell) {
     }
     if (s.errors)
       lines.push(`${s.errors} cell${s.errors === 1 ? '' : 's'} failed to load. Reload to retry.`);
+    if (s.quests) {
+      const done = questsDone.get();
+      lines.push(
+        `${s.quests} quest${s.quests === 1 ? '' : 's'} nearby: photograph a building under an amber beacon${done ? ` · ${done} done` : ''}`,
+      );
+    }
     if (capsule) {
       lines.unshift(
         `Postcard: ${capsule.title} · saved ${capsule.createdAt.slice(0, 10)} · built in your browser`,
@@ -209,6 +215,7 @@ if (!originCell) {
     statusEl.textContent = lines.join('\n');
     (window as unknown as { __otherhere: unknown }).__otherhere = {
       stats: s,
+      quests: world.questTargets(),
       backend,
       pose: walk.pose,
       session: session && {
@@ -300,6 +307,7 @@ if (!originCell) {
     const title = $('feature-title');
     const factsEl = $('feature-facts');
     const result = $('feature-result');
+    const questEl = $('feature-quest');
     const photo = $<HTMLInputElement>('photo');
     let selected: { cell: string; featureId: string } | null = null;
     const raycaster = new Raycaster();
@@ -331,6 +339,9 @@ if (!originCell) {
       selected = hit;
       panel.hidden = false;
       result.textContent = '';
+      const quest = world.questFor(hit.featureId);
+      questEl.hidden = !quest;
+      questEl.textContent = quest ? questLine(quest) : '';
       void showFacts();
     };
     photo.addEventListener('change', async () => {
@@ -354,8 +365,15 @@ if (!originCell) {
         } else if (!body.facts?.length) {
           result.textContent =
             'The photo did not show this building clearly enough to learn anything. Try one taken straight on.';
+          // The building is now an unsure Quest: fetch the Cell's Quests again to show its beacon.
+          world.reload(target.cell);
         } else {
-          result.textContent = `Learned ${body.facts.length} thing${body.facts.length === 1 ? '' : 's'} from your photo. This building is now sharper.`;
+          const learned = `Learned ${body.facts.length} thing${body.facts.length === 1 ? '' : 's'} from your photo. This building is now sharper.`;
+          if (world.questFor(target.featureId)) {
+            const n = questsDone.add();
+            result.textContent = `Quest complete (${n} so far). ${learned}`;
+            questEl.hidden = true;
+          } else result.textContent = learned;
           world.reload(target.cell);
           await showFacts();
         }

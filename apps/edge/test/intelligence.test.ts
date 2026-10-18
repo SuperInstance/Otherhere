@@ -121,3 +121,31 @@ describe('taste judge storage', () => {
     ).toBe(400);
   });
 });
+
+describe('Quests', () => {
+  type Q = { featureId: string; reason: string; ask: string[] };
+  const quests = async () =>
+    ((await (await SELF.fetch(`https://x/api/cells/${CELL}/quests`)).json()) as { quests: Q[] })
+      .quests;
+
+  it('asks for photos of buildings whose look is imagined, and a photo settles one', async () => {
+    await aBuilding();
+    const before = await quests();
+    expect(before.length).toBeGreaterThan(0);
+    expect(before.length).toBeLessThanOrEqual(3);
+    const target = before[0]!;
+    expect(target.reason).toBe('unknown');
+
+    // The fake models answer confidently: the photo becomes Facts and the Quest is done.
+    await observe(target.featureId, { cell: CELL, image: '/9j/AAAA' });
+    expect((await quests()).map((q) => q.featureId)).not.toContain(target.featureId);
+  });
+
+  it('a photo the Ladder could not settle turns its building into an unsure Quest', async () => {
+    const id = await aBuilding();
+    await town().markObserved(id, false);
+    expect((await quests())[0]).toMatchObject({ featureId: id, reason: 'unsure' });
+    await town().markObserved(id, true);
+    expect((await quests()).find((q) => q.featureId === id)?.reason).not.toBe('unsure');
+  });
+});
