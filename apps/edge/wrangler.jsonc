@@ -34,6 +34,8 @@
     { "name": "PHOTO_LIMIT", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } },
     { "name": "WRITE_LIMIT", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } },
     { "name": "GEOCODE_LIMIT", "namespace_id": "1003", "simple": { "limit": 20, "period": 60 } },
+    // Terrain streams a few hundred tiles a minute while flying; most are edge-cache hits.
+    { "name": "TILE_LIMIT", "namespace_id": "1004", "simple": { "limit": 1500, "period": 60 } },
   ],
   "r2_buckets": [{ "binding": "BUNDLES", "bucket_name": "otherhere-bundles" }],
   "vars": {

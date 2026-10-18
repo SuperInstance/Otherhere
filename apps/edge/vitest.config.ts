@@ -10,6 +10,8 @@ export default defineConfig({
         bindings: {
           OVERPASS_ENDPOINTS: 'http://127.0.0.1:9/api/interpreter',
           NOMINATIM_URL: 'http://127.0.0.1:9/search',
+          ELEVATION_TILES_URL: 'http://127.0.0.1:9/{z}/{x}/{y}',
+          SATELLITE_TILES_URL: 'http://127.0.0.1:9/{z}/{x}/{y}',
           MODEL_FAKE: 'true',
           OPS_TOKEN: 'test-ops',
           AGENT_TOKEN: 'test-agent',

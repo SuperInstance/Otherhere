@@ -21,6 +21,9 @@ export class WalkControls {
   onTap: (clientX: number, clientY: number) => void = () => {};
   private stick: { id: number; x0: number; y0: number; dx: number; dy: number } | null = null;
   private stickEl: HTMLElement;
+  /** Ground height under a point; `pose.y` is the eye's height above it. Flat by default. */
+  groundAt: (x: number, z: number) => number = () => 0;
+  private ground: number | null = null;
   private knobEl: HTMLElement;
 
   constructor(
@@ -141,14 +144,21 @@ export class WalkControls {
       this.pose.x += -sin * f + cos * s;
       this.pose.z += -cos * f - sin * s;
     }
-    this.apply();
+    this.apply(dt);
     return (
       before !== `${this.pose.x},${this.pose.y},${this.pose.z},${this.pose.yaw},${this.pose.pitch}`
     );
   }
 
-  private apply() {
-    this.camera.position.set(this.pose.x, this.pose.y, this.pose.z);
+  private apply(dt = 0) {
+    // Ease toward the ground so steps between heightmap pixels don't jolt the view,
+    // but never let the eye sink below it.
+    const g = this.groundAt(this.pose.x, this.pose.z);
+    this.ground =
+      this.ground === null || dt === 0
+        ? g
+        : Math.max(g, this.ground + (g - this.ground) * Math.min(1, dt * 8));
+    this.camera.position.set(this.pose.x, this.ground + this.pose.y, this.pose.z);
     this.camera.rotation.set(this.pose.pitch, this.pose.yaw, 0, 'YXZ');
   }
 }

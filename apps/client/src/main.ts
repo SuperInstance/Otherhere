@@ -2,7 +2,6 @@ import {
   CircleGeometry,
   Color,
   DirectionalLight,
-  Fog,
   HemisphereLight,
   Mesh,
   MeshStandardNodeMaterial,
@@ -27,7 +26,9 @@ import {
   type SessionInfo,
   type Team,
 } from '@otherhere/core';
+import { createAtmosphere } from './atmosphere';
 import { World } from './world';
+import { Terrain, TERRAIN_ATTRIBUTION, type TerrainMode } from './terrain';
 import { SessionClient } from './net';
 import { describeEvent, MatchView, TEAM_NAMES } from './match';
 import { describeFacts, photoToJpegBase64, questLine, questsDone } from './feature';
@@ -101,6 +102,7 @@ $('locate').addEventListener('click', () => {
 $('demo').addEventListener('click', () => location.assign('?demo=generators'));
 
 // --- Scene ---------------------------------------------------------------------
+// A logarithmic depth buffer keeps roads on hillsides and mountains 20 km away both crisp.
 const renderer = new WebGPURenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
@@ -111,7 +113,8 @@ const backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBack
 
 const scene = new Scene();
 scene.background = new Color(SKY);
-scene.fog = new Fog(SKY, 80, 520);
+// Sky dome, valley mist and filmic tone mapping: a few ALU ops per pixel, no extra passes.
+const atmosphere = createAtmosphere(scene, renderer);
 scene.add(new HemisphereLight('#f6f2ea', '#b7ab92', 1.7));
 const sun = new DirectionalLight('#fff4e2', 1.9);
 sun.position.set(-0.45, 1, 0.3); // fixed: the same light on every device
@@ -124,7 +127,7 @@ ground.rotation.x = -Math.PI / 2;
 ground.position.y = -0.05;
 scene.add(ground);
 
-const camera = new PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 3000);
+const camera = new PerspectiveCamera(70, innerWidth / innerHeight, 0.3, 40_000);
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
@@ -185,10 +188,18 @@ if (!originCell) {
   camera.position.set(0, 40, 80);
   camera.lookAt(0, 0, 0);
 } else {
+  // Real places stand on real ground; the generator demo stays on its flat test lot.
+  const mapParam = new URLSearchParams(location.search).get('map');
+  const terrain = isDemo
+    ? null
+    : new Terrain(scene, localFrame(cellCenter(originCell)), {
+        mode: mapParam === 'satellite' ? 'satellite' : 'topo',
+      });
   const world = new World(
     scene,
     originCell,
     isDemo ? 'demo' : capsule ? { capsule: capsuleBundleInputs(capsule) } : 'api',
+    terrain ?? undefined,
   );
   const pose = capsule?.view?.pose;
   const saved =
@@ -205,6 +216,14 @@ if (!originCell) {
       : { x: startAt.e, y: 1.7, z: -startAt.n, yaw: 0, pitch: 0 });
   spawned ||= isDemo;
   const walk = new WalkControls(camera, canvas, initial);
+  if (terrain) {
+    walk.groundAt = (x, z) => terrain.standAt(x, z);
+    addEventListener('keydown', (e) => {
+      if (e.code !== 'KeyM' || e.target instanceof HTMLInputElement) return;
+      terrain.mode = terrain.mode === 'topo' ? 'satellite' : ('topo' satisfies TerrainMode);
+      showStatus();
+    });
+  }
 
   const showStatus = () => {
     const s = world.stats();
@@ -212,6 +231,10 @@ if (!originCell) {
       `${backend} · ${s.ready} cell${s.ready === 1 ? '' : 's'}${s.loading ? ` (+${s.loading} loading)` : ''} · ${s.features.toLocaleString()} features`,
       `${s.verified}/${s.ready} bundle hashes verified${s.mismatched ? ` · ${s.mismatched} MISMATCHED` : ''}`,
     ];
+    if (terrain?.active)
+      lines.push(
+        `${terrain.mode === 'topo' ? 'Topographic' : 'Satellite'} (M to switch) · ${TERRAIN_ATTRIBUTION[terrain.mode]}`,
+      );
     if (s.sketch) {
       const are = s.sketch === 1 ? '1 cell is' : `${s.sketch} cells are`;
       lines.push(`${are} still a sketch: waiting for OpenStreetMap, trying again shortly.`);
@@ -237,6 +260,13 @@ if (!originCell) {
       quests: world.questTargets(),
       backend,
       pose: walk.pose,
+      terrain: terrain && {
+        ...terrain.stats(),
+        active: terrain.active,
+        ground: terrain.heightAt(walk.pose.x, walk.pose.z),
+        stand: terrain.standAt(walk.pose.x, walk.pose.z),
+        eye: camera.position.y,
+      },
       session: session && {
         code: session.code,
         me: session.me,
@@ -573,6 +603,11 @@ if (!originCell) {
     last = now;
     const moved = walk.update(dt);
     world.update(walk.pose.x, walk.pose.z);
+    terrain?.update(camera.position.x, camera.position.y, camera.position.z);
+    if (terrain?.active && ground.visible) {
+      ground.visible = false; // the terrain and the sea replace the paper disc
+      showStatus();
+    }
     if (session?.me && matchView) {
       session.sendPose(walk.pose.x, walk.pose.z, walk.pose.yaw, now);
       matchView.update(
@@ -585,10 +620,10 @@ if (!originCell) {
         lastStatus = now;
       }
     }
-    // Higher up, see further: the fog recedes as you rise.
-    const fog = scene.fog as Fog;
-    fog.near = 80 + walk.pose.y * 2;
-    fog.far = 520 + walk.pose.y * 6;
+    // Higher up, see further; with terrain there are mountains to see, so the haze
+    // reaches much further and mist pools in the valleys.
+    atmosphere.setTerrain(!!terrain?.active);
+    atmosphere.update(camera.position);
     if (moved && now - lastHash > 400) {
       history.replaceState(null, '', formatPose(walk.pose));
       lastHash = now;
