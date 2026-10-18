@@ -42,7 +42,9 @@ export function makeModels(env: Env): Models | null {
   const vision = keys.GROQ_KEY
     ? new ChatProvider(router, 'groq', { apiKey: keys.GROQ_KEY, fetch })
     : keys.MINIMAX_KEY
-      ? new ChatProvider(router, 'minimax', { apiKey: keys.MINIMAX_KEY, fetch, maxTokens: 2000 })
+      ? // MiniMax-M3 reads images. It reasons before answering, so leave room: a reply cut
+        // off mid-thought has no description at all.
+        new ChatProvider(router, 'minimax', { apiKey: keys.MINIMAX_KEY, fetch, maxTokens: 4000 })
       : null;
   if (!vision) return null;
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDING_PACK } from '@otherhere/core';
-import { MemoryLedger, ModelRouter } from '../src/router';
+import { MemoryLedger, ModelRouter, ProviderUnavailable } from '../src/router';
 import { fitForJev, JevProvider, JevRejected } from '../src/providers/jev';
 import { ChatProvider, stripThinking } from '../src/providers/chat';
 
@@ -81,7 +81,7 @@ describe('JevProvider', () => {
     );
     const limited = new JevProvider(router(), { apiKey: 'k', fetch: fakeFetch({}, 429) });
     const err = await limited.ask(BUILDING_PACK, 'x').catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(ProviderUnavailable);
     expect(err).not.toBeInstanceOf(JevRejected);
   });
 });
@@ -108,6 +108,18 @@ describe('fitForJev', () => {
     const pano = fitForJev(8000, 1000);
     expect(pano.crop).toEqual({ width: 5600, height: 1000 });
     expect([pano.width, pano.height]).toEqual([1568, 280]);
+  });
+});
+
+describe('rate limits', () => {
+  it('a 429 from a chat provider is "unavailable", not a failure of the answer', async () => {
+    const chat = new ChatProvider(router(), 'minimax', {
+      apiKey: 'k',
+      fetch: fakeFetch({ error: { message: 'Token Plan rate limit reached' } }, 429),
+    });
+    await expect(chat.complete([{ role: 'user', content: 'hi' }])).rejects.toBeInstanceOf(
+      ProviderUnavailable,
+    );
   });
 });
 

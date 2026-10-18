@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BUILDING_PACK, type Answers, type DecisionLog, type LadderRung } from '@otherhere/core';
 import { Ladder, humanRung, llmRung, ruleRung } from '../src/ladder';
 import { observeBuilding } from '../src/observe';
-import { BudgetExceeded, MemoryLedger, ModelRouter } from '../src/router';
+import { BudgetExceeded, MemoryLedger, ModelRouter, ProviderUnavailable } from '../src/router';
 import { ChatProvider } from '../src/providers/chat';
 import { JevRejected } from '../src/providers/jev';
 
@@ -80,6 +80,20 @@ describe('Ladder', () => {
       ['jev', 'refused'],
       ['groq', 'accepted'],
     ]);
+  });
+
+  it('skips a rate-limited rung as unavailable', async () => {
+    const logs: DecisionLog[] = [];
+    const limited: LadderRung = {
+      rung: 'minimax',
+      decide: () =>
+        Promise.reject(new ProviderUnavailable('minimax', 429, 'Token Plan rate limit')),
+    };
+    const r = await new Ladder([limited, fixed('claude', sure)], {
+      log: (d) => void logs.push(d),
+    }).decide(req);
+    expect(r?.rung).toBe('claude');
+    expect(logs[0]).toMatchObject({ rung: 'minimax', outcome: 'unavailable' });
   });
 
   it('turns unanswerable questions into quests for people', async () => {

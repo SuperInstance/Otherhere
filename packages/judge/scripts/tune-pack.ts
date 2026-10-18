@@ -164,13 +164,20 @@ async function propose(best: Pack, misses: string[], n: number): Promise<unknown
     `Write ${n} different improved versions that would fix these mistakes without overfitting to these exact sentences. ` +
     `Vary your approach between versions (e.g. sharper boundaries between options, typical phrasings, what to do when unstated). ` +
     `Reply as {"variants":[{"questions":{...same shape as above...}}, ...]}.`;
-  const r = await author.complete(
-    [
-      { role: 'system', content: AUTHOR_SYSTEM },
-      { role: 'user', content: prompt },
-    ],
-    { json: true },
-  );
+  let r;
+  try {
+    r = await author.complete(
+      [
+        { role: 'system', content: AUTHOR_SYSTEM },
+        { role: 'user', content: prompt },
+      ],
+      { json: true },
+    );
+  } catch (err) {
+    // E.g. a MiniMax Token Plan's rolling rate limit: skip this round, keep the best so far.
+    console.log(`author unavailable: ${(err as Error).message.slice(0, 160)}`);
+    return [];
+  }
   const json = r.value.slice(r.value.indexOf('{'), r.value.lastIndexOf('}') + 1);
   try {
     const v = (JSON.parse(json) as { variants?: unknown[] }).variants;

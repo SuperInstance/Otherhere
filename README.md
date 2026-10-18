@@ -2,7 +2,7 @@
 
 A second version of where you already are: your real place, but playable, imagined, and shared. The whole Earth starts as a stylized sketch and sharpens wherever someone plays, captures, or pays attention. It's a game first, not a digital twin.
 
-Read [`docs/BRIEF.md`](docs/BRIEF.md) for the vision, [`CONTEXT.md`](CONTEXT.md) for the vocabulary, [`docs/adr/`](docs/adr) for decisions, and [`docs/PLAN-M0.md`](docs/PLAN-M0.md) for the current milestone.
+Read [`docs/BRIEF.md`](docs/BRIEF.md) for the vision, [`docs/notes/model-field-notes.md`](docs/notes/model-field-notes.md) for what we've learned about the models, [`CONTEXT.md`](CONTEXT.md) for the vocabulary, [`docs/adr/`](docs/adr) for decisions, and [`docs/PLAN-M0.md`](docs/PLAN-M0.md) for the current milestone.
 
 | Generator demo (built in the browser) | Zürich from OpenStreetMap                                    |
 | ------------------------------------- | ------------------------------------------------------------ |
@@ -52,6 +52,7 @@ pnpm ingest <lat> <lng>               # fetch OSM around a point and summarise t
 pnpm --filter @otherhere/models smoke <image>   # live: photo → observation → Jev → Facts (needs keys, ~$0.001)
 pnpm --filter @otherhere/judge truth            # live: score Jev on the fixed text truth eval (needs TYPESAFE_AI_TOKEN, ~$0.01)
 pnpm --filter @otherhere/judge photos           # live: vision→Jev vs Jev-direct, raw and fitted, RUNS=3 (needs GROQ_KEY too, ~$0.05/run)
+pnpm --filter @otherhere/judge exec tsx scripts/tune-pack.ts   # live: MiniMax rewrites the pack's wording, Jev answers, chosen on tuning photos, checked on the judge (~$0.25)
 ```
 
 ## Determinism

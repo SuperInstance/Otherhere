@@ -37,6 +37,30 @@ export class BudgetExceeded extends Error {
   }
 }
 
+/**
+ * A provider that is up but not serving us right now: rate-limited (429, e.g. a
+ * MiniMax Token Plan's rolling window) or overloaded (503). Like a spent budget,
+ * the Ladder treats it as "unavailable" and moves on; it is not a wrong answer.
+ */
+export class ProviderUnavailable extends Error {
+  constructor(
+    readonly provider: string,
+    readonly status: number,
+    detail: string,
+  ) {
+    super(`${provider}: unavailable (HTTP ${status}) ${detail}`);
+    this.name = 'ProviderUnavailable';
+  }
+}
+
+/** Throw the right error for a failed provider response. */
+export async function failedResponse(provider: string, res: Response): Promise<never> {
+  const detail = (await res.text()).slice(0, 300);
+  if (res.status === 429 || res.status === 503)
+    throw new ProviderUnavailable(provider, res.status, detail);
+  throw new Error(`${provider}: HTTP ${res.status} ${detail}`);
+}
+
 export const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 
 export const costOf = (u: Usage, p: Pricing) =>

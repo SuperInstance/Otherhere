@@ -1,4 +1,4 @@
-import type { ModelRouter, Pricing, Priced } from '../router';
+import { failedResponse, type ModelRouter, type Pricing, type Priced } from '../router';
 import type { FetchLike } from './jev';
 
 export type ChatMessage = {
@@ -77,8 +77,7 @@ export class ChatProvider {
           }),
         },
       );
-      if (!res.ok)
-        throw new Error(`${this.id}: HTTP ${res.status} ${(await res.text()).slice(0, 300)}`);
+      if (!res.ok) await failedResponse(this.id, res);
       const json = (await res.json()) as {
         model: string;
         choices: { message: { content: string } }[];

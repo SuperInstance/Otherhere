@@ -1,5 +1,5 @@
 import { Answer, type Answers, type QuestionPack } from '@otherhere/core';
-import type { ModelRouter, Pricing, Priced } from '../router';
+import { ProviderUnavailable, type ModelRouter, type Pricing, type Priced } from '../router';
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -107,6 +107,8 @@ export class JevProvider {
         if (res.status >= 400 && res.status < 500 && ![401, 403, 429].includes(res.status)) {
           throw new JevRejected(res.status, detail);
         }
+        if (res.status === 429 || res.status === 503)
+          throw new ProviderUnavailable('jev', res.status, detail);
         throw new Error(`jev: HTTP ${res.status} ${detail}`);
       }
       const json = (await res.json()) as {
