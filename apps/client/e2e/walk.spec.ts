@@ -77,5 +77,7 @@ test('an address that cannot be looked up gets a recoverable message', async ({ 
   await page.goto('/?at=47.3769,8.5417');
   await page.getByLabel('Address, place or coordinates').fill('Lincoln St, Sitka, AK');
   await page.getByRole('button', { name: 'Walk here' }).click();
-  await expect(page.getByRole('alert')).toContainText('use coordinates');
+  // The edge gives up on the lookup after 8 s (geocode.ts), and a closed port does not
+  // always refuse at once on CI runners: wait longer than the edge does.
+  await expect(page.getByRole('alert')).toContainText('use coordinates', { timeout: 15_000 });
 });
