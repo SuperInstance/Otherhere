@@ -26,6 +26,7 @@ import {
   type SessionInfo,
   type Team,
 } from '@otherhere/core';
+import { Arrival, establishingShot } from './arrival';
 import { createAtmosphere } from './atmosphere';
 import { World } from './world';
 import { Terrain, TERRAIN_ATTRIBUTION, type TerrainMode } from './terrain';
@@ -208,14 +209,26 @@ if (!originCell) {
   let spawned = !!saved;
   // Start at the exact point typed (not the Cell centre), at eye height.
   const startAt = place ? world.frame.project(place) : { e: 0, n: 0 };
+  const street: Pose = { x: startAt.e, y: 1.7, z: -startAt.n, yaw: 0, pitch: 0 };
+  // A first visit to a real place opens on an establishing shot and glides down to the
+  // street. Any input takes over; without terrain (tiles unreachable) it snaps to the street.
+  const arriving = !saved && !isDemo && !capsule && !!terrain;
   // The demo opens on an overview of the test lot from the south-west.
   const initial: Pose =
     saved ??
     (isDemo
       ? { x: -42, y: 18, z: 52, yaw: -0.5, pitch: -0.3 }
-      : { x: startAt.e, y: 1.7, z: -startAt.n, yaw: 0, pitch: 0 });
+      : arriving
+        ? establishingShot(street)
+        : street);
   spawned ||= isDemo;
   const walk = new WalkControls(camera, canvas, initial);
+  // Land facing the way we flew in (toward town and the mountains), not at a fixed north.
+  if (arriving) street.yaw = initial.yaw;
+  let arrival: Arrival | null = arriving ? new Arrival(initial, street) : null;
+  const takeOver = () => (arrival = null);
+  for (const type of ['keydown', 'pointerdown', 'wheel'] as const)
+    addEventListener(type, takeOver, { once: true, passive: true });
   if (terrain) {
     walk.groundAt = (x, z) => terrain.standAt(x, z);
     addEventListener('keydown', (e) => {
@@ -585,10 +598,16 @@ if (!originCell) {
     // On first arrival (no saved pose), step onto the nearest road so we don't start inside a wall.
     if (!spawned && world.isReady(world.cellAtWorld(walk.pose.x, walk.pose.z))) {
       spawned = true;
-      const road = world.nearestRoad(walk.pose.x, walk.pose.z);
-      if (road && Math.hypot(road.x - walk.pose.x, road.z - walk.pose.z) < 120) {
-        walk.pose.x = road.x;
-        walk.pose.z = road.z;
+      const here = arrival ? street : walk.pose;
+      const road = world.nearestRoad(here.x, here.z);
+      if (road && Math.hypot(road.x - here.x, road.z - here.z) < 120) {
+        if (arrival) {
+          Object.assign(street, { x: road.x, z: road.z });
+          arrival.retarget(street);
+        } else {
+          walk.pose.x = road.x;
+          walk.pose.z = road.z;
+        }
       }
     }
     showStatus();
@@ -601,8 +620,16 @@ if (!originCell) {
     // Cap the step so a backgrounded tab does not jump, but keep slow devices at true speed.
     const dt = Math.min(0.25, (now - last) / 1000);
     last = now;
+    if (arrival && terrain?.unavailable) {
+      // No terrain to show off: start at the street, as before.
+      Object.assign(walk.pose, street);
+      arrival = null;
+    }
+    if (arrival && !arrival.step(dt, walk.pose)) arrival = null;
     const moved = walk.update(dt);
-    world.update(walk.pose.x, walk.pose.z);
+    // While arriving, load where we will land, not around the camera in the sky.
+    const focus = arrival ? street : walk.pose;
+    world.update(focus.x, focus.z);
     terrain?.update(camera.position.x, camera.position.y, camera.position.z);
     if (terrain?.active && ground.visible) {
       ground.visible = false; // the terrain and the sea replace the paper disc
