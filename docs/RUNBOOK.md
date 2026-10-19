@@ -32,7 +32,7 @@ The GitHub **Deploy** workflow does the same with repository secrets `CLOUDFLARE
 - **Model spend:** every paid call goes through the ModelRouter's daily per-provider caps (invariant 9). A capped provider is skipped as `unavailable`, as is a provider returning 429 or 503.
 - **Rate limits:** per client IP (`ratelimits` in `wrangler.jsonc`). Photo analysis allows 20 per minute. Creating Sessions, Capsules and taste events allows 30 per minute. Address lookups allow 20 per minute, map tiles 1,500 per minute (most are edge-cache hits). Over the limit: 429 with `retry-after: 60`; the filmed-walk importer waits and retries once.
 - **Errors:** an unhandled error returns JSON 500 with a reference ID and logs one JSON line (`level`, `id`, `method`, `path`, `error`) to Workers Logs. Search the logs for the ID a user quotes.
-- **Headers:** API responses send `x-content-type-options: nosniff`. The client sends a CSP, `X-Frame-Options: DENY`, a referrer policy and a permissions policy (`apps/client/public/_headers`).
+- **Headers:** API responses send `x-content-type-options: nosniff`. The client sends a CSP, `X-Frame-Options: DENY`, a referrer policy and a permissions policy (`apps/client/public/_headers`). The CSP allows one third party, Cloudflare Web Analytics (`static.cloudflareinsights.com` for the script, `cloudflareinsights.com` for reports); turning Web Analytics off in the dashboard makes those entries unnecessary.
 
 ## Checking health
 
