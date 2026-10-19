@@ -299,6 +299,7 @@ if (!originCell) {
         stand: terrain.standAt(walk.pose.x, walk.pose.z),
         eye: camera.position.y,
       },
+      forest: forest && forest.stats(),
       session: session && {
         code: session.code,
         me: session.me,

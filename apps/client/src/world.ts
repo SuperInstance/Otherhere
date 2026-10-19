@@ -28,6 +28,7 @@ import {
   type BundleManifest,
   type LocalFrame,
 } from '@otherhere/core';
+import { MAX_GROUND, MIN_GROUND } from './forest';
 import { confidenceMaterial } from './material';
 
 type CellState = {
@@ -335,7 +336,7 @@ export class World {
    */
   private async standOnGround(
     group: Group,
-    ranges: { first: number; count: number }[],
+    ranges: { id: string; first: number; count: number }[],
   ): Promise<{ flat: Float32Array; box: NonNullable<CellState['box']> } | undefined> {
     // A Bundle is one merged mesh, as pick() and roofSpot() assume.
     const mesh = group.children.find((o) => (o as Mesh).isMesh) as Mesh | undefined;
@@ -358,7 +359,7 @@ export class World {
   private stand(
     mesh: Mesh,
     flat: Float32Array,
-    ranges: { first: number; count: number }[],
+    ranges: { id: string; first: number; count: number }[],
     ox: number,
     oz: number,
   ) {
@@ -366,24 +367,7 @@ export class World {
     if (!g.active) return;
     const pos = mesh.geometry.getAttribute('position');
     (pos.array as Float32Array).set(flat);
-    const groundAt = (i: number) => g.heightAt(ox + pos.getX(i), oz + pos.getZ(i));
-    const first = ranges[0]?.first ?? pos.count;
-    for (let i = 0; i < first; i++) pos.setXYZ(i, 0, -1000, 0);
-    for (const r of ranges) {
-      let [lo, hi, floor] = [Infinity, -Infinity, Infinity];
-      for (let i = r.first; i < r.first + r.count; i++) {
-        lo = Math.min(lo, pos.getY(i));
-        hi = Math.max(hi, pos.getY(i));
-        floor = Math.min(floor, groundAt(i));
-      }
-      if (hi - lo > 1.5) {
-        // Sink a little so the downhill side has no visible gap under it.
-        for (let i = r.first; i < r.first + r.count; i++) pos.setY(i, pos.getY(i) + floor - 0.3);
-      } else {
-        for (let i = r.first; i < r.first + r.count; i++)
-          pos.setY(i, pos.getY(i) + groundAt(i) + 0.15);
-      }
-    }
+    standFeatures(pos, ranges, ox, oz, g);
     pos.needsUpdate = true;
     mesh.geometry.computeBoundingBox();
     mesh.geometry.computeBoundingSphere();
@@ -563,6 +547,76 @@ export class World {
     }
     return s;
   }
+}
+
+/**
+ * A position attribute, or anything shaped like one, so standing can be tested
+ * without three.js geometry.
+ */
+type Positions = {
+  readonly count: number;
+  getX(i: number): number;
+  getY(i: number): number;
+  getZ(i: number): number;
+  setXYZ(i: number, x: number, y: number, z: number): void;
+  setY(i: number, y: number): void;
+};
+
+/**
+ * Stands one Bundle's flat geometry on real ground (ADR-0016), in place. The
+ * first range is the Cell's flat ground hexagon, collapsed deep below the world;
+ * anything with height (a building, a tree) moves as one rigid piece onto the
+ * lowest ground under it, so floors stay level; flat things (roads, paths) drape
+ * per vertex.
+ *
+ * Imagined trees (`gen:` ids, ADR-0017) are site-checked first: the build that
+ * imagined them has no elevation, so it plants stands in the sea (61 % of the
+ * trees in the two wild Cells across Sitka's bay sit below the beach line). The
+ * display layer, which owns the terrain, applies the forest's own beach and
+ * timber lines here, so an imagined stand ends at the coast. Collapsed features
+ * join the ground hexagon below the world, where nothing picks them; a resnap on
+ * finer ground stands them again and re-decides.
+ */
+export function standFeatures(
+  pos: Positions,
+  ranges: { id: string; first: number; count: number }[],
+  ox: number,
+  oz: number,
+  ground: Pick<Ground, 'active' | 'heightAt'>,
+): void {
+  if (!ground.active) return;
+  const groundAt = (i: number) => ground.heightAt(ox + pos.getX(i), oz + pos.getZ(i));
+  const first = ranges[0]?.first ?? pos.count;
+  for (let i = 0; i < first; i++) pos.setXYZ(i, 0, -1000, 0);
+  for (const r of ranges) {
+    let [lo, hi, floor] = [Infinity, -Infinity, Infinity];
+    for (let i = r.first; i < r.first + r.count; i++) {
+      lo = Math.min(lo, pos.getY(i));
+      hi = Math.max(hi, pos.getY(i));
+      floor = Math.min(floor, groundAt(i));
+    }
+    if (imaginedRejected(r, floor)) {
+      for (let i = r.first; i < r.first + r.count; i++) pos.setXYZ(i, 0, -1000, 0);
+      continue;
+    }
+    if (hi - lo > 1.5) {
+      // Sink a little so the downhill side has no visible gap under it.
+      for (let i = r.first; i < r.first + r.count; i++) pos.setY(i, pos.getY(i) + floor - 0.3);
+    } else {
+      for (let i = r.first; i < r.first + r.count; i++)
+        pos.setY(i, pos.getY(i) + groundAt(i) + 0.15);
+    }
+  }
+}
+
+/**
+ * An imagined tree (`gen:` id) must not stand on this ground: below the beach
+ * line or above the timber line, the same site rules the display forest plants
+ * by. Observed trees are never gated — an OSM tree at sea level is someone's
+ * observation, and observations win over the site model.
+ */
+function imaginedRejected(range: { id: string }, groundM: number): boolean {
+  return range.id.startsWith('gen:') && (groundM < MIN_GROUND || groundM > MAX_GROUND);
 }
 
 /**
