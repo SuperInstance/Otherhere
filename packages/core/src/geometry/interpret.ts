@@ -12,8 +12,9 @@ import { blob, box, cylinder, extrude, ribbon, roof, windows } from './shapes';
 /**
  * Bump when interpreter output changes for the same inputs. It is part of every
  * Bundle's content address, so old Bundles are rebuilt rather than mixed.
+ * 0.5.0: the imagined forest (ADR-0017) joins Bundle builds.
  */
-export const INTERPRETER_VERSION = '0.4.0';
+export const INTERPRETER_VERSION = '0.5.0';
 
 /** Confidence of anything a generator imagines rather than reads from a Fact. */
 export const IMAGINED = 0.25;

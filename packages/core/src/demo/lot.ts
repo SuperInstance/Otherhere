@@ -75,6 +75,47 @@ export function demoLot(cell: string = DEMO_CELL): BundleFeature[] {
     { id: 'osm:n400', kind: 'tree', attrs: { position: osm(ll(-10, -6), 0.7) } },
     { id: 'osm:n401', kind: 'tree', attrs: { position: osm(ll(4, -7), 0.7) } },
     { id: 'osm:n402', kind: 'tree', attrs: { position: osm(ll(20, -6), 0.7) } },
+    // One of each species we can name: the forest the generators can draw.
+    {
+      id: 'osm:n403',
+      kind: 'tree',
+      attrs: { position: osm(ll(-20, -7), 0.7), species: osm('hemlock', 0.9) },
+    },
+    {
+      id: 'osm:n404',
+      kind: 'tree',
+      attrs: { position: osm(ll(-31, -8), 0.7), species: osm('spruce', 0.9) },
+    },
+    {
+      id: 'osm:n405',
+      kind: 'tree',
+      attrs: { position: osm(ll(40, -7), 0.7), species: osm('cedar', 0.9) },
+    },
+    {
+      id: 'osm:n406',
+      kind: 'tree',
+      attrs: { position: osm(ll(47, -8), 0.7), species: osm('alder', 0.9) },
+    },
+    {
+      id: 'osm:n407',
+      kind: 'tree',
+      attrs: { position: osm(ll(55, -6), 0.7), species: osm('salmonberry', 0.9) },
+    },
+    // Landcover the imagined forest grows from: a wood west of the road, a
+    // salmonberry-alder scrub patch east of it.
+    {
+      id: 'osm:w400',
+      kind: 'landcover',
+      attrs: {
+        footprint: osm(rect(-72, -40, 26, 32), 0.7),
+        landcover: osm('forest', 0.9),
+      },
+    },
+    {
+      id: 'osm:w401',
+      kind: 'landcover',
+      attrs: { footprint: osm(rect(58, -22, 14, 18), 0.7), landcover: osm('scrub', 0.9) },
+    },
     { id: 'osm:n500', kind: 'bench', attrs: { position: osm(ll(-3, -6), 0.7) } },
     { id: 'osm:n501', kind: 'bench', attrs: { position: osm(ll(12, -6), 0.7) } },
     { id: 'osm:n600', kind: 'streetlight', attrs: { position: osm(ll(-30, -5), 0.7) } },

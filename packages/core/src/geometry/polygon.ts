@@ -52,6 +52,56 @@ export function centroid(pts: readonly P2[]): P2 {
   return { e: ce / (3 * a), n: cn / (3 * a) };
 }
 
+/** Ray-cast point-in-ring test; boundary points count as inside. */
+export function pointInRing(p: P2, ring: readonly P2[]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i]!;
+    const b = ring[j]!;
+    if (a.n > p.n !== b.n > p.n && p.e < ((b.e - a.e) * (p.n - a.n)) / (b.n - a.n) + a.e)
+      inside = !inside;
+  }
+  return inside;
+}
+
+/** The distance from `p` to the segment a→b. */
+export function segmentDistance(p: P2, a: P2, b: P2): number {
+  const de = b.e - a.e;
+  const dn = b.n - a.n;
+  const l2 = de * de + dn * dn;
+  const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.e - a.e) * de + (p.n - a.n) * dn) / l2));
+  const dx = p.e - (a.e + t * de);
+  const dn2 = p.n - (a.n + t * dn);
+  return Math.sqrt(dx * dx + dn2 * dn2);
+}
+
+/** The distance from `p` to a ring's outline: 0 when inside it. */
+export function ringDistance(p: P2, ring: readonly P2[]): number {
+  if (ring.length < 3 || pointInRing(p, ring)) return 0;
+  let d = Infinity;
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i]!;
+    const b = ring[(i + 1) % ring.length]!;
+    d = Math.min(d, segmentDistance(p, a, b));
+  }
+  return d;
+}
+
+/**
+ * How deep inside a ring `p` sits: the distance to the nearest edge, 0 on the
+ * boundary itself, and Infinity when outside. The mirror of `ringDistance`.
+ */
+export function depthInRing(p: P2, ring: readonly P2[]): number {
+  if (ring.length < 3 || !pointInRing(p, ring)) return Infinity;
+  let d = Infinity;
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i]!;
+    const b = ring[(i + 1) % ring.length]!;
+    d = Math.min(d, segmentDistance(p, a, b));
+  }
+  return d;
+}
+
 /** Andrew's monotone chain; returns a CCW hull. */
 export function convexHull(pts: readonly P2[]): P2[] {
   const s = [...pts].sort((a, b) => a.e - b.e || a.n - b.n);

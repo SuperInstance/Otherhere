@@ -13,6 +13,10 @@ export const Essence = z.strictObject({
   heightM: z.strictObject({ median: z.number(), p90: z.number() }),
   propFamilies: z.record(z.string(), z.number().min(0)),
   sampleCount: z.number().int().min(0),
+  /** The Town's biome (a `ForestBiome` code); shapes the default forest mix. */
+  biome: z.enum(['temperate', 'pacific-rainforest']).optional(),
+  /** Imagined tree species shares, quantized to 0.05 (empty = not enough samples). */
+  forest: z.record(z.string(), z.number().min(0)).optional(),
 });
 export type Essence = z.infer<typeof Essence>;
 

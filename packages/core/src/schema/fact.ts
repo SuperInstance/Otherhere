@@ -1,8 +1,14 @@
 import { z } from 'zod';
 import { FeatureId } from './feature';
 
-/** Lowest to highest rank (invariant 4). */
+/**
+ * Lowest to highest rank (invariant 4). `imagined` is below every observed
+ * source and is never a Fact: it marks values the generators derived from
+ * nothing (e.g. an imagined tree's position), which exist only inside a Bundle
+ * build and lose every conflict by construction.
+ */
 export const SOURCES = [
+  'imagined',
   'osm',
   'overture',
   'satellite_inference',
@@ -43,6 +49,10 @@ export const ATTRIBUTES = {
   highway: z.string(),
   width: z.number().positive().max(200),
   name: z.string(),
+  /** A tree's species, as a code from `FOREST_SPECIES`. */
+  species: z.enum(['hemlock', 'spruce', 'cedar', 'alder', 'salmonberry', 'broadleaf']),
+  /** A landcover polygon's cover class. */
+  landcover: z.enum(['forest', 'scrub', 'meadow']),
   'osm.tags': z.record(z.string(), z.string()),
 } as const;
 export type KnownAttribute = keyof typeof ATTRIBUTES;
@@ -58,6 +68,10 @@ export const Fact = z
     version: z.number().int().positive(),
   })
   .superRefine((f, ctx) => {
+    // Facts are observed; imagination is derived at build time and never stored.
+    if (f.source === 'imagined') {
+      ctx.addIssue({ code: 'custom', path: ['source'], message: 'imagined is not a Fact source' });
+    }
     const schema = (ATTRIBUTES as Record<string, z.ZodType>)[f.attribute];
     if (schema && !schema.safeParse(f.value).success) {
       ctx.addIssue({ code: 'custom', path: ['value'], message: `invalid ${f.attribute}` });

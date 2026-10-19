@@ -1,6 +1,7 @@
 import type { ResolvedAttrs } from '../facts/resolve';
 import { Essence } from '../schema/world';
 import type { FeatureKind } from '../schema/feature';
+import { biomeMix, type ForestBiome, type Species, FOREST_SPECIES } from '../forest/species';
 
 /** Below this many known samples, a statistic is left out (generators fall back to defaults). */
 export const ESSENCE_MIN_SAMPLES = 5;
@@ -23,6 +24,14 @@ function knownHeight(a: ResolvedAttrs): number | null {
   return null;
 }
 
+/** A tree's known species, from any source we trust enough to count. */
+function knownSpecies(a: ResolvedAttrs): Species | null {
+  const s = a.species;
+  if (s && s.confidence >= MIN_CONF && typeof s.value === 'string')
+    return (FOREST_SPECIES as readonly string[]).includes(s.value) ? (s.value as Species) : null;
+  return null;
+}
+
 /**
  * Summarise a Town's character from its resolved Facts (ADR-0014). Pure and
  * deterministic: input order does not matter, and output is quantized so that
@@ -31,13 +40,20 @@ function knownHeight(a: ResolvedAttrs): number | null {
 export function computeEssence(
   town: string,
   features: Iterable<{ kind: FeatureKind; attrs: ResolvedAttrs }>,
+  opts: { biome?: ForestBiome } = {},
 ): Essence {
   const heights: number[] = [];
   const roofs = new Map<string, number>();
   const colours = new Map<string, number>();
   const props = new Map<string, number>();
+  const species = new Map<string, number>();
   for (const f of features) {
+    if (f.kind === 'landcover') continue; // ground, not a prop
     if (f.kind !== 'building') {
+      if (f.kind === 'tree') {
+        const s = knownSpecies(f.attrs);
+        if (s) species.set(s, (species.get(s) ?? 0) + 1);
+      }
       if (f.kind !== 'road') props.set(f.kind, (props.get(f.kind) ?? 0) + 1);
       continue;
     }
@@ -77,6 +93,14 @@ export function computeEssence(
   const propFamilies: Record<string, number> = {};
   for (const k of [...props.keys()].sort()) propFamilies[k] = bucket(props.get(k)!);
 
+  // The forest mix, once the Town has told us enough species to have one.
+  const speciesTotal = [...species.values()].reduce((a, b) => a + b, 0);
+  const forest: Record<string, number> = {};
+  if (speciesTotal >= ESSENCE_MIN_SAMPLES) {
+    for (const k of [...species.keys()].sort())
+      forest[k] = round(q(species.get(k)! / speciesTotal, 0.05), 2);
+  }
+
   return Essence.parse({
     town,
     palette,
@@ -84,6 +108,8 @@ export function computeEssence(
     heightM,
     propFamilies,
     sampleCount: bucket(heights.length),
+    ...(opts.biome ? { biome: opts.biome } : {}),
+    ...(Object.keys(forest).length ? { forest } : {}),
   });
 }
 
@@ -109,6 +135,13 @@ export function essenceParams(e: Essence | undefined): Record<string, number | s
   };
   for (const shape of ['flat', 'gable', 'hip', 'shed'])
     out[`@essence.roof.${shape}`] = e.roofShapes[shape] ?? 0;
+  // The forest mix: the Town's own species shares when it has enough, else the
+  // biome's default character (ADR-0017). Every species always has a weight, so
+  // generators can reference any of them.
+  const hasForest = Object.keys(e.forest ?? {}).length > 0;
+  const fallback = biomeMix(e.biome ?? 'temperate');
+  for (const s of FOREST_SPECIES)
+    out[`@essence.forest.${s}`] = hasForest ? (e.forest?.[s] ?? 0) : fallback[s];
   // Always 8 slots, so generators can reference any of them; unused slots get weight 0.
   for (let i = 0; i < 8; i++)
     out[`@essence.palette.${i}`] = e.palette[i] ?? e.palette[0] ?? '#ddd6c6';

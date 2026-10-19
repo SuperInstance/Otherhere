@@ -153,10 +153,54 @@ describe('TownDO + R2 bundle pipeline', () => {
     expect(info.status).toBe('failed');
     expect(info.manifest.featureCount).toBe(0);
     expect(res.status).toBe(200);
+    expect(await res.arrayBuffer()).toBeDefined();
   });
 
   it('404s unknown bundle hashes', async () => {
     expect((await SELF.fetch(`https://x/api/bundles/${'0'.repeat(64)}.glb`)).status).toBe(404);
+  });
+});
+
+describe('the imagined forest at the edge (ADR-0017)', () => {
+  it("carries the Town's biome and species in its Essence, and grows a wild stand", async () => {
+    // Sitka: six observed trees, four hemlock and two spruce, on Baranof Island.
+    const cell = cellAt(57.0537, -135.33);
+    await town(cell).ingestOverpass(
+      ingestBlockOf(cell),
+      {
+        elements: Array.from({ length: 6 }, (_, i) => ({
+          type: 'node' as const,
+          id: 9000 + i,
+          lat: 57.0537 + i * 1e-4,
+          lon: -135.33,
+          tags: {
+            natural: 'tree',
+            taxon: i < 4 ? 'Tsuga heterophylla' : 'Picea sitchensis',
+          },
+        })),
+      },
+      '2026-10-19T00:00:00.000Z',
+    );
+    // The stub's inferred method map is deeper than tsc enjoys here; take the
+    // one member we need (the file's standing `as unknown as` pattern).
+    const snap = await (
+      town(cell) as unknown as {
+        snapshot(c: string): Promise<{
+          essence: { biome?: string; forest?: Record<string, number> };
+        }>;
+      }
+    ).snapshot(cell);
+    expect(snap.essence.biome).toBe('pacific-rainforest');
+    expect(snap.essence.forest).toEqual({ hemlock: 0.65, spruce: 0.35 });
+
+    // Six observed trees, and the imagination filling the rainforest Cell around
+    // them; the same stand twice (invariant 2, through the R2 cache).
+    const { info } = await getBundle(cell);
+    expect(info.status).toBe('ok');
+    expect(info.manifest.featureCount).toBeGreaterThan(20);
+    const again = await getBundle(cell);
+    expect(again.info.manifest).toEqual(info.manifest);
+    expect(again.info.cached).toBe(true);
   });
 });
 

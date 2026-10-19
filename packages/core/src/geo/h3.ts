@@ -48,6 +48,11 @@ export function cellCenter(cell: string): LatLng {
   return { lat: snap(lat), lng: snap(lng) };
 }
 
+/** The centre of a Town (res-6) Cell, or null if `town` is not one. */
+export function townCenter(town: string): LatLng | null {
+  return isValidCell(town) && getResolution(town) === TOWN_RES ? cellCenter(town) : null;
+}
+
 export function cellBoundary(cell: string): LatLng[] {
   return cellToBoundary(cell).map(([lat, lng]) => ({ lat: snap(lat), lng: snap(lng) }));
 }
