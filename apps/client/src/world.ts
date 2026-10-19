@@ -47,6 +47,8 @@ type CellState = {
   beacons?: Group;
   /** The mesh's positions as built (flat), to stand it on the ground again when finer heights arrive. */
   flat?: Float32Array;
+  /** Where nothing may grow: discs around buildings and along roads, world frame. */
+  clearings?: Disc[];
   /** World-space footprint, for matching new ground to Cells. */
   box?: { minX: number; minZ: number; maxX: number; maxZ: number };
 };
@@ -66,6 +68,10 @@ export type WorldStats = {
 type Source = 'api' | 'demo' | { capsule: Map<string, CapsuleCellInput> };
 
 const MAX_PARALLEL = 3;
+
+type Disc = { x: number; z: number; r: number };
+/** Clearings are bucketed on this grid (m), so a point query looks at a handful of discs. */
+const CLEAR_BUCKET = 32;
 
 /** What the World needs from the terrain layer to stand Bundles on real ground. */
 export type Ground = {
@@ -96,6 +102,9 @@ export class World {
     return m;
   })();
   onChange: () => void = () => {};
+  /** Called with a world rectangle when Bundles there arrive or go (what grows must change). */
+  onBuilt: (minX: number, minZ: number, maxX: number, maxZ: number) => void = () => {};
+  private clearBuckets = new Map<string, Disc[]>();
   /** Cells whose ground got finer since they were stood on it. */
   private resnap = new Set<string>();
 
@@ -141,7 +150,38 @@ export class World {
     }
   }
 
+  /** True where a building or road stands (with a margin): nothing should grow there. */
+  occupied(x: number, z: number): boolean {
+    const bx = Math.floor(x / CLEAR_BUCKET);
+    const bz = Math.floor(z / CLEAR_BUCKET);
+    for (let i = bx - 1; i <= bx + 1; i++)
+      for (let j = bz - 1; j <= bz + 1; j++)
+        for (const d of this.clearBuckets.get(`${i},${j}`) ?? [])
+          if ((d.x - x) ** 2 + (d.z - z) ** 2 < d.r * d.r) return true;
+    return false;
+  }
+
+  private indexClearings() {
+    this.clearBuckets.clear();
+    for (const s of this.cells.values())
+      for (const d of s.clearings ?? []) {
+        const key = `${Math.floor(d.x / CLEAR_BUCKET)},${Math.floor(d.z / CLEAR_BUCKET)}`;
+        const list = this.clearBuckets.get(key);
+        if (list) list.push(d);
+        else this.clearBuckets.set(key, [d]);
+      }
+  }
+
+  private announceBuilt(s: CellState) {
+    if (s.box) this.onBuilt(s.box.minX, s.box.minZ, s.box.maxX, s.box.maxZ);
+  }
+
   private drop(s: CellState) {
+    if (s.clearings?.length) {
+      s.clearings = [];
+      this.indexClearings();
+      this.announceBuilt(s);
+    }
     if (s.group) {
       this.root.remove(s.group);
       s.group.traverse((o) => (o as Mesh).geometry?.dispose());
@@ -265,8 +305,11 @@ export class World {
       beacons,
       ...footing,
     });
+    state.clearings = clearingsFor(group, ranges);
+    this.indexClearings();
     this.root.add(group);
     this.beaconRoot.add(beacons);
+    this.announceBuilt(state);
     // A sketch Cell may be waiting on OpenStreetMap: ask again a few times.
     const retries = state.retries ?? 0;
     if (ingest !== 'ok' && retries < 3) {
@@ -557,6 +600,43 @@ function roofSpot(
   let top = 0;
   for (let i = r.first; i < r.first + r.count; i++) top = Math.max(top, pos.getY(i));
   return { x: best.x, z: best.z, top };
+}
+
+/**
+ * Discs where nothing grows: one around each building's footprint (half its diagonal
+ * plus a yard), and a string of them along each road. Discs are bigger than a building
+ * needs, which reads as gardens and verges rather than spruce through the roof.
+ */
+function clearingsFor(
+  group: Group,
+  ranges: { id: string; first: number; count: number }[],
+): Disc[] {
+  const mesh = group.children.find((o) => (o as Mesh).isMesh) as Mesh | undefined;
+  const pos = mesh?.geometry.getAttribute('position');
+  if (!pos) return [];
+  const { x: ox, z: oz } = group.position;
+  const out: Disc[] = [];
+  for (const f of ranges) {
+    if (/:n\d+-n\d+$/.test(f.id)) {
+      // A road segment: every vertex pair spans its width; a disc each 2nd vertex.
+      for (let i = f.first; i < f.first + f.count; i += 2)
+        out.push({ x: ox + pos.getX(i), z: oz + pos.getZ(i), r: 7 });
+      continue;
+    }
+    let [x0, x1, z0, z1] = [Infinity, -Infinity, Infinity, -Infinity];
+    for (let i = f.first; i < f.first + f.count; i++) {
+      x0 = Math.min(x0, pos.getX(i));
+      x1 = Math.max(x1, pos.getX(i));
+      z0 = Math.min(z0, pos.getZ(i));
+      z1 = Math.max(z1, pos.getZ(i));
+    }
+    out.push({
+      x: ox + (x0 + x1) / 2,
+      z: oz + (z0 + z1) / 2,
+      r: Math.hypot(x1 - x0, z1 - z0) / 2 + 6,
+    });
+  }
+  return out;
 }
 
 /**

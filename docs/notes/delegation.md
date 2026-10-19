@@ -38,6 +38,8 @@ How we hand coding work to cheaper models and check it before anyone reads it cl
 - **Jev flags products it shouldn't.** On the mountain shaders, `no_checker` scored 0.14 although every pattern was a sum of rotated sines; the multiplications it saw were envelopes and masks. Phrase pattern claims as "the noise is a sum of…", not "nothing multiplies…".
 - **Tune looks in the browser, not in the spec.** Mist at the specified strength read as white camouflage blobs; at about half strength with a wider ramp it read as mist. Specs should give a range and let the screenshot decide.
 
+- **Ask for doubts, then check them in the source.** The forest draft (477 lines, $0.0098) flagged one uncertainty in its notes: whether three multiplies instance colours into the material by itself. `NodeMaterial.setupDiffuseColor` does, so the draft's explicit tint would have applied twice. A one-line grep of the library settled what no checklist could.
+
 ## Costs so far
 
 | Run                                                | Model          | Seconds | Cost       |
