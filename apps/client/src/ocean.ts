@@ -129,3 +129,76 @@ export function cloudShadow(world: Node<'vec3'>): Node<'float'> {
   const lit = smoothstep(-0.3, 0.5, a.mul(0.6).add(b.mul(0.4)));
   return mix(float(0.78), float(1), lit);
 }
+
+/* ------------------------------------------------------------------ mist */
+
+/**
+ * 0..1 mist on mountainsides: soft banks that hang between 150 and 650 m, thickest around
+ * 300–400 m, broken into drifting streamers. The caller mixes the ground colour toward the
+ * haze colour by this amount.
+ */
+export function mistBanks(height: Node<'float'>, world: Node<'vec3'>): Node<'float'> {
+  // Drift enters the phase with a positive sign, so peaks migrate toward smaller x (west)
+  // and smaller z (which is -north in the local frame, i.e. north-west). With the
+  // wavelengths below the magnitude is ≈ 3 m/s.
+  const drift = time.mul(0.025);
+  // Three rotated, drifting sines — summed, never multiplied, so the field reads as
+  // streamers rather than axis-aligned bumps or a checkerboard.
+  const a = sin(
+    world.x
+      .mul((2 * Math.PI) / 700)
+      .add(world.z.mul((2 * Math.PI) / 1100))
+      .add(drift),
+  );
+  const b = sin(
+    world.z
+      .mul((2 * Math.PI) / 600)
+      .sub(world.x.mul((2 * Math.PI) / 1300))
+      .add(drift.mul(0.7)),
+  ).mul(0.65);
+  const c = sin(
+    world.x
+      .add(world.z)
+      .mul((2 * Math.PI) / 450)
+      .sub(drift.mul(0.3)),
+  ).mul(0.35);
+  const streamers = a.add(b).add(c);
+  // Hang between 150 and 650 m: nothing below the cloud base, full around 300–400 m,
+  // cleared again before the summits.
+  const envelope = smoothstep(150, 300, height).mul(float(1).sub(smoothstep(400, 650, height)));
+  // A wide ramp: mist has no edges, only thinner and thicker parts.
+  return envelope.mul(smoothstep(-1.8, 1.6, streamers));
+}
+
+/* ------------------------------------------------------------------ snow */
+
+/**
+ * 0..1 snow cover: above a snow line that wobbles between about 950 and 1100 m, less on steep
+ * slopes (snow slides off rock: none above slope 0.75), and patchy near the line.
+ * `slope` is 1 - normalWorld.y.
+ */
+export function snowCover(
+  height: Node<'float'>,
+  slope: Node<'float'>,
+  world: Node<'vec3'>,
+): Node<'float'> {
+  // Wobbly snow line, 950..1100 m: two rotated, incommensurate sines sum to ±~75 m of
+  // jitter around 1025, so the boundary does not look like a single contour.
+  const wobble = sin(world.x.mul((2 * Math.PI) / 1300).add(world.z.mul((2 * Math.PI) / 1700)))
+    .mul(45)
+    .add(sin(world.z.sub(world.x).mul((2 * Math.PI) / 950)).mul(30));
+  const snowLine = float(1025).add(wobble);
+  // Snow slides off rock: full cover on flats, gone by slope 0.75.
+  const onSlope = float(1).sub(smoothstep(0.45, 0.75, slope));
+  // Patchiness near the line, solid higher up. Three rotated, incommensurate sines; no
+  // `time` — snow does not drift, the pattern stays put.
+  const streak = sin(world.x.mul((2 * Math.PI) / 900).add(world.z.mul((2 * Math.PI) / 1200)))
+    .add(sin(world.z.mul((2 * Math.PI) / 700).sub(world.x.mul((2 * Math.PI) / 1400))).mul(0.7))
+    .add(sin(world.x.add(world.z).mul((2 * Math.PI) / 500)).mul(0.4));
+  // `coverage` ramps from 0 just below the line to 1 by +80 m; `gap` is 0 near the line
+  // and 1 well above, so the patch mask only bites in the lower ~120 m.
+  const coverage = smoothstep(snowLine.sub(20), snowLine.add(80), height);
+  const gap = smoothstep(snowLine.add(60), snowLine.add(180), height);
+  const patch = smoothstep(-0.5, 0.7, streak);
+  return coverage.mul(onSlope).mul(gap.add(patch.mul(float(1).sub(gap))));
+}

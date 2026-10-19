@@ -34,6 +34,10 @@ How we hand coding work to cheaper models and check it before anyone reads it cl
 - **"Cheap noise" needs a look before it ships.** The ocean draft's product of two axis-aligned sines turned the shore into a 3 m checkerboard. Incommensurate, rotated, drifting sines read as natural. Only a screenshot shows this; no checklist would.
 - **Jev hedges on equivalent formulas.** `dispersion` scored 0.66 because the draft wrote ω = √(gk), not the spec's c = √(gλ/2π). Same physics. A middling score on a maths claim means "check it", not "it's wrong".
 
+- **Pure modules delegate best.** The arrival glide (no three.js, a fixed `Pose` type, exact easing formulas) came back from `deepseek-flash` in 61 s for $0.005, type-checked first time and passed 4 tests written afterwards. Shader code needs a look in the browser; plain maths needs only tests.
+- **Jev flags products it shouldn't.** On the mountain shaders, `no_checker` scored 0.14 although every pattern was a sum of rotated sines; the multiplications it saw were envelopes and masks. Phrase pattern claims as "the noise is a sum of…", not "nothing multiplies…".
+- **Tune looks in the browser, not in the spec.** Mist at the specified strength read as white camouflage blobs; at about half strength with a wider ramp it read as mist. Specs should give a range and let the screenshot decide.
+
 ## Costs so far
 
 | Run                                                | Model          | Seconds | Cost       |

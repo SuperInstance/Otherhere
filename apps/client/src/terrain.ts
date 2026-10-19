@@ -23,13 +23,12 @@ import {
   mix,
   normalWorld,
   positionWorld,
-  sin,
   smoothstep,
   texture,
 } from 'three/tsl';
 import type { LocalFrame } from '@otherhere/core';
 import { SUN_DIRECTION } from './atmosphere';
-import { cloudShadow, oceanMaterial, shoreFoam } from './ocean';
+import { cloudShadow, mistBanks, oceanMaterial, shoreFoam, snowCover } from './ocean';
 
 export type TerrainMode = 'topo' | 'satellite';
 
@@ -212,6 +211,11 @@ export class Terrain {
   /** True once any elevation tile has decoded; false forever after the first failure. */
   get active(): boolean {
     return this.loaded && !this.dead;
+  }
+
+  /** True once the layer has given up (the tile source is unreachable): the world stays flat. */
+  get unavailable(): boolean {
+    return this.dead;
   }
 
   get mode(): TerrainMode {
@@ -824,7 +828,10 @@ export class Terrain {
         const p = this.frame.project({ lat, lng: b.west + dLng * u });
         const k = j * side + i;
         positions[k * 3] = p.e - ox;
-        positions[k * 3 + 1] = sampleHeightmap(hm, u, v);
+        // Terrarium's coarse bathymetry puts shallow sounds at -1 to -4 m and tidal flats at
+        // 0-1 m: at the ocean's own height they read as a vast beach. Sink them under it.
+        const hv = sampleHeightmap(hm, u, v);
+        positions[k * 3 + 1] = hv < 1 ? hv - 2 : hv;
         positions[k * 3 + 2] = -p.n - oz;
         uvs[k * 2] = u;
         uvs[k * 2 + 1] = v;
@@ -915,14 +922,7 @@ function topoMaterial(): MeshStandardNodeMaterial {
   const h = attribute<'float'>('ground', 'float');
   const slope = float(1).sub(normalWorld.y);
 
-  // A cheap two-sine ripple, so the snow line does not read as a contour itself.
-  const snowLine = float(1150).add(
-    sin(positionWorld.x.mul(0.0013))
-      .add(sin(positionWorld.z.mul(0.0019)))
-      .mul(40),
-  );
-
-  let ground = mix(color('#8a8270'), color('#3f5a3a'), smoothstep(0.5, 4, h));
+  let ground = mix(color('#8a8270'), color('#3f5a3a'), smoothstep(1, 2.5, h));
   ground = mix(ground, color('#4c6b45'), smoothstep(20, 260, h));
   ground = mix(ground, color('#7d8a5c'), smoothstep(350, 700, h));
   ground = mix(
@@ -930,7 +930,8 @@ function topoMaterial(): MeshStandardNodeMaterial {
     color('#7a7468'),
     max(smoothstep(0.35, 0.55, slope), smoothstep(850, 950, h)),
   );
-  ground = mix(ground, color('#f2f2ee'), smoothstep(snowLine.sub(40), snowLine.add(40), h));
+  // Snow that slides off steep rock and thins out into patches near its line.
+  ground = mix(ground, color('#f2f2ee'), snowCover(h, slope, positionWorld));
 
   // Pixel-width lines from the screen-space derivative of the height itself.
   const contour = (interval: number) => {
@@ -947,7 +948,9 @@ function topoMaterial(): MeshStandardNodeMaterial {
 
   // Cloud shadows drift across the land; surf foam breathes along the waterline.
   const lit = ground.mul(float(1).sub(lines)).mul(cloudShadow(positionWorld));
-  m.colorNode = mix(lit, color('#f4f6f2'), shoreFoam(h, positionWorld).mul(0.85));
+  // Mist banks hang on the mountainsides between about 150 and 650 m, drifting slowly.
+  const misty = mix(lit, color('#d9dcd6'), mistBanks(h, positionWorld).mul(0.38));
+  m.colorNode = mix(misty, color('#f4f6f2'), shoreFoam(h, positionWorld).mul(0.85));
   m.name = 'terrain-topo';
   return m;
 }

@@ -1,0 +1,6 @@
+mist_band: Mist is zero below about 150 m and above about 650 m, and strongest in between.
+mist_drift: Mist moves over time using the time node.
+no_checker: No pattern multiplies two sines of x and z alone; patterns sum rotated sines.
+snow_slope: Snow cover goes to zero on steep slopes.
+snow_static: Snow cover does not depend on time.
+existing_kept: The existing oceanMaterial, shoreFoam and cloudShadow functions are unchanged.
