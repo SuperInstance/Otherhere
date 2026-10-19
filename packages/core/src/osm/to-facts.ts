@@ -1,6 +1,7 @@
 import { cellAt, ingestBlockOf } from '../geo/h3';
 import { localFrame } from '../geo/frame';
 import { centroid } from '../geometry/polygon';
+import { snapped, speciesFromTags, SPECIES_CONFIDENCE } from '../forest/species';
 import type { Fact, LngLat, RoofShape } from '../schema/fact';
 import type { Feature, FeatureKind } from '../schema/feature';
 import type { OverpassElement, OverpassResponse } from './overpass';
@@ -13,6 +14,7 @@ export const OSM_CONFIDENCE = {
   roofShape: 0.7,
   colour: 0.6,
   type: 0.9,
+  species: SPECIES_CONFIDENCE,
 } as const;
 
 const ROOF_SHAPES: Record<string, RoofShape> = {
@@ -70,12 +72,19 @@ export function parseColour(s: string | undefined): string | undefined {
   return NAMED_COLOURS[t];
 }
 
+/** Landcover polygons we ingest as areas the forest can be imagined into. */
+const LANDCOVER: Record<string, string> = {
+  forest: 'forest', // landuse=forest
+  wood: 'forest', // natural=wood
+  scrub: 'scrub', // natural=scrub
+  meadow: 'meadow', // landuse=meadow (open: no imagined trees)
+};
+
 const PROP_KINDS: [string, string, FeatureKind][] = [
   ['natural', 'tree', 'tree'],
   ['amenity', 'bench', 'bench'],
   ['highway', 'street_lamp', 'streetlight'],
 ];
-
 // Highways that are not drawable paths.
 const SKIP_HIGHWAYS = new Set([
   'proposed',
@@ -125,12 +134,37 @@ export function osmToFacts(
       const id = `osm:n${el.id}`;
       if (!anchor(id, prop[2], el.lat, el.lon)) continue;
       add(id, 'position', [el.lon, el.lat] satisfies LngLat, OSM_CONFIDENCE.geometry);
+      add(id, 'height', parseMetres(tags.height), OSM_CONFIDENCE.height);
+      add(id, 'species', speciesFromTags(tags), OSM_CONFIDENCE.species);
       add(id, 'osm.tags', tags, 1);
     } else if (el.type === 'way' && el.geometry?.length) {
+      const cover = LANDCOVER[tags.landuse ?? ''] ?? LANDCOVER[tags.natural ?? ''];
       if (tags.building && tags.building !== 'no') ingestBuilding(el, tags);
+      else if (cover) ingestLandcover(el, tags, cover);
       else if (tags.highway && !SKIP_HIGHWAYS.has(tags.highway) && tags.area !== 'yes')
         ingestRoad(el, tags);
     }
+  }
+
+  /** A landcover polygon: an observed area, never drawn directly, that the
+   *  imagined forest grows inside (and meadows keep open). */
+  function ingestLandcover(
+    el: Extract<OverpassElement, { type: 'way' }>,
+    tags: Record<string, string>,
+    cover: string,
+  ) {
+    const ring: LngLat[] = el.geometry.map((g) => snapped({ lat: g.lat, lng: g.lon }));
+    if (ring.length < 4) return; // closed rings repeat the first node
+    const frame = localFrame({ lat: el.geometry[0]!.lat, lng: el.geometry[0]!.lon });
+    const c = frame.unproject(
+      centroid(el.geometry.map((g) => frame.project({ lat: g.lat, lng: g.lon }))),
+    );
+    const id = `osm:w${el.id}`;
+    if (!anchor(id, 'landcover', c.lat, c.lng)) return;
+    add(id, 'footprint', ring, OSM_CONFIDENCE.geometry);
+    add(id, 'landcover', cover, OSM_CONFIDENCE.type);
+    add(id, 'name', tags.name, OSM_CONFIDENCE.type);
+    add(id, 'osm.tags', tags, 1);
   }
 
   function ingestBuilding(

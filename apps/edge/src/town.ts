@@ -3,6 +3,7 @@ import {
   buildBundle,
   bundleInputsHash,
   computeEssence,
+  forestBiome,
   type Essence,
   BundleManifest,
   Fact,
@@ -13,6 +14,7 @@ import {
   overpassQuery,
   blockBBox,
   resolveFacts,
+  townCenter,
   OverpassResponseSchema,
   townOf,
   questsFor,
@@ -93,7 +95,8 @@ export class TownDO extends DurableObject<Env> {
   /** Write Features and Facts. Same-source rewrites bump `version` only when the value changes. */
   private write(features: Feature[], facts: Fact[]): void {
     this.ctx.storage.transactionSync(() => {
-      this.sql.exec("DELETE FROM meta WHERE key = 'essence'");
+      // Any version of the Essence cache: the next read recomputes it.
+      this.sql.exec("DELETE FROM meta WHERE key LIKE 'essence%'");
       for (const f of features) {
         this.sql.exec(
           `INSERT INTO features (id, kind, anchor_cell) VALUES (?, ?, ?)
@@ -307,10 +310,14 @@ export class TownDO extends DurableObject<Env> {
     );
   }
 
-  /** The Town's Essence (ADR-0014), recomputed lazily after any write. */
+  /**
+   * The Town's Essence (ADR-0014), recomputed lazily after any write. The cache key
+   * is versioned, so a deploy that changes what Essence says (species, biome) does
+   * not keep serving an older shape from storage.
+   */
   private essence(): Essence {
     const cached = this.sql
-      .exec<{ value: string }>("SELECT value FROM meta WHERE key = 'essence'")
+      .exec<{ value: string }>("SELECT value FROM meta WHERE key = 'essence:2'")
       .toArray()[0];
     if (cached) return JSON.parse(cached.value) as Essence;
     const kinds = new Map(
@@ -328,7 +335,9 @@ export class TownDO extends DurableObject<Env> {
         confidence: number;
         observed_at: string;
         version: number;
-      }>(`SELECT * FROM facts WHERE attribute IN ('height', 'levels', 'roof.shape', 'colour')`)
+      }>(
+        `SELECT * FROM facts WHERE attribute IN ('height', 'levels', 'roof.shape', 'colour', 'species')`,
+      )
       .toArray()
       .map((r): Fact => ({
         featureId: r.feature_id,
@@ -340,12 +349,17 @@ export class TownDO extends DurableObject<Env> {
         version: r.version,
       }));
     const resolved = resolveFacts(facts);
+    // The Town's place in the world decides its fallback forest character
+    // (ADR-0017): a TownDO's name is its res-6 Cell.
+    const name = this.ctx.id.name ?? 'town';
+    const centre = townCenter(name) ?? { lat: 0, lng: 0 };
     const e = computeEssence(
-      this.ctx.id.name ?? 'town',
+      name,
       [...kinds].map(([id, kind]) => ({ kind, attrs: resolved.get(id) ?? {} })),
+      { biome: forestBiome(centre.lat, centre.lng) },
     );
     this.sql.exec(
-      "INSERT OR REPLACE INTO meta (key, value) VALUES ('essence', ?)",
+      "INSERT OR REPLACE INTO meta (key, value) VALUES ('essence:2', ?)",
       JSON.stringify(e),
     );
     return e;

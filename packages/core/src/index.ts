@@ -33,6 +33,8 @@ export * from './game/protocol';
 export * from './capsule/place';
 export * from './packs/building';
 export * from './essence/compute';
+export * from './forest/species';
+export * from './forest/imagine';
 export * from './capture/track';
 export * from './capture/image';
 export * from './schema/agent';

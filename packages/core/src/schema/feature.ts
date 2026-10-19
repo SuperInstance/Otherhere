@@ -10,7 +10,14 @@ export const FeatureId = z
   .regex(/^(osm:[nwr]\d+(:n\d+-n\d+)?|cap:[\w-]+|edit:[\w-]+)$/, 'invalid Feature ID');
 export type FeatureId = z.infer<typeof FeatureId>;
 
-export const FEATURE_KINDS = ['building', 'road', 'tree', 'bench', 'streetlight'] as const;
+export const FEATURE_KINDS = [
+  'building',
+  'road',
+  'tree',
+  'landcover',
+  'bench',
+  'streetlight',
+] as const;
 export const FeatureKind = z.enum(FEATURE_KINDS);
 export type FeatureKind = z.infer<typeof FeatureKind>;
 

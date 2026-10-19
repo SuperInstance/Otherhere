@@ -9,7 +9,7 @@ export const OVERPASS_ENDPOINTS = [
 
 export const USER_AGENT = 'Otherhere/0.1 (+https://github.com/SuperInstance/otherhere)';
 
-/** Buildings, roads, and the props we can draw, for one bbox. */
+/** Buildings, roads, props, and landcover areas, for one bbox. */
 export function overpassQuery(bb: BBox): string {
   const b = `(${bb.south},${bb.west},${bb.north},${bb.east})`;
   return [
@@ -20,6 +20,10 @@ export function overpassQuery(bb: BBox): string {
     `  node["natural"="tree"]${b};`,
     `  node["amenity"="bench"]${b};`,
     `  node["highway"="street_lamp"]${b};`,
+    `  way["landuse"="forest"]${b};`,
+    `  way["natural"="wood"]${b};`,
+    `  way["natural"="scrub"]${b};`,
+    `  way["landuse"="meadow"]${b};`,
     ');',
     'out body geom;',
   ].join('\n');

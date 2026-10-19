@@ -7,9 +7,15 @@ import { BundleManifest } from '../src/schema/bundle';
 import GOLDEN from '../src/demo/golden.json';
 
 describe('built-in generators', () => {
-  it('cover every Feature kind', () => {
+  it('cover every Feature kind a generator can draw', () => {
     const kinds = new Set(BUILTIN_GENERATORS.flatMap((g) => g.appliesTo));
     expect([...kinds].sort()).toEqual(['bench', 'building', 'road', 'streetlight', 'tree']);
+  });
+
+  it('leaves landcover to the imagination: it is an input, not a drawing', () => {
+    // ADR-0017: landcover Features grow the imagined forest; they have no
+    // generator of their own and contribute no geometry of their own.
+    expect(BUILTIN_GENERATORS.some((g) => g.appliesTo.includes('landcover'))).toBe(false);
   });
 });
 
@@ -68,6 +74,11 @@ describe('buildBundle (invariants 1 and 2)', () => {
     ]);
     expect(json.extras.otherhere.cell).toBe(DEMO_CELL);
     expect(json.extras.otherhere.features.map((f) => f.id)).toContain('osm:w200');
-    expect(manifest.featureCount).toBe(demoLot().length);
+    // The lot's drawable Features, plus the trees its landcover patches imagine
+    // (ADR-0017): the demo wood west of the road and the scrub patch east of it.
+    const drawn = demoLot().filter((f) => f.kind !== 'landcover').length;
+    const imagined = json.extras.otherhere.features.filter((f) => f.id.startsWith('gen:')).length;
+    expect(imagined).toBeGreaterThan(0);
+    expect(manifest.featureCount).toBe(drawn + imagined);
   });
 });

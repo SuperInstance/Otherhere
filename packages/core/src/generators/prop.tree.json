@@ -1,40 +1,834 @@
 {
   "id": "prop.tree",
-  "version": "0.1.0",
-  "description": "A stylised tree: tapered trunk and a squashed low-poly canopy.",
+  "version": "0.2.0",
+  "description": "A tree of a known species: western hemlock, Sitka spruce, or yellow cedar cones; alder and salmonberry thickets; a generic broadleaf anywhere else. Species comes from a Fact when there is one (OSM taxon, a capture); otherwise it is imagined from the Town's forest character (its Essence), which falls back to the biome's mix — around Sitka, ~70% hemlock, ~25% spruce, ~5% cedar.",
   "appliesTo": ["tree"],
   "geometry": "position",
   "ops": [
     {
       "op": "let",
-      "name": "trunk",
-      "value": { "op": "rand", "min": 1.6, "max": 2.6, "key": "trunk" }
+      "name": "species",
+      "value": {
+        "attr": "species",
+        "default": {
+          "op": "pick",
+          "options": ["hemlock", "spruce", "cedar", "alder", "broadleaf"],
+          "weights": [
+            { "param": "@essence.forest.hemlock" },
+            { "param": "@essence.forest.spruce" },
+            { "param": "@essence.forest.cedar" },
+            { "param": "@essence.forest.alder" },
+            { "param": "@essence.forest.broadleaf" }
+          ],
+          "key": "species"
+        }
+      }
     },
     {
       "op": "let",
-      "name": "crown",
-      "value": { "op": "rand", "min": 1.6, "max": 3.2, "key": "crown" }
+      "name": "h",
+      "value": {
+        "op": "if",
+        "cond": { "op": "has", "attr": "height" },
+        "then": { "attr": "height" },
+        "else": {
+          "op": "if",
+          "cond": {
+            "op": "eq",
+            "args": [{ "param": "species" }, "hemlock"]
+          },
+          "then": { "op": "rand", "min": 14, "max": 30, "key": "h" },
+          "else": {
+            "op": "if",
+            "cond": {
+              "op": "eq",
+              "args": [{ "param": "species" }, "spruce"]
+            },
+            "then": { "op": "rand", "min": 18, "max": 38, "key": "h" },
+            "else": {
+              "op": "if",
+              "cond": {
+                "op": "eq",
+                "args": [{ "param": "species" }, "cedar"]
+              },
+              "then": { "op": "rand", "min": 9, "max": 18, "key": "h" },
+              "else": {
+                "op": "if",
+                "cond": {
+                  "op": "eq",
+                  "args": [{ "param": "species" }, "alder"]
+                },
+                "then": { "op": "rand", "min": 5.5, "max": 10, "key": "h" },
+                "else": {
+                  "op": "if",
+                  "cond": {
+                    "op": "eq",
+                    "args": [{ "param": "species" }, "salmonberry"]
+                  },
+                  "then": { "op": "rand", "min": 1.4, "max": 2.4, "key": "h" },
+                  "else": { "op": "rand", "min": 4, "max": 8, "key": "h" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "let",
+      "name": "crownR",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "broadleaf"]
+      },
+      "value": {
+        "op": "rand",
+        "min": { "op": "mul", "args": [{ "param": "h" }, 0.28] },
+        "max": { "op": "mul", "args": [{ "param": "h" }, 0.45] },
+        "key": "crown"
+      }
     },
     {
       "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "hemlock"]
+      },
       "at": [0, 0, 0],
-      "radius": 0.2,
-      "topRadius": 0.13,
-      "height": { "param": "trunk" },
+      "radius": 0.32,
+      "topRadius": 0.1,
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.62] },
+      "segments": 6,
+      "colour": "#4a3a2c"
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "hemlock"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.4, "max": 0.4, "key": "j0" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.26] },
+        { "op": "rand", "min": -0.4, "max": 0.4, "key": "k0" }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.085] },
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.2] },
+      "segments": 5,
+      "colour": {
+        "op": "pick",
+        "options": ["#2c4427", "#32502c", "#385631", "#2a4126"],
+        "key": "c0"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "hemlock"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.4, "max": 0.4, "key": "j1" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.4] },
+        { "op": "rand", "min": -0.4, "max": 0.4, "key": "k1" }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.072] },
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.19] },
+      "segments": 5,
+      "colour": {
+        "op": "pick",
+        "options": ["#2c4427", "#32502c", "#385631", "#2a4126"],
+        "key": "c1"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "hemlock"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.4, "max": 0.4, "key": "j2" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.54] },
+        { "op": "rand", "min": -0.4, "max": 0.4, "key": "k2" }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.058] },
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.18] },
+      "segments": 5,
+      "colour": {
+        "op": "pick",
+        "options": ["#2c4427", "#32502c", "#385631", "#2a4126"],
+        "key": "c2"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "hemlock"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.4, "max": 0.4, "key": "j3" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.67] },
+        { "op": "rand", "min": -0.4, "max": 0.4, "key": "k3" }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.044] },
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.17] },
+      "segments": 5,
+      "colour": {
+        "op": "pick",
+        "options": ["#2c4427", "#32502c", "#385631", "#2a4126"],
+        "key": "c3"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "hemlock"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.4, "max": 0.4, "key": "j4" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.79] },
+        { "op": "rand", "min": -0.4, "max": 0.4, "key": "k4" }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.03] },
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.16] },
+      "segments": 5,
+      "colour": {
+        "op": "pick",
+        "options": ["#2c4427", "#32502c", "#385631", "#2a4126"],
+        "key": "c4"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "hemlock"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.6, "max": 0.6, "key": "lx" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.94] },
+        { "op": "rand", "min": -0.6, "max": 0.6, "key": "lz" }
+      ],
+      "radius": 0.35,
+      "height": 1.5,
+      "segments": 5,
+      "colour": {
+        "op": "pick",
+        "options": ["#2c4427", "#32502c", "#385631"],
+        "key": "c5"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "spruce"]
+      },
+      "at": [0, 0, 0],
+      "radius": 0.5,
+      "topRadius": 0.14,
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.5] },
+      "segments": 6,
+      "colour": "#503f30"
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "spruce"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "sj0" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.16] },
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "sk0" }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.15] },
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.24] },
+      "segments": 6,
+      "colour": {
+        "op": "pick",
+        "options": ["#46695a", "#4d7060", "#527766", "#416257"],
+        "key": "sc0"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "spruce"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "sj1" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.34] },
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "sk1" }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.105] },
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.22] },
+      "segments": 6,
+      "colour": {
+        "op": "pick",
+        "options": ["#46695a", "#4d7060", "#527766", "#416257"],
+        "key": "sc1"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "spruce"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "sj2" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.52] },
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "sk2" }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.068] },
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.2] },
+      "segments": 6,
+      "colour": {
+        "op": "pick",
+        "options": ["#46695a", "#4d7060", "#527766", "#416257"],
+        "key": "sc2"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "spruce"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "sj3" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.68] },
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "sk3" }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.038] },
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.18] },
+      "segments": 6,
+      "colour": {
+        "op": "pick",
+        "options": ["#46695a", "#4d7060", "#527766", "#416257"],
+        "key": "sc3"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "spruce"]
+      },
+      "at": [0, { "op": "mul", "args": [{ "param": "h" }, 0.84] }, 0],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.022] },
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.18] },
+      "segments": 5,
+      "colour": {
+        "op": "pick",
+        "options": ["#46695a", "#4d7060", "#527766"],
+        "key": "sc4"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "cedar"]
+      },
+      "at": [0, 0, 0],
+      "radius": 0.26,
+      "topRadius": 0.08,
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.55] },
+      "segments": 6,
+      "colour": "#6b5a48"
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "cedar"]
+      },
+      "at": [0, { "op": "mul", "args": [{ "param": "h" }, 0.22] }, 0],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.085] },
+      "topRadius": { "op": "mul", "args": [{ "param": "h" }, 0.06] },
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.1] },
+      "segments": 6,
+      "colour": "#8a8072"
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "cedar"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "dj0" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.3] },
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "dk0" }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.052] },
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.13] },
+      "segments": 5,
+      "colour": {
+        "op": "pick",
+        "options": ["#7b8c60", "#83936a", "#6f8058", "#889973"],
+        "key": "dc0"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "cedar"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "dj1" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.405] },
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "dk1" }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.045] },
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.13] },
+      "segments": 5,
+      "colour": {
+        "op": "pick",
+        "options": ["#7b8c60", "#83936a", "#6f8058", "#889973"],
+        "key": "dc1"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "cedar"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "dj2" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.51] },
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "dk2" }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.039] },
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.13] },
+      "segments": 5,
+      "colour": {
+        "op": "pick",
+        "options": ["#7b8c60", "#83936a", "#6f8058", "#889973"],
+        "key": "dc2"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "cedar"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "dj3" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.615] },
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "dk3" }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.034] },
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.13] },
+      "segments": 5,
+      "colour": {
+        "op": "pick",
+        "options": ["#7b8c60", "#83936a", "#6f8058", "#889973"],
+        "key": "dc3"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "cedar"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "dj4" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.72] },
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "dk4" }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.03] },
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.13] },
+      "segments": 5,
+      "colour": {
+        "op": "pick",
+        "options": ["#7b8c60", "#83936a", "#6f8058", "#889973"],
+        "key": "dc4"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "cedar"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "dj5" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.825] },
+        { "op": "rand", "min": -0.25, "max": 0.25, "key": "dk5" }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.025] },
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.13] },
+      "segments": 5,
+      "colour": {
+        "op": "pick",
+        "options": ["#7b8c60", "#83936a", "#6f8058", "#889973"],
+        "key": "dc5"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "cedar"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.3, "max": 0.3, "key": "dx" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.93] },
+        { "op": "rand", "min": -0.3, "max": 0.3, "key": "dz" }
+      ],
+      "radius": 0.22,
+      "height": 0.9,
+      "segments": 5,
+      "colour": {
+        "op": "pick",
+        "options": ["#7b8c60", "#83936a", "#6f8058"],
+        "key": "dc6"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "alder"]
+      },
+      "at": [0, 0, 0],
+      "radius": 0.11,
+      "topRadius": 0.05,
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.95] },
+      "segments": 5,
+      "colour": "#7d8a7e"
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "alder"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.35, "max": 0.35, "key": "as1x" },
+        0,
+        { "op": "rand", "min": -0.35, "max": 0.35, "key": "as1z" }
+      ],
+      "radius": 0.09,
+      "topRadius": 0.04,
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.8] },
+      "segments": 5,
+      "colour": "#7d8a7e"
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "alder"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.4, "max": 0.4, "key": "as2x" },
+        0,
+        { "op": "rand", "min": -0.4, "max": 0.4, "key": "as2z" }
+      ],
+      "radius": 0.07,
+      "topRadius": 0.03,
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.62] },
+      "segments": 5,
+      "colour": "#7d8a7e"
+    },
+    {
+      "op": "blob",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "alder"]
+      },
+      "at": [0, { "op": "mul", "args": [{ "param": "h" }, 0.78] }, 0],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.3] },
+      "squash": 0.85,
+      "detail": 1,
+      "colour": {
+        "op": "pick",
+        "options": ["#7fa054", "#88a95d", "#74974b", "#8fae66"],
+        "key": "ac0"
+      }
+    },
+    {
+      "op": "blob",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "alder"]
+      },
+      "at": [
+        { "op": "mul", "args": [{ "param": "h" }, 0.18] },
+        { "op": "mul", "args": [{ "param": "h" }, 0.62] },
+        { "op": "mul", "args": [{ "param": "h" }, -0.12] }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.24] },
+      "squash": 0.9,
+      "detail": 1,
+      "colour": {
+        "op": "pick",
+        "options": ["#7fa054", "#88a95d", "#74974b", "#8fae66"],
+        "key": "ac1"
+      }
+    },
+    {
+      "op": "blob",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "alder"]
+      },
+      "at": [
+        { "op": "mul", "args": [{ "param": "h" }, -0.16] },
+        { "op": "mul", "args": [{ "param": "h" }, 0.5] },
+        { "op": "mul", "args": [{ "param": "h" }, 0.14] }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.2] },
+      "squash": 0.95,
+      "detail": 1,
+      "colour": {
+        "op": "pick",
+        "options": ["#7fa054", "#88a95d", "#74974b", "#8fae66"],
+        "key": "ac2"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "salmonberry"]
+      },
+      "at": [0, 0, 0],
+      "radius": 0.05,
+      "topRadius": 0.02,
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.9] },
+      "segments": 4,
+      "colour": "#8a7a5a"
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "salmonberry"]
+      },
+      "at": [
+        { "op": "mul", "args": [{ "param": "h" }, 0.25] },
+        0,
+        { "op": "mul", "args": [{ "param": "h" }, -0.2] }
+      ],
+      "radius": 0.04,
+      "topRadius": 0.02,
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.75] },
+      "segments": 4,
+      "colour": "#8a7a5a"
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "salmonberry"]
+      },
+      "at": [
+        { "op": "mul", "args": [{ "param": "h" }, -0.22] },
+        0,
+        { "op": "mul", "args": [{ "param": "h" }, 0.18] }
+      ],
+      "radius": 0.04,
+      "topRadius": 0.02,
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.6] },
+      "segments": 4,
+      "colour": "#8a7a5a"
+    },
+    {
+      "op": "blob",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "salmonberry"]
+      },
+      "at": [0, { "op": "mul", "args": [{ "param": "h" }, 0.5] }, 0],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.62] },
+      "squash": 0.62,
+      "detail": 1,
+      "colour": {
+        "op": "pick",
+        "options": ["#5a7442", "#617d48", "#516a3c"],
+        "key": "sb0"
+      }
+    },
+    {
+      "op": "blob",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "salmonberry"]
+      },
+      "at": [
+        { "op": "mul", "args": [{ "param": "h" }, 0.45] },
+        { "op": "mul", "args": [{ "param": "h" }, 0.4] },
+        { "op": "mul", "args": [{ "param": "h" }, 0.2] }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.5] },
+      "squash": 0.7,
+      "detail": 1,
+      "colour": {
+        "op": "pick",
+        "options": ["#5a7442", "#617d48", "#516a3c"],
+        "key": "sb1"
+      }
+    },
+    {
+      "op": "blob",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "salmonberry"]
+      },
+      "at": [
+        { "op": "mul", "args": [{ "param": "h" }, -0.4] },
+        { "op": "mul", "args": [{ "param": "h" }, 0.45] },
+        { "op": "mul", "args": [{ "param": "h" }, -0.15] }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.48] },
+      "squash": 0.7,
+      "detail": 1,
+      "colour": {
+        "op": "pick",
+        "options": ["#5a7442", "#617d48", "#516a3c"],
+        "key": "sb2"
+      }
+    },
+    {
+      "op": "blob",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "salmonberry"]
+      },
+      "at": [
+        { "op": "mul", "args": [{ "param": "h" }, 0.1] },
+        { "op": "mul", "args": [{ "param": "h" }, 0.68] },
+        { "op": "mul", "args": [{ "param": "h" }, -0.35] }
+      ],
+      "radius": { "op": "mul", "args": [{ "param": "h" }, 0.4] },
+      "squash": 0.75,
+      "detail": 1,
+      "colour": {
+        "op": "pick",
+        "options": ["#5a7442", "#617d48", "#516a3c"],
+        "key": "sb3"
+      }
+    },
+    {
+      "op": "blob",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "salmonberry"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.35, "max": 0.35, "key": "by0x" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.55] },
+        { "op": "rand", "min": -0.35, "max": 0.35, "key": "by0z" }
+      ],
+      "radius": 0.09,
+      "detail": 0,
+      "colour": {
+        "op": "pick",
+        "options": ["#d9622f", "#e07c3a", "#c94f28", "#e8933f"],
+        "key": "berry0"
+      }
+    },
+    {
+      "op": "blob",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "salmonberry"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.35, "max": 0.35, "key": "by1x" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.62] },
+        { "op": "rand", "min": -0.35, "max": 0.35, "key": "by1z" }
+      ],
+      "radius": 0.09,
+      "detail": 0,
+      "colour": {
+        "op": "pick",
+        "options": ["#d9622f", "#e07c3a", "#c94f28", "#e8933f"],
+        "key": "berry1"
+      }
+    },
+    {
+      "op": "blob",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "salmonberry"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.35, "max": 0.35, "key": "by2x" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.48] },
+        { "op": "rand", "min": -0.35, "max": 0.35, "key": "by2z" }
+      ],
+      "radius": 0.09,
+      "detail": 0,
+      "colour": {
+        "op": "pick",
+        "options": ["#d9622f", "#e07c3a", "#c94f28", "#e8933f"],
+        "key": "berry2"
+      }
+    },
+    {
+      "op": "blob",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "salmonberry"]
+      },
+      "at": [
+        { "op": "rand", "min": -0.35, "max": 0.35, "key": "by3x" },
+        { "op": "mul", "args": [{ "param": "h" }, 0.7] },
+        { "op": "rand", "min": -0.35, "max": 0.35, "key": "by3z" }
+      ],
+      "radius": 0.09,
+      "detail": 0,
+      "colour": {
+        "op": "pick",
+        "options": ["#d9622f", "#e07c3a", "#c94f28", "#e8933f"],
+        "key": "berry3"
+      }
+    },
+    {
+      "op": "cylinder",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "broadleaf"]
+      },
+      "at": [0, 0, 0],
+      "radius": 0.24,
+      "topRadius": 0.15,
+      "height": { "op": "mul", "args": [{ "param": "h" }, 0.52] },
       "segments": 6,
       "colour": "#6b4f3a"
     },
     {
       "op": "blob",
+      "when": {
+        "op": "eq",
+        "args": [{ "param": "species" }, "broadleaf"]
+      },
       "at": [
         0,
         {
           "op": "add",
-          "args": [{ "param": "trunk" }, { "op": "mul", "args": [{ "param": "crown" }, 0.6] }]
+          "args": [
+            { "op": "mul", "args": [{ "param": "h" }, 0.52] },
+            { "op": "mul", "args": [{ "param": "crownR" }, 0.6] }
+          ]
         },
         0
       ],
-      "radius": { "param": "crown" },
+      "radius": { "param": "crownR" },
       "squash": 0.85,
       "detail": 1,
       "colour": {

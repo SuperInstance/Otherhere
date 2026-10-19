@@ -10,6 +10,7 @@ import { generatorSet, type GeneratorSet } from '../generators';
 import { INTERPRETER_VERSION, runGenerator } from '../geometry/interpret';
 import { MeshBuilder } from '../geometry/mesh';
 import { cleanRing } from '../geometry/polygon';
+import { imagineForest } from '../forest/imagine';
 import { writeGlb } from '../glb/write';
 
 export type BundleFeature = { id: string; kind: FeatureKind; attrs: ResolvedAttrs };
@@ -62,8 +63,15 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle> {
     [0, 1, 0],
   );
 
+  // The imagined forest grows from the Facts (ADR-0017); it is derived, never
+  // stored, and the inputs hash covers everything it depends on.
+  const features = [
+    ...input.features,
+    ...imagineForest(input.cell, input.features, input.essence),
+  ].sort(byId);
+
   const ranges: { id: string; first: number; count: number }[] = [];
-  for (const f of [...input.features].sort(byId)) {
+  for (const f of features) {
     const gen = gens.forKind(f.kind);
     if (!gen) continue;
     const first = mesh.vertexCount;
