@@ -21,11 +21,50 @@ const COLS = Math.ceil(CHUNK / 7.5);
 const STEP = CHUNK / COLS;
 const JITTER = 3;
 
-/** Sitka's timber line: nothing on the beach or in the alpine. */
-const MIN_GROUND = 2.5;
-const MAX_GROUND = 720;
+/**
+ * Sitka's timber line: nothing on the beach or in the alpine. Shared with the
+ * imagined-tree site gate in world.ts, so both forests end at one coast.
+ */
+export const MIN_GROUND = 2.5;
+export const MAX_GROUND = 720;
 /** Slope is sampled ±4 m, i.e. over an 8 m baseline. */
 const SLOPE_STEP = 4;
+
+/**
+ * Detail bands: every tree within FULL_M, every 2nd to MID_M, every 4th beyond. A
+ * 15–45 m tree at 950 m is a few pixels; a quarter of the stems reads as the same
+ * wall of green, and the same instance budget then covers the whole radius instead
+ * of stopping at a visible edge (the display-layer version of the terrain's own
+ * coarse-tiles-stand-in trick, ADR-0016).
+ */
+const FULL_M = 450;
+const MID_M = 950;
+/** Refine only well inside a band, coarsen only well outside it, as the terrain's
+ * split/merge factors do: a chunk walked along a boundary never flickers. */
+const REFINE = 0.8;
+const COARSEN = 1.25;
+/**
+ * When the budget cannot fit a far chunk even at stride 4, a fresh plant keeps
+ * doubling its stride until it fits: every chunk inside the radius holds some
+ * trees, however few, rather than the forest ending in a hard line. Beyond this
+ * cap (~7 trees of a full chunk) it plants what fits and completes later.
+ */
+const MAX_STRIDE = 128;
+
+/** The stride a chunk wants at distance `d` from the walker. */
+function wantedStride(d: number): 1 | 2 | 4 {
+  return d < FULL_M ? 1 : d < MID_M ? 2 : 4;
+}
+
+/** Detail bands: 0 is every tree, 1 every 2nd, 2 every 4th or coarser still. */
+function bandOf(stride: number): 0 | 1 | 2 {
+  return stride <= 1 ? 0 : stride <= 2 ? 1 : 2;
+}
+
+/** The distance band a stride's boundary sits at (stride 1 ends at FULL_M, 2 at MID_M). */
+function strideBoundary(stride: number): number {
+  return stride <= 1 ? FULL_M : MID_M;
+}
 
 /** Spruce reads bluish, hemlock warmer — the only thing telling the species apart at distance. */
 const SPRUCE_TINT = new Color('#2c4a32');
@@ -206,12 +245,20 @@ type Chunk = {
   readonly ix: number;
   readonly iz: number;
   readonly species: SpeciesMesh[];
+  /** Which detail stride the chunk is planted at: 1, 2, 4, or coarser (see `wantedStride`). */
+  readonly stride: number;
   trees: number;
   /** Some candidates are still unplanted because the instance budget ran out. */
   partial: boolean;
 };
 
-type Job = { readonly ix: number; readonly iz: number; readonly d: number };
+type Job = {
+  readonly ix: number;
+  readonly iz: number;
+  readonly d: number;
+  /** The stride to plant or replant at; unset when the job is only completing a partial chunk. */
+  readonly stride?: number;
+};
 
 function chunkKey(ix: number, iz: number): string {
   return `${ix},${iz}`;
@@ -232,10 +279,14 @@ const UP = new Vector3(0, 1, 0);
  * A streamed, display-only forest of low-poly conifers.
  *
  * The world is cut into fixed 250 m chunks and a chunk's trees are a pure function
- * of its integer coordinates and the ground beneath them, so the same forest grows
- * on every device and again after every replant. Chunks are planted two per frame,
- * nearest first, and dropped once the camera is well inside the horizon; instance
- * buffers come and go, the two geometries and the material are built once.
+ * of its integer coordinates, the ground beneath them, and its detail stride — so
+ * the same forest grows on every device and again after every replant. Chunks are
+ * planted or re-banded two per frame, nearest first, and dropped once the camera is
+ * well inside the horizon; instance buffers come and go, the two geometries and the
+ * material are built once. Near chunks carry every tree and distant ones every 2nd
+ * or 4th (sparser still when the budget runs out), so the forest always reaches the
+ * horizon and sharpens as you walk into it — sketch until sure, like everything
+ * else here.
  */
 export class Forest {
   readonly root = new Group();
@@ -248,6 +299,10 @@ export class Forest {
   private readonly hemlockGeometry: BufferGeometry;
   private readonly material: MeshStandardNodeMaterial;
   private readonly chunks = new Map<string, Chunk>();
+  /** Strides of chunks dropped by `invalidate`, so a replant keeps its detail. */
+  private readonly replantStride = new Map<string, number>();
+  /** Fresh chunks still to plant inside the radius, by detail band (see `bandOf`). */
+  private pending: [number, number, number] = [0, 0, 0];
   private trees = 0;
 
   constructor(
@@ -271,7 +326,9 @@ export class Forest {
 
   /**
    * Heights or buildings changed here: drop the affected chunks so the normal
-   * streaming pass replants them, nearest first, as the camera comes round.
+   * streaming pass replants them, nearest first, as the camera comes round. The
+   * chunk's stride is remembered, so finer ground or a new Bundle can only sharpen
+   * what it shows, never thin it back to what the distance alone would ask for.
    */
   invalidate(minX: number, minZ: number, maxX: number, maxZ: number): void {
     const ix0 = Math.floor(minX / CHUNK);
@@ -281,15 +338,24 @@ export class Forest {
     for (let iz = iz0; iz <= iz1; iz++) {
       for (let ix = ix0; ix <= ix1; ix++) {
         const chunk = this.chunks.get(chunkKey(ix, iz));
-        if (chunk !== undefined) this.drop(chunk);
+        if (chunk !== undefined) {
+          this.drop(chunk);
+          this.replantStride.set(chunkKey(ix, iz), chunk.stride);
+        }
       }
     }
   }
 
   /**
-   * Once per frame. Drops chunks past the horizon, then plants or completes at most
-   * two of the nearest chunks — streaming the forest in over a few dozen frames
-   * rather than stalling one.
+   * Once per frame. Drops chunks past the horizon, then plants, completes, or
+   * re-bands at most two of the nearest chunks — streaming the forest in over a few
+   * dozen frames rather than stalling one. Three rules keep a spent budget from
+   * wedging the stream: band changes always run (coarsening a distant chunk is what
+   * frees instances for near ones), completing a partial chunk only runs while the
+   * budget has room (it can place nothing otherwise, and would starve the coarsens),
+   * and a fresh plant fits itself to the room that's left, doubling its stride past
+   * the band's own until it does — so the forest reaches the horizon, thinly, even
+   * where the budget runs out.
    */
   update(x: number, z: number): void {
     if (!this.ground.active) return; // no terrain heights yet: plant nothing
@@ -301,30 +367,51 @@ export class Forest {
       if (Math.hypot(dx, dz) > dropDist) this.drop(chunk);
     }
 
-    if (this.trees >= this.maxTrees) return; // budget spent: nothing can be added
-
     const cx = Math.floor(x / CHUNK);
     const cz = Math.floor(z / CHUNK);
     const reach = Math.ceil(this.radius / CHUNK) + 1;
+    const room = this.trees < this.maxTrees;
     const jobs: Job[] = [];
+    const pending: [number, number, number] = [0, 0, 0]; // fresh chunks, by band
     for (let iz = cz - reach; iz <= cz + reach; iz++) {
       for (let ix = cx - reach; ix <= cx + reach; ix++) {
         const d = Math.hypot((ix + 0.5) * CHUNK - x, (iz + 0.5) * CHUNK - z);
         if (d > this.radius) continue;
-        const chunk = this.chunks.get(chunkKey(ix, iz));
-        if (chunk !== undefined && !chunk.partial) continue;
-        jobs.push({ ix, iz, d });
+        const key = chunkKey(ix, iz);
+        const chunk = this.chunks.get(key);
+        if (chunk === undefined) {
+          // Plant straight into the band the distance asks for, never coarser than
+          // the chunk last held (an invalidated chunk keeps its detail).
+          const held = this.replantStride.get(key) ?? 0;
+          const stride = Math.max(wantedStride(d), held);
+          pending[bandOf(stride)]++;
+          jobs.push({ ix, iz, d, stride });
+        } else {
+          const stride = bandedStride(d, chunk.stride);
+          if (stride !== undefined) jobs.push({ ix, iz, d, stride });
+          else if (chunk.partial && room) jobs.push({ ix, iz, d });
+        }
       }
     }
+    this.pending = pending;
     jobs.sort((a, b) => a.d - b.d);
 
     let done = 0;
     for (const job of jobs) {
       if (done >= 2) break;
       const chunk = this.chunks.get(chunkKey(job.ix, job.iz));
-      if (chunk === undefined) this.plant(job.ix, job.iz);
-      else this.fill(chunk);
-      done++;
+      if (job.stride === undefined) {
+        if (chunk !== undefined) {
+          this.fill(chunk);
+          done++;
+        }
+      } else {
+        // A band change drops the chunk first, so the replant can always afford at
+        // least as many trees as it just let go; a fresh plant fits the room left.
+        if (chunk !== undefined) this.drop(chunk);
+        this.plant(job.ix, job.iz, job.stride, chunk === undefined);
+        done++;
+      }
     }
   }
 
@@ -343,21 +430,52 @@ export class Forest {
 
   /* ---------------------------------------------------------------- planting */
 
-  private plant(ix: number, iz: number): void {
-    const { spruce, hemlock } = this.buildTrees(ix, iz);
-    const chunk: Chunk = { ix, iz, species: [], trees: 0, partial: false };
+  /**
+   * Plant a chunk at `want`-stride. A fresh plant (`escalate`) whose wanted stride
+   * is coarser than 1 may double it further until the chunk fits its share of the
+   * budget left for the chunks still waiting in its band or a finer one — so a tight
+   * budget thins the far bands first and evenly, and the last chunks in radius plant
+   * sparse rather than not at all. A re-band plants exactly at `want`, because
+   * dropping the old chunk has already handed back its instances.
+   */
+  private plant(ix: number, iz: number, want: number, escalate: boolean): void {
+    const full = this.buildTrees(ix, iz);
+    let stride = want;
+    const band = bandOf(want);
+    if (escalate && want >= 2) {
+      const total = full.spruce.length + full.hemlock.length;
+      // Jobs run nearest first, so everything in a finer band has planted already;
+      // the share divides what's left among this band's chunks and coarser ones.
+      const waiting =
+        this.pending[0] + (band > 0 ? this.pending[1] : 0) + (band > 1 ? this.pending[2] : 0);
+      const share = Math.max(1, (this.maxTrees - this.trees) / Math.max(1, waiting));
+      while (stride < MAX_STRIDE && total / stride > share) stride *= 2;
+      this.pending[band] = Math.max(0, this.pending[band] - 1);
+    }
+    const spruce = thin(full.spruce, stride);
+    const hemlock = thin(full.hemlock, stride);
+    this.replantStride.delete(chunkKey(ix, iz));
+    const chunk: Chunk = { ix, iz, species: [], trees: 0, partial: false, stride };
     if (spruce.length > 0) {
-      chunk.species.push(this.makeSpecies(this.spruceGeometry, spruce, SPRUCE_TINT));
+      chunk.species.push(this.makeSpecies(ix, iz, this.spruceGeometry, spruce, SPRUCE_TINT));
     }
     if (hemlock.length > 0) {
-      chunk.species.push(this.makeSpecies(this.hemlockGeometry, hemlock, HEMLOCK_TINT));
+      chunk.species.push(this.makeSpecies(ix, iz, this.hemlockGeometry, hemlock, HEMLOCK_TINT));
     }
     this.chunks.set(chunkKey(ix, iz), chunk);
     this.fill(chunk);
   }
 
-  private makeSpecies(geometry: BufferGeometry, trees: readonly Tree[], tint: Color): SpeciesMesh {
+  private makeSpecies(
+    ix: number,
+    iz: number,
+    geometry: BufferGeometry,
+    trees: readonly Tree[],
+    tint: Color,
+  ): SpeciesMesh {
     const mesh = new InstancedMesh(geometry, this.material, trees.length);
+    // Named by chunk, so a walk or a test can find one chunk's instances in the scene.
+    mesh.name = chunkKey(ix, iz);
     mesh.count = 0;
     mesh.visible = false;
     this.root.add(mesh);
@@ -399,7 +517,7 @@ export class Forest {
     sp.mesh.setColorAt(index, _colour);
   }
 
-  /** Removes a chunk from the scene and frees only its instance buffers. */
+  /** Removes a chunk from the scene, frees its instance buffers, and forgets its stride. */
   private drop(chunk: Chunk): void {
     for (const sp of chunk.species) {
       this.root.remove(sp.mesh);
@@ -407,12 +525,15 @@ export class Forest {
     }
     this.trees -= chunk.trees;
     this.chunks.delete(chunkKey(chunk.ix, chunk.iz));
+    this.replantStride.delete(chunkKey(chunk.ix, chunk.iz));
   }
 
   /**
    * The chunk's whole candidate list, deterministically. Every candidate draws the
    * same randoms in the same order, so a replant over unchanged ground and
-   * occupancy reproduces the chunk tree for tree.
+   * occupancy reproduces the chunk tree for tree, and thinning only picks a subset
+   * of the finished lists: a chunk refined from stride 4 to 1 grows exactly the
+   * trees a fresh plant would, and no others.
    */
   private buildTrees(ix: number, iz: number): { spruce: Tree[]; hemlock: Tree[] } {
     const rng = mulberry32(hashChunk(ix, iz));
@@ -457,8 +578,8 @@ export class Forest {
         const isSpruce = rSpecies < 0.6;
         const stretch = isSpruce ? 18 + rHeight * 24 : 15 + rHeight * 17;
         // Above 450 m the growing season runs out and the same species stands shorter.
-        const thin = Math.min(Math.max((h - 450) / 270, 0), 1);
-        const height = stretch * (1 - 0.55 * thin);
+        const stunted = Math.min(Math.max((h - 450) / 270, 0), 1);
+        const height = stretch * (1 - 0.55 * stunted);
 
         const tree: Tree = {
           x,
@@ -474,4 +595,28 @@ export class Forest {
     }
     return { spruce, hemlock };
   }
+}
+
+/** Every `stride`-th tree of a list, starting at the first: a subset of any finer stride. */
+function thin(trees: Tree[], stride: number): Tree[] {
+  if (stride === 1) return trees;
+  const out: Tree[] = [];
+  for (let i = 0; i < trees.length; i += stride) out.push(trees[i]!);
+  return out;
+}
+
+/**
+ * The stride a planted chunk should move to, honouring the hysteresis margins:
+ * undefined when it should stay put. Refining needs the walker well inside the
+ * finer band; coarsening needs them well outside the chunk's own.
+ */
+function bandedStride(d: number, stride: number): 1 | 2 | 4 | undefined {
+  const want = wantedStride(d);
+  if (want === stride) return undefined;
+  if (want < stride) {
+    // Finer: the boundary in question is the finer stride's own.
+    return d < strideBoundary(want) * REFINE ? want : undefined;
+  }
+  // Coarser: the boundary in question is the chunk's own.
+  return d > strideBoundary(stride) * COARSEN ? want : undefined;
 }
