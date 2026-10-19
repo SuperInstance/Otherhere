@@ -1,4 +1,5 @@
 import {
+  BufferAttribute,
   CylinderGeometry,
   Group,
   Mesh,
@@ -231,6 +232,7 @@ export class World {
       m.renderOrder = fnv1a32(cell) % 1_000_000;
       group.add(m);
       roadPoints.push(...roadVertices(geometry, gltf.userData));
+      liftAttribute(geometry, gltf.userData);
     });
     const c = this.frame.project(cellCenter(cell));
     group.position.set(c.e, 0, -c.n);
@@ -555,6 +557,29 @@ function roofSpot(
   let top = 0;
   for (let i = r.first; i < r.first + r.count; i++) top = Math.max(top, pos.getY(i));
   return { x: best.x, z: best.z, top };
+}
+
+/**
+ * `_lift`: each vertex's height above the base of its own Feature, for contact shading
+ * (walls darken toward the ground, so buildings sit on it instead of floating). Only
+ * Features with height get it; flat ones (roads, the ground) are given a large lift so
+ * they are never darkened. Display-only: the Bundle's bytes are untouched.
+ */
+function liftAttribute(geometry: BufferGeometry, userData: Record<string, unknown>) {
+  const extras = (userData as { otherhere?: { features?: { first: number; count: number }[] } })
+    .otherhere;
+  const pos = geometry.getAttribute('position');
+  const lift = new Float32Array(pos.count).fill(100);
+  for (const f of extras?.features ?? []) {
+    let [lo, hi] = [Infinity, -Infinity];
+    for (let i = f.first; i < f.first + f.count; i++) {
+      lo = Math.min(lo, pos.getY(i));
+      hi = Math.max(hi, pos.getY(i));
+    }
+    if (hi - lo <= 1.5) continue;
+    for (let i = f.first; i < f.first + f.count; i++) lift[i] = pos.getY(i) - lo;
+  }
+  geometry.setAttribute('_lift', new BufferAttribute(lift, 1));
 }
 
 /** Vertices belonging to road segments (IDs like `osm:w1:n2-n3`), from the Bundle's feature ranges. */

@@ -214,6 +214,11 @@ export class Terrain {
     return this.loaded && !this.dead;
   }
 
+  /** True once the layer has given up (the tile source is unreachable): the world stays flat. */
+  get unavailable(): boolean {
+    return this.dead;
+  }
+
   get mode(): TerrainMode {
     return this._mode;
   }

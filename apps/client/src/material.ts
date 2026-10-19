@@ -23,7 +23,10 @@ export function confidenceMaterial(): MeshStandardNodeMaterial {
   const coloured = mix(washed, base, colourSure);
 
   const m = new MeshStandardNodeMaterial({ roughness: 1, metalness: 0 });
-  m.colorNode = mix(paper, coloured, mix(float(0.6), float(1), shapeSure));
+  // Contact shading: walls darken over their lowest couple of metres, so a building
+  // sits on the ground instead of floating (an ambient-occlusion stand-in, one multiply).
+  const contact = mix(float(0.62), float(1), smoothstep(0, 2.2, attribute('_lift', 'float')));
+  m.colorNode = mix(paper, coloured, mix(float(0.6), float(1), shapeSure)).mul(contact);
   // Haze: unsure surfaces glow faintly with paper, which flattens their shading.
   m.emissiveNode = paper.mul(float(1).sub(shapeSure).mul(0.32));
   m.name = 'soft-until-sure';

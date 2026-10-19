@@ -1,0 +1,7 @@
+smootherstep: Position is eased with t*t*t*(t*(6t-15)+10).
+late_height: The height uses a later easing curve than the horizontal position.
+shortest_yaw: Yaw is interpolated along the shortest angular difference.
+exact_end: When finished, the pose is exactly the target pose.
+no_alloc_step: step() does not create new objects or arrays.
+retarget_continuous: retarget() starts the new glide from the current pose, so there is no jump.
+no_three: The file imports nothing except the Pose type.
