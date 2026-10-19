@@ -230,7 +230,8 @@ if (!originCell) {
   const street: Pose = { x: startAt.e, y: 1.7, z: -startAt.n, yaw: 0, pitch: 0 };
   // A first visit to a real place opens on an establishing shot and glides down to the
   // street. Any input takes over; without terrain (tiles unreachable) it snaps to the street.
-  const arriving = !saved && !isDemo && !capsule && !!terrain;
+  // Not in a match: players start at their team's base, not on a sightseeing flight.
+  const arriving = !saved && !isDemo && !capsule && !sessionInfo && !!terrain;
   // The demo opens on an overview of the test lot from the south-west.
   const initial: Pose =
     saved ??
@@ -553,6 +554,7 @@ if (!originCell) {
     };
     const goHome = (team: Team, m: MatchState) => {
       const b = m.bases[team];
+      arrival = null; // a glide must never carry a player off their base
       Object.assign(walk.pose, { x: b.x, z: b.z + 3, y: 1.7 });
     };
     const renderLine = () => {
