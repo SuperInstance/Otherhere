@@ -28,6 +28,7 @@ import {
 } from '@otherhere/core';
 import { Arrival, establishingShot } from './arrival';
 import { createAtmosphere } from './atmosphere';
+import { Forest } from './forest';
 import { World } from './world';
 import { Terrain, TERRAIN_ATTRIBUTION, type TerrainMode } from './terrain';
 import { SessionClient } from './net';
@@ -202,6 +203,23 @@ if (!originCell) {
     isDemo ? 'demo' : capsule ? { capsule: capsuleBundleInputs(capsule) } : 'api',
     terrain ?? undefined,
   );
+  // Spruce and hemlock on the hills: display-only, seeded per chunk, kept out of
+  // buildings and roads, replanted as finer ground or new Bundles arrive.
+  const forest = terrain
+    ? new Forest(scene, terrain, {
+        occupied: (x, z) => world.occupied(x, z),
+        // Phones and tablets get a smaller, sparser forest: same seeds, fewer chunks.
+        ...(matchMedia('(pointer: coarse)').matches ? { radius: 900, maxTrees: 9000 } : {}),
+      })
+    : null;
+  if (terrain && forest) {
+    const standCells = terrain.onGround;
+    terrain.onGround = (...rect) => {
+      standCells(...rect);
+      forest.invalidate(...rect);
+    };
+    world.onBuilt = (...rect) => forest.invalidate(...rect);
+  }
   const pose = capsule?.view?.pose;
   const saved =
     parsePose(location.hash) ??
@@ -631,6 +649,7 @@ if (!originCell) {
     const focus = arrival ? street : walk.pose;
     world.update(focus.x, focus.z);
     terrain?.update(camera.position.x, camera.position.y, camera.position.z);
+    forest?.update(camera.position.x, camera.position.z);
     if (terrain?.active && ground.visible) {
       ground.visible = false; // the terrain and the sea replace the paper disc
       showStatus();

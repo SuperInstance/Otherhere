@@ -1,0 +1,11 @@
+seeded: Tree positions come from a seeded random generator keyed by chunk coordinates, never Math.random or time.
+height_reject: Candidates below 2.5 m or above about 720 m are rejected.
+slope_reject: Candidates on slopes steeper than about 0.9 are rejected.
+occupied_reject: Candidates where occupied(x, z) is true are rejected.
+budget: The number of live tree instances never exceeds maxTrees.
+instanced: Trees are drawn with InstancedMesh, one per species per chunk.
+shared_geometry: Dropping a chunk does not dispose the shared geometries or material.
+drop_far: Chunks farther than the radius times 1.25 are dropped.
+plant_budget: At most two chunks are planted or replanted per update call.
+nearest_first: Chunks nearer the camera are planted before farther ones.
+sink: Trees are placed slightly below the ground height.
