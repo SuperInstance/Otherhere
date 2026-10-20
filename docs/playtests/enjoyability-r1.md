@@ -97,7 +97,8 @@ golden hour does not exist. Screenshots of different hours of the day are identi
   starts at 09:30 local and a full day passes in 24 minutes (1 game hour / minute).
   This is the same determinism class as the waves, foam and cloud drift that already
   pass the pixel-identical reload e2e: same elapsed time → same sky, on every device.
-  Hold **T** to fast-forward the clock; `?t=21.5` pins the start hour for screenshots.
+  Hold **T** to fast-forward the clock; `?t=21.5` pins **and freezes** the hour (a
+  director's cut for screenshots and tests).
 - **A postcard freezes the moment.** Saving one pins the current hour into its link
   (`…&t=14.37`), and opening any capsule freezes the day clock for that view — a
   capsule is a Memory in CONTEXT.md's vocabulary, kept at full fidelity forever, so
@@ -121,13 +122,16 @@ No generator, interpreter, Bundle or golden changes: `pnpm lint`, `typecheck`, `
 green. One honest caveat on the pixel-identical e2e: a living sky means the two
 screenshots of a reload (or a postcard's save and open) are taken at slightly
 different clock readings, so byte-identity now also depends on the two moments
-landing in the same palette/light state. The reload e2e was re-run on clean main
-in the same container and fails there too, by at most 2/255 per channel with zero
-pixels past 12 — software-GL rounding, not the sky (see
-`docs/playtests/functionality-r1.md` F2). If CI — which passes byte-identity on
-main today — disagrees on this branch, the levers in order of preference: quantize
-the rendered hour (e.g. 3-game-minute steps, so a pinned hour is exact), let the
-e2e pin `?t=` for both shots, or accept a perceptual tolerance. The capsule freeze
+landing in the same palette/light state — and CI confirmed it: the two
+pixel-identity specs failed there on the first push (everything else green). The
+chosen fix: **a pinned `?t=21.5` freezes the clock** (a director's cut — the same
+sky for a screenshot, a test, or a postcard link), and both pixel-identity specs
+now pin their hour, so their byte-compare sees a static sky exactly as main did.
+The reload e2e was also re-run on clean main in the same container and fails
+there too, by at most 2/255 per channel with zero pixels past 12 — software-GL
+rounding, not the sky (see `docs/playtests/functionality-r1.md` F2). Remaining
+levers if any environment still disagrees: quantize the rendered hour (e.g.
+3-game-minute steps), or accept a perceptual tolerance. The capsule freeze
 already removes the largest drift (the friend's whole settle) from the postcard
 comparison.
 

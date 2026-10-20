@@ -53,7 +53,9 @@ test('walk a real neighbourhood; reload gives the identical scene', async ({
   });
   expect(seeded.ok()).toBe(true);
 
-  await page.goto('/?at=47.3769,8.5417#0,1.7,0,0.6,-0.05');
+  // A pinned hour freezes the sky (the world still rebuilds identically;
+  // the day clock is display-layer and deliberately moves otherwise).
+  await page.goto('/?at=47.3769,8.5417&t=9.5#0,1.7,0,0.6,-0.05');
   await settle(page, 7);
   const s = await stats(page);
   expect(s!.stats.mismatched).toBe(0);

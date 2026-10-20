@@ -35,7 +35,9 @@ test('save a postcard, open it by link, and see the same place', async ({
     headers: { 'content-type': 'application/json' },
   });
 
-  await page.goto('/?at=47.3769,8.5417#0,1.7,0,0.6,-0.05');
+  // A pinned hour freezes the sky, so the postcard and its opening see the
+  // same one (the saver's link pins the same hour for the friend).
+  await page.goto('/?at=47.3769,8.5417&t=9.5#0,1.7,0,0.6,-0.05');
   await settle(page);
   await page.getByText('Save a postcard', { exact: true }).click();
   await page.getByLabel('Postcard title').fill('Bahnhofplatz at dusk');

@@ -219,10 +219,12 @@ const originCell = isDemo
 const skyStart = parseTime(location.search) ?? DAY_START_HOUR;
 const skyAt = place ?? DEFAULT_PLACE;
 const skyBiome = forestBiome(skyAt.lat, skyAt.lng);
-// A capsule is a remembered moment (CONTEXT.md: a Memory kept at full fidelity),
-// so its sky never turns: whoever opens a postcard sees the hour it was saved,
-// pinned in the link, forever. Everything else keeps living.
-const skyFrozen = !!capsule;
+// A pinned `?t=21.5` freezes the clock at that hour (a director's cut: the
+// same sky for a screenshot, a test, or a postcard link, forever), and a
+// capsule is a remembered moment (CONTEXT.md: a Memory, kept at full
+// fidelity), so its sky never turns either — whoever opens a postcard sees
+// the hour it was saved, pinned in the link. Everything else keeps living.
+const skyFrozen = parseTime(location.search) !== null || !!capsule;
 let skyElapsed = 0;
 let skyFast = false;
 let skyNow = { hour: skyStart, elevation: 0, cloud: 0 };
