@@ -18,6 +18,9 @@ test('import a filmed walk: frames along the GPS track sharpen the buildings pas
   page,
   request,
 }) => {
+  // Software-rendered runners can take twice as long per city and per frame;
+  // the walk itself is bounded (seeks and observes time out) but not fast.
+  test.setTimeout(240_000);
   const fixture = readFileSync(
     new URL('../../../packages/core/test/fixtures/overpass-zurich.json', import.meta.url),
   );
