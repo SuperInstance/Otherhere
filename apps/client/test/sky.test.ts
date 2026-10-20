@@ -85,22 +85,46 @@ describe('clockHour', () => {
 });
 
 describe('cloudCover', () => {
-  it('is a pure function of elapsed time and stays in bounds', () => {
-    const a = cloudCover(1234.5, 'temperate');
-    expect(cloudCover(1234.5, 'temperate')).toBe(a);
-    for (let t = 0; t < 600; t += 7) {
-      const c = cloudCover(t, 'pacific-rainforest');
-      expect(c).toBeGreaterThanOrEqual(0.45);
-      expect(c).toBeLessThanOrEqual(0.95);
+  it('is a pure function of the hour and stays in bounds', () => {
+    const a = cloudCover(15.25, 'temperate');
+    expect(cloudCover(15.25, 'temperate')).toBe(a);
+    for (let h = 0; h < 24; h += 0.25) {
+      const rain = cloudCover(h, 'pacific-rainforest');
+      expect(rain).toBeGreaterThanOrEqual(0.45);
+      expect(rain).toBeLessThanOrEqual(0.95);
+      const temp = cloudCover(h, 'temperate');
+      expect(temp).toBeGreaterThanOrEqual(0.12);
+      expect(temp).toBeLessThanOrEqual(0.62);
     }
   });
   it('gives the rainforest heavier skies than the temperate biome, always', () => {
-    for (let t = 0; t < 900; t += 13)
-      expect(cloudCover(t, 'pacific-rainforest')).toBeGreaterThan(cloudCover(t, 'temperate'));
+    for (let h = 0; h < 24; h += 0.25)
+      expect(cloudCover(h, 'pacific-rainforest')).toBeGreaterThan(cloudCover(h, 'temperate'));
   });
   it('drifts smoothly: no weather jumps between neighbouring seconds', () => {
-    for (let t = 0; t < 600; t += 5)
-      expect(Math.abs(cloudCover(t + 1, 'temperate') - cloudCover(t, 'temperate'))).toBeLessThan(
+    // One real second is 1/60 of a day-clock hour on a living day.
+    for (let h = 0; h < 24; h += 0.1)
+      expect(
+        Math.abs(cloudCover(h + 1 / 60, 'temperate') - cloudCover(h, 'temperate')),
+      ).toBeLessThan(0.02);
+  });
+  it('belongs to the hour, so a postcard pins the weather with the hour it pins', () => {
+    // A saver on the living clock and the friend who opens the link stand at
+    // the same hour, whatever route their clocks took to it.
+    const saverAtDusk = cloudCover(19.9, 'temperate');
+    const friendOpeningT19_90 = cloudCover(19.9, 'temperate');
+    expect(friendOpeningT19_90).toBe(saverAtDusk);
+    // The old bug: the friend's clock started at elapsed 0, so every postcard
+    // re-rolled the weather to cloudCover-of-elapsed-0 whatever the saver saw.
+    const openedAtHourZero = cloudCover(0, 'temperate');
+    const someOvercastSaveHour = 17; // whatever the saver's weather was here,
+    expect(cloudCover(someOvercastSaveHour, 'temperate')).not.toBe(openedAtHourZero);
+  });
+  it('is periodic: the day has no weather seam at midnight', () => {
+    expect(cloudCover(24, 'temperate')).toBe(cloudCover(0, 'temperate'));
+    expect(cloudCover(47.5, 'temperate')).toBeCloseTo(cloudCover(23.5, 'temperate'), 10);
+    for (let h = 23.75; h < 24; h += 0.05)
+      expect(Math.abs(cloudCover(h + 0.05, 'temperate') - cloudCover(h, 'temperate'))).toBeLessThan(
         0.02,
       );
   });

@@ -127,32 +127,36 @@ function hash1(i: number): number {
 }
 
 /**
- * Smooth 1-D value noise over elapsed time: one weather system every ~90 s,
- * two octaves so it never looks like a sine wave. Pure function of `t`.
+ * Smooth value noise over the day clock, periodic over 24 h: one weather
+ * system every 1.5 h of the day (16 to a day) with a fine octave every 24 min
+ * (60 to a day). Both periods divide the day exactly and the segment indices
+ * wrap, so the noise has no seam at midnight — and, being a pure function of
+ * the hour, the weather belongs to the hour the way the sun's place does.
  */
-function weatherNoise(t: number): number {
-  const x = t / 90;
+function weatherNoise(hour: number): number {
+  return periodicNoise(hour / 1.5, 16, 0) * 0.7 + periodicNoise(hour / 0.4, 60, 7919) * 0.3;
+}
+
+/** One octave of value noise whose segments wrap after `period` steps. */
+function periodicNoise(x: number, period: number, salt: number): number {
   const i = Math.floor(x);
   const f = x - i;
   const s = f * f * (3 - 2 * f);
-  const at = (k: number) => hash1(k * 0x27d4eb2d);
-  const coarse = at(i) * (1 - s) + at(i + 1) * s;
-  const y = t / 23;
-  const j = Math.floor(y);
-  const g = y - j;
-  const s2 = g * g * (3 - 2 * g);
-  const fine = at(j + 7919) * (1 - s2) + at(j + 7920) * s2;
-  return coarse * 0.7 + fine * 0.3;
+  const at = (k: number) => hash1((((k % period) + period) % period) * 0x27d4eb2d + salt);
+  return at(i) * (1 - s) + at(i + 1) * s;
 }
 
 /**
- * Cloud cover 0..1 from elapsed time and biome. A rainforest town (the
- * ADR-0017 box) sits under heavier, mistier skies than a temperate one: the
- * same clock reads two different weathers in Sitka and Zürich.
+ * Cloud cover 0..1 from the day-clock hour and biome. The weather is a
+ * property of the hour, not of how long you have been watching: a postcard's
+ * `t=` pins the weather along with the hour it pins, and two players who meet
+ * at the same hour stand under the same sky. A rainforest town (the ADR-0017
+ * box) sits under heavier, mistier skies than a temperate one: the same clock
+ * reads two different weathers in Sitka and Zürich.
  */
-export function cloudCover(elapsed: number, biome: 'temperate' | 'pacific-rainforest'): number {
+export function cloudCover(hour: number, biome: 'temperate' | 'pacific-rainforest'): number {
   const [lo, hi] = biome === 'pacific-rainforest' ? [0.45, 0.95] : [0.12, 0.62];
-  return lo + (hi - lo) * weatherNoise(elapsed);
+  return lo + (hi - lo) * weatherNoise(hour);
 }
 
 /* ---------------------------------------------------------------- the palette */

@@ -242,7 +242,9 @@ const updateSky = (rawDt: number) => {
   const sunDir = sunDirection(skyAt.lat, DAY_OF_YEAR, hour);
   const moonDir = moonDirection(sunDir);
   const { elevation } = sunPosition(skyAt.lat, DAY_OF_YEAR, hour);
-  const cloud = cloudCover(skyElapsed, skyBiome);
+  // The weather belongs to the hour (cloudCover), so it travels with a pinned
+  // ?t= and freezes inside a postcard along with the hour the link pins.
+  const cloud = cloudCover(hour, skyBiome);
   const p = skyPalette(elevation, cloud);
   atmosphere.setSky({ sun: sunDir, moon: moonDir, palette: p });
   // The scene's light is the strongest body in the sky: sun by day, moon at night.

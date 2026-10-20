@@ -67,6 +67,7 @@ const chromiumPath =
 const log = [];
 let freshest = null; // last { stats, backend, sky } read from the page
 let page = null; // the current scene's page (helpers below read it)
+let flush = () => {}; // re-bound per scene: writes the session JSON as it grows
 
 // In-world readouts, mirrored from src/sky.ts (formatHour / describeWeather) so
 // every session row can name the moment it happened.
@@ -101,6 +102,7 @@ const note = (kind, detail) => {
   const row = { t: new Date().toISOString().slice(11, 23), kind, clock: clock(), ...detail };
   log.push(row);
   console.log(`${row.t} [${kind}]`, JSON.stringify(detail).slice(0, 300));
+  flush(); // evidence must survive even a killed run
   return row;
 };
 
@@ -193,6 +195,26 @@ const hudStatus = async () => {
   return status;
 };
 
+/**
+ * Screenshot the rendered world only, with the HUD overlays hidden — the e2e
+ * doctrine for pixel compares (the status text can legitimately differ between
+ * two views whose worlds are identical: sketch counts, quest lines, time).
+ */
+const hideHud = () =>
+  page.addStyleTag({ content: '#hud, #help { visibility: hidden !important; }' });
+const worldShot = async (name) => {
+  await hideHud();
+  await readWorld(); // the row names the moment the picture was taken
+  const b = await page.screenshot({ path: `${OUT}${TAG}-${name}.png` });
+  note('world-shot', {
+    name,
+    bytes: b.length,
+    stats: freshest?.stats ?? null,
+    sky: freshest?.sky ?? null,
+  });
+  return b;
+};
+
 const placeUrl = (extra = '') =>
   `${BASE}/${AT ? `?at=${AT}` : ''}${PINNED_T ? `${AT ? '&' : '?'}t=${PINNED_T}` : ''}${extra}${HASH ? `#${HASH}` : ''}`;
 
@@ -206,11 +228,13 @@ const pngStats = (a, b) => {
   let max = 0;
   let pixels = 0;
   for (let i = 0; i < pa.data.length; i += 4) {
+    let differs = false;
     for (let c = 0; c < 3; c++) {
       const d = Math.abs(pa.data[i + c] - pb.data[i + c]);
-      if (d > 0) pixels++;
+      if (d > 0) differs = true;
       if (d > max) max = d;
     }
+    if (differs) pixels++;
   }
   return {
     byteEqual: false,
@@ -244,8 +268,10 @@ const travelTo = async (name, targetHour, budgetMs) => {
     return;
   }
   // Under software GL the page runs at ~1 fps, and each frame's clock step is
-  // bounded, so budget by the distance to travel — not a flat guess.
-  const budget = budgetMs ?? Math.min(600_000, 60_000 + want * 60_000);
+  // bounded, so budget by the distance to travel — not a flat guess. The live
+  // site still runs the pre-fix clamped clock, which travels ~1.2 h per held
+  // minute there, so the default budget is generous.
+  const budget = budgetMs ?? Math.min(900_000, 90_000 + want * 60_000);
   await page.keyboard.down('KeyT');
   const t0 = Date.now();
   let last = startHour;
@@ -300,8 +326,10 @@ const openHudPanels = async () => {
 };
 
 /**
- * Save a postcard through the HUD form and return its link. Assumes the world
- * has settled and the walker is standing somewhere worth remembering. Clicking
+ * Save a postcard through the HUD form and return its link with the sky as it
+ * stood the moment the Save button went in (the link pins THAT hour, and — the
+ * round's question — the weather that belongs to it). Assumes the world has
+ * settled and the walker is standing somewhere worth remembering. Clicking
  * the summary of an already-open `<details>` would COLLAPSE it, so only click
  * when it is closed; every HUD interaction gets a 30 s budget because the
  * actionability checks ride the page's 1–3 fps animation loop in this container.
@@ -314,8 +342,9 @@ const savePostcard = async (title) => {
   await page.getByLabel('Postcard title').fill(title, { timeout: 30_000 });
   await page.getByLabel('Who can open it').selectOption('public', { timeout: 30_000 });
   await page.getByRole('button', { name: 'Save postcard' }).click({ timeout: 30_000 });
+  const skyAtClick = (await readWorld())?.sky ?? null; // before the POST resolves
   const link = await page.locator('#pc-result a').getAttribute('href', { timeout: 60_000 });
-  return link;
+  return { link, skyAtClick };
 };
 
 /**
@@ -375,7 +404,7 @@ async function sceneWalk() {
   // collapsed <details> — open the HUD panels first (round 1 recorded
   // `postcard-failed` here because the button was hidden, not broken).
   try {
-    const link = await savePostcard(`Probe round 2 — ${TAG}`);
+    const { link } = await savePostcard(`Probe round 2 — ${TAG}`);
     note('postcard', { link });
     await readWorld();
     await shot('07-postcard-saved');
@@ -404,6 +433,9 @@ async function sceneDay() {
 
   // One continuous hold-T lap of the day: noon → afternoon → dusk → night →
   // (past midnight) → dawn → golden hour. Transitions only break if you let go.
+  // Each leg carries the default distance-based budget, so a slow (or pre-fix
+  // clamped) clock records a timeout and the arc continues from wherever the
+  // hour actually is.
   await travelTo('11-noon', 12.0);
   await travelTo('12-afternoon', 15.5);
   await travelTo('13-dusk', 19.75);
@@ -416,6 +448,7 @@ async function sceneDay() {
 }
 
 async function sceneDeterminism() {
+  if (SEED) await seedBlock(); // a fresh worker's Town starts empty
   const url = placeUrl();
   if (!PINNED_T)
     note('determinism-warning', { note: 'no --t given; the living clock will not be pinned' });
@@ -454,13 +487,14 @@ async function sceneDeterminism() {
       skySixSecondsLater: s2?.sky ?? null,
     });
     await hudStatus();
-    buffers.push(await shot(`20-determinism-${which}`));
+    await shot(`20-determinism-${which}`); // the player's view, HUD and all
+    buffers.push(await worldShot(`20-determinism-${which}-world`));
     // The ambience floor: the SAME page, seconds later. Waves lap, stars
     // twinkle and cloud shadows drift on the render clock, so even a frozen
     // hour is never byte-still. Whatever moves here is animation, not
     // nondeterminism — the cross-context pair must be judged against it.
     await page.waitForTimeout(6000);
-    ambience.push(await shot(`20-determinism-${which}-later`));
+    ambience.push(await worldShot(`20-determinism-${which}-world-later`));
     skies.push(s2?.sky ?? null);
     note('ambience-floor', { which, png: pngStats(buffers.at(-1), ambience.at(-1)) });
     await ctx.close();
@@ -486,29 +520,52 @@ async function scenePostcard() {
   // A distinctive hour: reach dusk on the living clock, then save.
   await travelTo('20-dusk', 19.9);
   try {
-    const link = await savePostcard('Dusk over the Bahnhofplatz');
+    const { link, skyAtClick } = await savePostcard('Dusk, from the round-2 probe');
     const pinned = link ? Number(/[?&]t=([\d.]+)/.exec(link)?.[1] ?? NaN) : NaN;
     await readWorld();
     note('postcard-saved', {
       link,
       pinnedHour: pinned,
+      skyAtClick,
       skyAtSave: freshest?.sky ?? null,
     });
-    const savedShot = await shot('21-postcard-saved');
+    await shot('21-postcard-saved'); // the saver's screen, form and all
+    const savedWorld = await worldShot('21-postcard-saved-world');
     if (link) {
       await openLink(link);
       await settle('postcard-open', 90000);
       await page.waitForTimeout(5000); // frozen means frozen
       const opened = await readWorld();
+      // The director's-cut question: the hour is pinned — does the WEATHER
+      // travel with it? The saver's clock moved on after the click, so allow
+      // the drift of the minutes between click and this read.
+      const clickCloud = skyAtClick?.cloud ?? null;
+      const openedCloud = opened?.sky?.cloud ?? null;
+      const hoursBetween =
+        skyAtClick && opened ? Math.abs(opened.sky.hour - skyAtClick.hour) : null;
       note('postcard-opened', {
         pinnedHour: pinned,
         skyAtOpen: opened?.sky ?? null,
         hourMatches: Math.abs((opened?.sky?.hour ?? -99) - pinned) < 0.05,
         frozenAtPinnedHour: true,
+        cloudAtClick: clickCloud,
+        cloudAtOpen: openedCloud,
+        cloudDelta:
+          clickCloud !== null && openedCloud !== null
+            ? Number(Math.abs(openedCloud - clickCloud).toFixed(4))
+            : null,
+        weatherTravelsWithHour:
+          clickCloud !== null && openedCloud !== null
+            ? Math.abs(openedCloud - clickCloud) < 0.02
+            : null,
+        hoursSaverMovedWhileSaving: hoursBetween,
       });
       await hudStatus();
-      const openedShot = await shot('22-postcard-opened');
-      note('postcard-png', pngStats(savedShot, openedShot));
+      await shot('22-postcard-opened'); // the friend's screen, banner and all
+      const openedWorld = await worldShot('22-postcard-opened-world');
+      // Only the world shots compare (the player-view shots carry the HUD:
+      // the saver's open form vs the friend's banner line).
+      note('postcard-png', { world: pngStats(savedWorld, openedWorld) });
     }
   } catch (e) {
     note('postcard-failed', { error: String(e).slice(0, 300) });
@@ -614,17 +671,19 @@ if (!SCENES[SCENE]) {
 
 try {
   // Every scene starts on its own fresh page (determinism makes more).
+  const meta = () => ({
+    base: BASE,
+    at: AT,
+    scene: SCENE,
+    t: PINNED_T || null,
+    hash: HASH || null,
+    log,
+  });
+  flush = () => writeFileSync(`${OUT}${TAG}-session.json`, JSON.stringify(meta(), null, 2));
   await newPage();
   await SCENES[SCENE]();
 } finally {
-  writeFileSync(
-    `${OUT}${TAG}-session.json`,
-    JSON.stringify(
-      { base: BASE, at: AT, scene: SCENE, t: PINNED_T || null, hash: HASH || null, log },
-      null,
-      2,
-    ),
-  );
+  flush();
   await browser.close();
 }
 console.log(`\n[probe] done — artifacts in ${OUT} (tag ${TAG}), ${log.length} log rows`);
