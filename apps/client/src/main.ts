@@ -7,6 +7,7 @@ import {
   MeshStandardNodeMaterial,
   PerspectiveCamera,
   Raycaster,
+  SRGBColorSpace,
   Vector2,
   Scene,
   WebGPURenderer,
@@ -17,6 +18,7 @@ import {
   cellCenter,
   cellRing,
   DEMO_CELL,
+  forestBiome,
   generatorSet,
   generatorsMatch,
   localFrame,
@@ -28,6 +30,19 @@ import {
 } from '@otherhere/core';
 import { Arrival, establishingShot } from './arrival';
 import { createAtmosphere } from './atmosphere';
+import {
+  clockHour,
+  cloudCover,
+  DAY_OF_YEAR,
+  DAY_START_HOUR,
+  describeWeather,
+  FAST_FORWARD,
+  formatHour,
+  moonDirection,
+  skyPalette,
+  sunDirection,
+  sunPosition,
+} from './sky';
 import { Forest } from './forest';
 import { World } from './world';
 import { Terrain, TERRAIN_ATTRIBUTION, type TerrainMode } from './terrain';
@@ -37,7 +52,15 @@ import { describeFacts, photoToJpegBase64, questLine, questsDone } from './featu
 import { learnFromWalk } from './capture';
 import { WalkControls } from './walk';
 import { PAPER } from './material';
-import { DEFAULT_PLACE, formatPose, parseCoords, parsePose, parseStart, type Pose } from './url';
+import {
+  DEFAULT_PLACE,
+  formatPose,
+  parseCoords,
+  parsePose,
+  parseStart,
+  parseTime,
+  type Pose,
+} from './url';
 
 const SKY = '#e7e2d8';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -117,9 +140,10 @@ const scene = new Scene();
 scene.background = new Color(SKY);
 // Sky dome, valley mist and filmic tone mapping: a few ALU ops per pixel, no extra passes.
 const atmosphere = createAtmosphere(scene, renderer);
-scene.add(new HemisphereLight('#f6f2ea', '#b7ab92', 1.7));
+const hemi = new HemisphereLight('#f6f2ea', '#b7ab92', 1.7);
+scene.add(hemi);
 const sun = new DirectionalLight('#fff4e2', 1.9);
-sun.position.set(-0.45, 1, 0.3); // fixed: the same light on every device
+sun.position.set(-0.45, 1, 0.3); // the mid-afternoon sun until the day clock speaks
 scene.add(sun);
 const ground = new Mesh(
   new CircleGeometry(5000, 48),
@@ -184,9 +208,57 @@ const originCell = isDemo
       ? cellAt(place.lat, place.lng)
       : null;
 
+// --- The day turns ---------------------------------------------------------------
+// A living sky, deterministic by construction: the clock counts elapsed render
+// time (never the wall clock — the same class of time-dependence as the waves
+// and drifting cloud shadows), so the same elapsed second is the same sky on
+// every device and again after a reload. Every visit opens at mid-morning; a
+// full day passes in 24 minutes. Hold T to run the clock faster; `?t=21.5`
+// pins the start hour. Weather drifts on the same clock, with the biome's
+// prior (ADR-0017's box): Sitka sits under heavier skies than Zürich.
+const skyStart = parseTime(location.search) ?? DAY_START_HOUR;
+const skyAt = place ?? DEFAULT_PLACE;
+const skyBiome = forestBiome(skyAt.lat, skyAt.lng);
+// A capsule is a remembered moment (CONTEXT.md: a Memory kept at full fidelity),
+// so its sky never turns: whoever opens a postcard sees the hour it was saved,
+// pinned in the link, forever. Everything else keeps living.
+const skyFrozen = !!capsule;
+let skyElapsed = 0;
+let skyFast = false;
+let skyNow = { hour: skyStart, elevation: 0, cloud: 0 };
+addEventListener('keydown', (e) => {
+  if (e.code === 'KeyT' && !(e.target instanceof HTMLInputElement)) skyFast = true;
+});
+addEventListener('keyup', (e) => {
+  if (e.code === 'KeyT') skyFast = false;
+});
+const updateSky = (dt: number) => {
+  if (skyFrozen) dt = 0; // the postcard's hour is part of the postcard
+  skyElapsed += dt * (skyFast ? FAST_FORWARD : 1);
+  const hour = clockHour(skyStart, skyElapsed);
+  const sunDir = sunDirection(skyAt.lat, DAY_OF_YEAR, hour);
+  const moonDir = moonDirection(sunDir);
+  const { elevation } = sunPosition(skyAt.lat, DAY_OF_YEAR, hour);
+  const cloud = cloudCover(skyElapsed, skyBiome);
+  const p = skyPalette(elevation, cloud);
+  atmosphere.setSky({ sun: sunDir, moon: moonDir, palette: p });
+  // The scene's light is the strongest body in the sky: sun by day, moon at night.
+  const light = p.moon > p.sunGlow ? moonDir : sunDir;
+  sun.position.set(light[0] * 100, light[1] * 100, light[2] * 100);
+  sun.color.setRGB(...p.lightColor, SRGBColorSpace);
+  sun.intensity = p.lightIntensity;
+  hemi.color.setRGB(...p.hemiSky, SRGBColorSpace);
+  hemi.groundColor.setRGB(...p.hemiGround, SRGBColorSpace);
+  hemi.intensity = p.hemiIntensity;
+  skyNow = { hour, elevation, cloud };
+};
+
 if (!originCell) {
   statusEl.textContent = `${backend} · Enter coordinates to walk a place.`;
-  renderer.setAnimationLoop(() => renderer.render(scene, camera));
+  renderer.setAnimationLoop(() => {
+    updateSky(1 / 60);
+    renderer.render(scene, camera);
+  });
   camera.position.set(0, 40, 80);
   camera.lookAt(0, 0, 0);
 } else {
@@ -260,6 +332,7 @@ if (!originCell) {
   const showStatus = () => {
     const s = world.stats();
     const lines = [
+      `${formatHour(skyNow.hour)} · ${describeWeather(skyNow.cloud)} · hold T to pass time`,
       `${backend} · ${s.ready} cell${s.ready === 1 ? '' : 's'}${s.loading ? ` (+${s.loading} loading)` : ''} · ${s.features.toLocaleString()} features`,
       `${s.verified}/${s.ready} bundle hashes verified${s.mismatched ? ` · ${s.mismatched} MISMATCHED` : ''}`,
     ];
@@ -292,6 +365,7 @@ if (!originCell) {
       quests: world.questTargets(),
       backend,
       pose: walk.pose,
+      sky: skyNow,
       terrain: terrain && {
         ...terrain.stats(),
         active: terrain.active,
@@ -363,7 +437,7 @@ if (!originCell) {
       ownerKey: string;
       scope: string;
     };
-    const url = `${location.origin}/?c=${id}${scope === 'private' ? `&k=${ownerKey}` : ''}`;
+    const url = `${location.origin}/?c=${id}${scope === 'private' ? `&k=${ownerKey}` : ''}&t=${skyNow.hour.toFixed(2)}`;
     pcResult.textContent = '';
     const a = document.createElement('a');
     a.href = url;
@@ -436,6 +510,8 @@ if (!originCell) {
         const res = await fetch(`/api/features/${encodeURIComponent(target.featureId)}/observe`, {
           method: 'POST',
           body: JSON.stringify({ cell: target.cell, image: await photoToJpegBase64(file) }),
+          // A stalled observe must not leave the photo flow waiting forever.
+          signal: AbortSignal.timeout(60_000),
         });
         const body = (await res.json()) as {
           error?: string;
@@ -502,6 +578,10 @@ if (!originCell) {
         });
         for (const cell of sharpened) world.reload(cell);
         const notes = [];
+        if (result.unreadable)
+          notes.push(
+            `${result.unreadable} frame${result.unreadable === 1 ? '' : 's'} could not be read`,
+          );
         if (result.noBuilding)
           notes.push(
             `${result.noBuilding} frame${result.noBuilding === 1 ? '' : 's'} faced no building`,
@@ -664,13 +744,15 @@ if (!originCell) {
         session.peers,
         dt,
       );
-      if (now - lastStatus > 500) {
-        showStatus();
-        lastStatus = now;
-      }
+    }
+    // The clock and the weather move the status line; refresh it at a human pace.
+    if (now - lastStatus > 500) {
+      showStatus();
+      lastStatus = now;
     }
     // Higher up, see further; with terrain there are mountains to see, so the haze
     // reaches much further and mist pools in the valleys.
+    updateSky(dt);
     atmosphere.setTerrain(!!terrain?.active);
     atmosphere.update(camera.position);
     if (moved && now - lastHash > 400) {

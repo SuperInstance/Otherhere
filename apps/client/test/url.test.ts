@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatPose, parseCoords, parsePose, parseStart } from '../src/url';
+import { formatPose, parseCoords, parsePose, parseStart, parseTime } from '../src/url';
 
 describe('parseCoords', () => {
   it('accepts "lat, lng" and "lat lng"', () => {
@@ -24,6 +24,19 @@ describe('parseStart', () => {
       capsule: 'pc_abcdefghjk',
       key: 'secret',
     });
+  });
+});
+
+describe('parseTime', () => {
+  it('reads a pinned start hour for the day cycle', () => {
+    expect(parseTime('?at=57.05,-135.33&t=21.5')).toBe(21.5);
+    expect(parseTime('?t=9')).toBe(9);
+  });
+  it('wraps into 0–24 and rejects garbage', () => {
+    expect(parseTime('?t=25.5')).toBe(1.5);
+    expect(parseTime('?t=-2')).toBe(22);
+    expect(parseTime('?t=noon')).toBeNull();
+    expect(parseTime('?at=57.05,-135.33')).toBeNull();
   });
 });
 

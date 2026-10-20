@@ -42,7 +42,8 @@ test('save a postcard, open it by link, and see the same place', async ({
   await page.getByLabel('Who can open it').selectOption('friends');
   await page.getByRole('button', { name: 'Save postcard' }).click();
   const link = await page.locator('#pc-result a').getAttribute('href', { timeout: 60_000 });
-  expect(link).toMatch(/\?c=pc_[a-z2-9]{10}$/);
+  // The link pins the hour the postcard was saved: a capsule is a frozen moment.
+  expect(link).toMatch(/\?c=pc_[a-z2-9]{10}(&k=[a-z2-9]+)?&t=\d{1,2}\.\d{2}$/);
   await hideHud(page);
   const live = await page.screenshot({ path: 'test-results/postcard-live.png' });
   await page.close(); // one software-rendered city at a time
