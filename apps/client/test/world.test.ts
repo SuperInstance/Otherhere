@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { standFeatures } from '../src/world';
+import { Scene } from 'three/webgpu';
+import { DEMO_CELL } from '@otherhere/core';
+import { standFeatures, World } from '../src/world';
 
 /** A position attribute shaped like three's, backed by a plain array. */
 class Positions {
@@ -111,4 +113,37 @@ describe('standFeatures', () => {
     standFeatures(pos, ranges, 0, 0, { ...ground(), active: false });
     for (let i = 0; i < pos.count; i++) expect(pos.getY(i)).toBe(before[i]);
   });
+});
+
+describe('World.reload', () => {
+  it('keeps the old Bundle on screen until the new one lands', async () => {
+    const scene = new Scene();
+    const world = new World(scene, DEMO_CELL, 'demo');
+    const settle = async () => {
+      for (let i = 0; i < 1000; i++) {
+        const s = world.stats();
+        if (s.ready === 1 && s.loading === 0) return s;
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      throw new Error('demo cell never settled');
+    };
+    world.update(0, 0); // wants the demo Cell
+    await settle();
+    const demoGroups = () => world.root.children.filter((o) => o.name === DEMO_CELL);
+    expect(demoGroups()).toHaveLength(1);
+    const before = demoGroups()[0]!;
+
+    // A retry (or a capture sharpening a building) reloads the Cell. The old
+    // Bundle must stay on screen while the new one is in flight.
+    world.reload(DEMO_CELL);
+    expect(world.stats().loading).toBe(1);
+    expect(demoGroups()).toContain(before); // the screen never goes empty
+
+    await settle();
+    const after = demoGroups();
+    expect(after).toHaveLength(1); // exactly one Bundle for the Cell
+    expect(after[0]).not.toBe(before); // …and it is the new one
+    expect(demoGroups()).not.toContain(before); // the stale one is retired
+    expect(world.stats()).toMatchObject({ ready: 1, loading: 0, verified: 1 });
+  }, 30_000);
 });

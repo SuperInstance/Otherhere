@@ -4,10 +4,14 @@ import {
   cloudCover,
   formatHour,
   moonDirection,
+  postcardHour,
   skyPalette,
+  skyStep,
   sunDirection,
   sunPosition,
+  timeLine,
   DAY_OF_YEAR,
+  FAST_FORWARD,
 } from '../src/sky';
 
 const closeTo = (a: number, b: number, tol = 0.75) =>
@@ -82,22 +86,46 @@ describe('clockHour', () => {
 });
 
 describe('cloudCover', () => {
-  it('is a pure function of elapsed time and stays in bounds', () => {
-    const a = cloudCover(1234.5, 'temperate');
-    expect(cloudCover(1234.5, 'temperate')).toBe(a);
-    for (let t = 0; t < 600; t += 7) {
-      const c = cloudCover(t, 'pacific-rainforest');
-      expect(c).toBeGreaterThanOrEqual(0.45);
-      expect(c).toBeLessThanOrEqual(0.95);
+  it('is a pure function of the hour and stays in bounds', () => {
+    const a = cloudCover(15.25, 'temperate');
+    expect(cloudCover(15.25, 'temperate')).toBe(a);
+    for (let h = 0; h < 24; h += 0.25) {
+      const rain = cloudCover(h, 'pacific-rainforest');
+      expect(rain).toBeGreaterThanOrEqual(0.45);
+      expect(rain).toBeLessThanOrEqual(0.95);
+      const temp = cloudCover(h, 'temperate');
+      expect(temp).toBeGreaterThanOrEqual(0.12);
+      expect(temp).toBeLessThanOrEqual(0.62);
     }
   });
   it('gives the rainforest heavier skies than the temperate biome, always', () => {
-    for (let t = 0; t < 900; t += 13)
-      expect(cloudCover(t, 'pacific-rainforest')).toBeGreaterThan(cloudCover(t, 'temperate'));
+    for (let h = 0; h < 24; h += 0.25)
+      expect(cloudCover(h, 'pacific-rainforest')).toBeGreaterThan(cloudCover(h, 'temperate'));
   });
   it('drifts smoothly: no weather jumps between neighbouring seconds', () => {
-    for (let t = 0; t < 600; t += 5)
-      expect(Math.abs(cloudCover(t + 1, 'temperate') - cloudCover(t, 'temperate'))).toBeLessThan(
+    // One real second is 1/60 of a day-clock hour on a living day.
+    for (let h = 0; h < 24; h += 0.1)
+      expect(
+        Math.abs(cloudCover(h + 1 / 60, 'temperate') - cloudCover(h, 'temperate')),
+      ).toBeLessThan(0.02);
+  });
+  it('belongs to the hour, so a postcard pins the weather with the hour it pins', () => {
+    // A saver on the living clock and the friend who opens the link stand at
+    // the same hour, whatever route their clocks took to it.
+    const saverAtDusk = cloudCover(19.9, 'temperate');
+    const friendOpeningT19_90 = cloudCover(19.9, 'temperate');
+    expect(friendOpeningT19_90).toBe(saverAtDusk);
+    // The old bug: the friend's clock started at elapsed 0, so every postcard
+    // re-rolled the weather to cloudCover-of-elapsed-0 whatever the saver saw.
+    const openedAtHourZero = cloudCover(0, 'temperate');
+    const someOvercastSaveHour = 17; // whatever the saver's weather was here,
+    expect(cloudCover(someOvercastSaveHour, 'temperate')).not.toBe(openedAtHourZero);
+  });
+  it('is periodic: the day has no weather seam at midnight', () => {
+    expect(cloudCover(24, 'temperate')).toBe(cloudCover(0, 'temperate'));
+    expect(cloudCover(47.5, 'temperate')).toBeCloseTo(cloudCover(23.5, 'temperate'), 10);
+    for (let h = 23.75; h < 24; h += 0.05)
+      expect(Math.abs(cloudCover(h + 0.05, 'temperate') - cloudCover(h, 'temperate'))).toBeLessThan(
         0.02,
       );
   });
@@ -153,5 +181,46 @@ describe('formatHour', () => {
     expect(formatHour(12)).toBe('12:00 PM');
     expect(formatHour(13.75)).toBe('1:45 PM');
     expect(formatHour(23.99)).toBe('11:59 PM');
+  });
+});
+
+describe('timeLine', () => {
+  it('invites the player to pass time on a living day', () => {
+    expect(timeLine(9.5, 0.24, false)).toBe('9:30 AM · clear · hold T to pass time');
+    expect(timeLine(19.75, 0.7, false)).toBe('7:45 PM · broken overcast · hold T to pass time');
+  });
+  it('never invites the dead key in a pinned or postcard view', () => {
+    const frozen = timeLine(21.5, 0.9, true);
+    expect(frozen).toBe('9:30 PM · overcast · the hour is pinned here');
+    expect(frozen).not.toContain('hold T');
+  });
+});
+
+describe('skyStep', () => {
+  it('keeps a fast renderer at true speed, held key or not', () => {
+    expect(skyStep(1 / 60, false, false)).toBeCloseTo(1 / 60, 9);
+    expect(skyStep(1 / 60, true, false)).toBeCloseTo(FAST_FORWARD / 60, 9);
+  });
+  it('keeps the day at true speed on a slow renderer (a 2 s frame is not 0.25 s)', () => {
+    // The walk physics clamps such a frame to 0.25 s; the day must not.
+    expect(skyStep(2, false, false)).toBe(2);
+    expect(skyStep(1, true, false)).toBe(FAST_FORWARD);
+  });
+  it('bounds a stall, ignores time running backwards, and never moves a frozen view', () => {
+    expect(skyStep(30, false, false)).toBe(2); // a backgrounded tab does not jump the clock
+    expect(skyStep(-5, true, false)).toBe(0);
+    expect(skyStep(30, true, true)).toBe(0); // the postcard's hour is part of the postcard
+  });
+});
+
+describe('postcardHour', () => {
+  it('pins the hour the form was opened, not the hour the Save button lands', () => {
+    // The player framed dusk, then typed a title for a minute: the day moved a
+    // whole game-hour on, but the postcard keeps the sky they saw.
+    expect(postcardHour(19.9, 21.05)).toBe(19.9);
+    expect(postcardHour(19.9, 21.05)).not.toBe(21.05);
+  });
+  it('falls back to now when the form was never opened', () => {
+    expect(postcardHour(null, 21.5)).toBe(21.5);
   });
 });

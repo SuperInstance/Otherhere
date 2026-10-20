@@ -1,3 +1,5 @@
+import { describeWind } from './wind';
+
 /**
  * The living sky, as pure functions: where the sun is, what time the day clock
  * reads, what the weather is doing, and what the world should look like because
@@ -34,6 +36,20 @@ export function clockHour(
   hoursPerSecond = HOURS_PER_SECOND,
 ): number {
   return (((startHour + elapsed * hoursPerSecond) % 24) + 24) % 24;
+}
+
+/**
+ * The sky's own time step. The walk loop clamps its step tightly (0.25 s, so a
+ * slow frame cannot tunnel a walker through a wall), and the day used to share
+ * that clamp — which quietly slowed the DAY itself on a slow renderer: below
+ * 4 fps the 24-minute day stretched out of shape, and "hold T to pass time"
+ * barely moved it. So the sky advances at true wall speed up to a generous
+ * bound (a backgrounded tab still never jumps the clock), never backwards,
+ * and not at all in a frozen view.
+ */
+export function skyStep(rawDt: number, fast: boolean, frozen: boolean): number {
+  if (frozen) return 0;
+  return Math.min(2, Math.max(0, rawDt)) * (fast ? FAST_FORWARD : 1);
 }
 
 /* ------------------------------------------------------------------ the sun */
@@ -111,32 +127,36 @@ function hash1(i: number): number {
 }
 
 /**
- * Smooth 1-D value noise over elapsed time: one weather system every ~90 s,
- * two octaves so it never looks like a sine wave. Pure function of `t`.
+ * Smooth value noise over the day clock, periodic over 24 h: one weather
+ * system every 1.5 h of the day (16 to a day) with a fine octave every 24 min
+ * (60 to a day). Both periods divide the day exactly and the segment indices
+ * wrap, so the noise has no seam at midnight — and, being a pure function of
+ * the hour, the weather belongs to the hour the way the sun's place does.
  */
-function weatherNoise(t: number): number {
-  const x = t / 90;
+function weatherNoise(hour: number): number {
+  return periodicNoise(hour / 1.5, 16, 0) * 0.7 + periodicNoise(hour / 0.4, 60, 7919) * 0.3;
+}
+
+/** One octave of value noise whose segments wrap after `period` steps. */
+function periodicNoise(x: number, period: number, salt: number): number {
   const i = Math.floor(x);
   const f = x - i;
   const s = f * f * (3 - 2 * f);
-  const at = (k: number) => hash1(k * 0x27d4eb2d);
-  const coarse = at(i) * (1 - s) + at(i + 1) * s;
-  const y = t / 23;
-  const j = Math.floor(y);
-  const g = y - j;
-  const s2 = g * g * (3 - 2 * g);
-  const fine = at(j + 7919) * (1 - s2) + at(j + 7920) * s2;
-  return coarse * 0.7 + fine * 0.3;
+  const at = (k: number) => hash1((((k % period) + period) % period) * 0x27d4eb2d + salt);
+  return at(i) * (1 - s) + at(i + 1) * s;
 }
 
 /**
- * Cloud cover 0..1 from elapsed time and biome. A rainforest town (the
- * ADR-0017 box) sits under heavier, mistier skies than a temperate one: the
- * same clock reads two different weathers in Sitka and Zürich.
+ * Cloud cover 0..1 from the day-clock hour and biome. The weather is a
+ * property of the hour, not of how long you have been watching: a postcard's
+ * `t=` pins the weather along with the hour it pins, and two players who meet
+ * at the same hour stand under the same sky. A rainforest town (the ADR-0017
+ * box) sits under heavier, mistier skies than a temperate one: the same clock
+ * reads two different weathers in Sitka and Zürich.
  */
-export function cloudCover(elapsed: number, biome: 'temperate' | 'pacific-rainforest'): number {
+export function cloudCover(hour: number, biome: 'temperate' | 'pacific-rainforest'): number {
   const [lo, hi] = biome === 'pacific-rainforest' ? [0.45, 0.95] : [0.12, 0.62];
-  return lo + (hi - lo) * weatherNoise(elapsed);
+  return lo + (hi - lo) * weatherNoise(hour);
 }
 
 /* ---------------------------------------------------------------- the palette */
@@ -352,4 +372,27 @@ export function describeWeather(cloud: number): string {
   if (cloud < 0.55) return 'light cloud';
   if (cloud < 0.78) return 'broken overcast';
   return 'overcast';
+}
+
+/**
+ * The status line's opening phrase: the time and the weather (and the wind,
+ * when there is any — the forest's crowns say it too), then the truth about
+ * the clock. A living day invites the player to pass time; a pinned or
+ * postcard view is frozen by design, and must not invite a key that does
+ * nothing.
+ */
+export function timeLine(hour: number, cloud: number, frozen: boolean, wind = 0): string {
+  const breeze = describeWind(wind);
+  const when = `${formatHour(hour)} · ${describeWeather(cloud)}${breeze ? `, ${breeze}` : ''}`;
+  return frozen ? `${when} · the hour is pinned here` : `${when} · hold T to pass time`;
+}
+
+/**
+ * The hour a postcard pins: the moment its form was opened — the moment the
+ * player framed what they are saving — not whenever the Save button lands
+ * after the title is typed. A full day is 24 minutes, so a minute at the
+ * keyboard walks the sky a whole game-hour; the saved hour must not follow.
+ */
+export function postcardHour(openedHour: number | null, nowHour: number): number {
+  return openedHour ?? nowHour;
 }
