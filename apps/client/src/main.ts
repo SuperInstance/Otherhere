@@ -45,7 +45,7 @@ import {
 } from './sky';
 import { Forest } from './forest';
 import { World } from './world';
-import { describeWind, windStrength } from './wind';
+import { windStrength } from './wind';
 import { Terrain, TERRAIN_ATTRIBUTION, type TerrainMode } from './terrain';
 import { SessionClient } from './net';
 import { describeEvent, MatchView, TEAM_NAMES } from './match';
