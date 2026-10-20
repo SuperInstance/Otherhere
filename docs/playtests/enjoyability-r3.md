@@ -8,14 +8,14 @@ artifacts in `otherhere-lab/playtest-artifacts/` (`funA-*`, `funB-*`, `funC-*`) 
 
 ## The scores (evidence-grounded)
 
-| Question | Score | The evidence |
-| --- | --- | --- |
-| Arrival wow (Sitka) | **7/10** | VLM: "real-world geographic data translated into a clean, almost toy-like 3D space… a working simulation rather than just a game level" |
-| Beauty (intended low-poly) | **8/10** | VLM: "think _Proteus_, _Untitled Goose Game_, _Firewatch_'s UI — this hits hard… a digital maquette come to life" |
-| Exploration pull | **strong** | The walk grew the world 1,525 → 2,049 features / 7 → 10 cells; the amber beacon is "instant narrative tension — a place with a mystery" and the 21 quests point the camera at it |
-| Place variety (air) | **genuine** | "A lonely, misty outpost clinging to the edge of a vast, dark wilderness" vs "a pristine, orderly alpine village basking in the golden hour sun" — "genuinely different places… clearly built in the same engine" |
-| Postcard as a gift | **6/10 hybrid** | The intent lands ("a preserved moment in time and space, inviting you to step into the sender's shoes") but the receive view ships the debug HUD: "like the sender sent a screenshot of their debugging console along with the postcard" |
-| Match co-presence | **2/10** | The loop works end-to-end (code, teams, 19:30 clock, zero console errors) but the friend is invisible and unannounced: "the world feels empty" |
+| Question                   | Score           | The evidence                                                                                                                                                                                                                             |
+| -------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Arrival wow (Sitka)        | **7/10**        | VLM: "real-world geographic data translated into a clean, almost toy-like 3D space… a working simulation rather than just a game level"                                                                                                  |
+| Beauty (intended low-poly) | **8/10**        | VLM: "think _Proteus_, _Untitled Goose Game_, _Firewatch_'s UI — this hits hard… a digital maquette come to life"                                                                                                                        |
+| Exploration pull           | **strong**      | The walk grew the world 1,525 → 2,049 features / 7 → 10 cells; the amber beacon is "instant narrative tension — a place with a mystery" and the 21 quests point the camera at it                                                         |
+| Place variety (air)        | **genuine**     | "A lonely, misty outpost clinging to the edge of a vast, dark wilderness" vs "a pristine, orderly alpine village basking in the golden hour sun" — "genuinely different places… clearly built in the same engine"                        |
+| Postcard as a gift         | **6/10 hybrid** | The intent lands ("a preserved moment in time and space, inviting you to step into the sender's shoes") but the receive view ships the debug HUD: "like the sender sent a screenshot of their debugging console along with the postcard" |
+| Match co-presence          | **2/10**        | The loop works end-to-end (code, teams, 19:30 clock, zero console errors) but the friend is invisible and unannounced: "the world feels empty"                                                                                           |
 
 ## Lane A — fresh eyes (the tourist)
 
@@ -44,12 +44,12 @@ vision says the world is a wet Sitka day; the world answers everywhere is." The
 census re-run (wind/cloud pure functions imported live from `wind.ts`/`sky.ts`,
 every render-second of a day, BEFORE vs AFTER the shipped `windFloor`):
 
-| Town | biome | wind exactly-still | wind < 0.05 | mean wind | max wind |
-| --- | --- | --- | --- | --- | --- |
-| Sitka pre-floor | pacific-rainforest | 7.4% of day | 17.1% | 0.265 | 0.698 |
-| **Sitka now** | pacific-rainforest | **0.0%** | **0.0%** | 0.287 | 0.698 |
-| Zürich pre | temperate | 0% | 0% | 0.764 | 0.997 |
-| **Zürich now** | temperate | 0% | 0% | **0.764 (byte-identical)** | 0.997 |
+| Town            | biome              | wind exactly-still | wind < 0.05 | mean wind                  | max wind |
+| --------------- | ------------------ | ------------------ | ----------- | -------------------------- | -------- |
+| Sitka pre-floor | pacific-rainforest | 7.4% of day        | 17.1%       | 0.265                      | 0.698    |
+| **Sitka now**   | pacific-rainforest | **0.0%**           | **0.0%**    | 0.287                      | 0.698    |
+| Zürich pre      | temperate          | 0%                 | 0%          | 0.764                      | 0.997    |
+| **Zürich now**  | temperate          | 0%                 | 0%          | **0.764 (byte-identical)** | 0.997    |
 
 **The rainforest never goes dead-still any more, and the floor stays under the naming
 word** (0.12 → "", 0.29 → "", 0.31 → "a breeze in the crowns"). The temperate contract
