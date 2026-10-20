@@ -14,12 +14,12 @@ click point, computed styles, the details state, and the page's frame rate.
 
 **The verdict: an instrument artifact, not a product bug.**
 
-| measurement | at rest (8 s) | during click (19.6 s) |
-| --- | --- | --- |
-| unique bounding boxes | **1** | **1** — the button never moved |
-| hit target at centre | button, 9/9 | button, 8/8 — nothing intercepts |
-| style / enabled / open / focus | all normal | all normal |
-| page frame rate | **1.05 fps** | **1.19 fps** |
+| measurement                    | at rest (8 s) | during click (19.6 s)            |
+| ------------------------------ | ------------- | -------------------------------- |
+| unique bounding boxes          | **1**         | **1** — the button never moved   |
+| hit target at centre           | button, 9/9   | button, 8/8 — nothing intercepts |
+| style / enabled / open / focus | all normal    | all normal                       |
+| page frame rate                | **1.05 fps**  | **1.19 fps**                     |
 
 Under SwiftShader the render loop saturates the main thread at ~1 fps, and Playwright's
 actionability checks ride `requestAnimationFrame` — each check step queues behind
@@ -53,7 +53,7 @@ Three laws keep it honest:
   nothing) stays still; a pulsing paper town would be noise. Unit-tested: a no-op retry
   wakes 0, a changed lot wakes 1 and breathes out at `WAKE_MS`.
 - **A first-ever load does not wake** — the arrival glide already covers first
-  impressions; the wake marks *new knowledge replacing old*, nothing else.
+  impressions; the wake marks _new knowledge replacing old_, nothing else.
 - **The status line names it**: "Something here just sharpened: the new knowledge is
   settling in." — a player who looks away and back finds the HUD accounting for what
   they felt.
@@ -82,7 +82,7 @@ landed:
   the empty profile — all claims at the floor, `known_in_detail: 0.00` — and six towns
   landed there, mutually near-identical (cosine 0.99+). The r2 decoy-floor finding, now
   at corpus scale: **an empty town is its own place**, and every town in it looks the
-  same. Vectors must be read *after* the block settles (pass 2's settle-then-ask flow).
+  same. Vectors must be read _after_ the block settles (pass 2's settle-then-ask flow).
 - **The Overpass pacing law**: eight city-scale visits in rapid succession trip the
   public endpoint's rate limits — two towns failed outright, the rest stuck loading for
   half an hour, and retries keep failing while the limit holds. The corpus at scale
