@@ -9,13 +9,49 @@ export type WalkProgress = {
   sharpened: number;
   noBuilding: number;
   outsideTrack: number;
+  /** Frames the video element could not produce (a seek that never settled). */
+  unreadable: number;
 };
+
+/** How long one video seek may take before the frame is given up as unreadable. */
+const SEEK_TIMEOUT_MS = 15_000;
+/** How long one observe call may take before the walk gives up on that building. */
+const OBSERVE_TIMEOUT_MS = 60_000;
+
+/**
+ * Seek a video element and resolve true when the frame is ready, or false if
+ * the seek neither settles nor errors within `timeoutMs`. Without this bound,
+ * a stalled seek (seen on synthetic WebM files in headless browsers) hangs the
+ * whole walk forever, because `onseeked` simply never fires.
+ */
+export function seek(
+  video: HTMLVideoElement,
+  seconds: number,
+  timeoutMs = SEEK_TIMEOUT_MS,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      video.onseeked = null;
+      video.onerror = null;
+      clearTimeout(timer);
+      resolve(ok);
+    };
+    const timer = setTimeout(() => done(false), timeoutMs);
+    video.onseeked = () => done(true);
+    video.onerror = () => done(false);
+    video.currentTime = Math.min(seconds, Math.max(0, video.duration - 0.05));
+  });
+}
 
 /** Read one frame per requested time (seconds) from a video file, as base64 JPEGs. */
 export async function* videoFrames(
   file: File,
   times: number[],
   max = 1280,
+  onSkip?: (t: number) => void,
 ): AsyncGenerator<{ t: number; jpeg: string }> {
   const video = document.createElement('video');
   video.muted = true;
@@ -33,10 +69,10 @@ export async function* videoFrames(
     canvas.height = s.height;
     const ctx = canvas.getContext('2d')!;
     for (const t of times) {
-      await new Promise<void>((resolve) => {
-        video.onseeked = () => resolve();
-        video.currentTime = Math.min(t, Math.max(0, video.duration - 0.05));
-      });
+      if (!(await seek(video, t, SEEK_TIMEOUT_MS))) {
+        onSkip?.(t); // an unreadable frame must not stall the walk
+        continue;
+      }
       ctx.drawImage(video, s.sx, s.sy, s.sw, s.sh, 0, 0, s.width, s.height);
       const url = canvas.toDataURL('image/jpeg', 0.85);
       yield { t, jpeg: url.slice(url.indexOf(',') + 1) };
@@ -85,9 +121,10 @@ export async function learnFromWalk(opts: {
     sharpened: 0,
     noBuilding: 0,
     outsideTrack: 0,
+    unreadable: 0,
   };
   const seen = new Set<string>();
-  for await (const frame of videoFrames(opts.video, times)) {
+  for await (const frame of videoFrames(opts.video, times, 1280, () => p.unreadable++)) {
     const at = poseAt(track, track[0]!.t + frame.t * 1000);
     if (!at) {
       p.outsideTrack++;
@@ -112,6 +149,8 @@ export async function learnFromWalk(opts: {
           fetch(`/api/features/${encodeURIComponent(hit.featureId)}/observe`, {
             method: 'POST',
             body: JSON.stringify({ cell: hit.cell, image: frame.jpeg }),
+            // A stalled observe call must not hang the walk forever either.
+            signal: AbortSignal.timeout(OBSERVE_TIMEOUT_MS),
           });
         let res = await send();
         if (res.status === 429) {

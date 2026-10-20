@@ -22,6 +22,24 @@ export default tseslint.config(
     },
   },
   {
+    // Play-test probes are Node scripts, not browser code: they need Node and
+    // browser globals both, and the Function constructor is never used anyway.
+    files: ['apps/client/playtest/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        fetch: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        URL: 'readonly',
+        window: 'readonly',
+        document: 'readonly',
+      },
+    },
+    rules: { 'no-new-func': 'off' },
+  },
+  {
     // Invariant 2: determinism. Geometry code must use our deterministic math.
     files: ['packages/core/src/geometry/**/*.ts', 'packages/core/src/math/**/*.ts'],
     rules: {
