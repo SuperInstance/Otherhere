@@ -74,6 +74,11 @@ test('starts in downtown Sitka when no place is given', async ({ page }) => {
   await expect(page.getByLabel('Address, place or coordinates')).toHaveValue('57.0531, -135.3351');
 });
 
+test('a place found by address keeps its name in the box', async ({ page }) => {
+  await page.goto('/?at=57.0531,-135.3351&q=Lincoln%20St%2C%20Sitka');
+  await expect(page.getByLabel('Address, place or coordinates')).toHaveValue('Lincoln St, Sitka');
+});
+
 test('an address that cannot be looked up gets a recoverable message', async ({ page }) => {
   // Tests point the edge's Nominatim at a closed port, so every lookup fails.
   await page.goto('/?at=47.3769,8.5417');
