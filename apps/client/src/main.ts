@@ -36,6 +36,7 @@ import {
   DAY_OF_YEAR,
   DAY_START_HOUR,
   moonDirection,
+  postcardHour,
   skyPalette,
   skyStep,
   sunDirection,
@@ -408,6 +409,13 @@ if (!originCell) {
   const pcForm = $<HTMLFormElement>('postcard');
   const pcResult = $('pc-result');
   pcForm.hidden = isDemo || !!sessionInfo || !!capsule;
+  // The hour this postcard will pin is read when the player opens the form —
+  // the moment they framed what they are saving. Typing a title must not walk
+  // the saved hour away from that sky (a full day is 24 minutes).
+  let pcOpenedHour: number | null = null;
+  pcForm.querySelector('details')!.addEventListener('toggle', (e) => {
+    if ((e.target as HTMLDetailsElement).open) pcOpenedHour = skyNow.hour;
+  });
   pcForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = pcForm.querySelector('button')!;
@@ -443,7 +451,7 @@ if (!originCell) {
       ownerKey: string;
       scope: string;
     };
-    const url = `${location.origin}/?c=${id}${scope === 'private' ? `&k=${ownerKey}` : ''}&t=${skyNow.hour.toFixed(2)}`;
+    const url = `${location.origin}/?c=${id}${scope === 'private' ? `&k=${ownerKey}` : ''}&t=${postcardHour(pcOpenedHour, skyNow.hour).toFixed(2)}`;
     pcResult.textContent = '';
     const a = document.createElement('a');
     a.href = url;

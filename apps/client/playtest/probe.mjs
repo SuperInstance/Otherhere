@@ -339,12 +339,15 @@ const savePostcard = async (title) => {
   const details = page.locator('#postcard details');
   if (!(await details.evaluate((el) => el.open)))
     await page.getByText('Save a postcard', { exact: true }).click({ timeout: 30_000 });
+  // The app reads the hour to pin at the moment this panel opened; read the sky
+  // right after so the session can check the pin against the framed moment.
+  const skyAtFormOpen = (await readWorld())?.sky ?? null;
   await page.getByLabel('Postcard title').fill(title, { timeout: 30_000 });
   await page.getByLabel('Who can open it').selectOption('public', { timeout: 30_000 });
   await page.getByRole('button', { name: 'Save postcard' }).click({ timeout: 30_000 });
   const skyAtClick = (await readWorld())?.sky ?? null; // before the POST resolves
   const link = await page.locator('#pc-result a').getAttribute('href', { timeout: 60_000 });
-  return { link, skyAtClick };
+  return { link, skyAtFormOpen, skyAtClick };
 };
 
 /**
@@ -520,12 +523,13 @@ async function scenePostcard() {
   // A distinctive hour: reach dusk on the living clock, then save.
   await travelTo('20-dusk', 19.9);
   try {
-    const { link, skyAtClick } = await savePostcard('Dusk, from the round-2 probe');
+    const { link, skyAtFormOpen, skyAtClick } = await savePostcard('Dusk, from the round-2 probe');
     const pinned = link ? Number(/[?&]t=([\d.]+)/.exec(link)?.[1] ?? NaN) : NaN;
     await readWorld();
     note('postcard-saved', {
       link,
       pinnedHour: pinned,
+      skyAtFormOpen,
       skyAtClick,
       skyAtSave: freshest?.sky ?? null,
     });
@@ -548,6 +552,10 @@ async function scenePostcard() {
         skyAtOpen: opened?.sky ?? null,
         hourMatches: Math.abs((opened?.sky?.hour ?? -99) - pinned) < 0.05,
         frozenAtPinnedHour: true,
+        pinnedMatchesFormOpen:
+          skyAtFormOpen && Number.isFinite(pinned)
+            ? Math.abs(pinned - skyAtFormOpen.hour) < 0.15
+            : null,
         cloudAtClick: clickCloud,
         cloudAtOpen: openedCloud,
         cloudDelta:

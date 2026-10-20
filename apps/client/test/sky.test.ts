@@ -4,6 +4,7 @@ import {
   cloudCover,
   formatHour,
   moonDirection,
+  postcardHour,
   skyPalette,
   skyStep,
   sunDirection,
@@ -209,5 +210,17 @@ describe('skyStep', () => {
     expect(skyStep(30, false, false)).toBe(2); // a backgrounded tab does not jump the clock
     expect(skyStep(-5, true, false)).toBe(0);
     expect(skyStep(30, true, true)).toBe(0); // the postcard's hour is part of the postcard
+  });
+});
+
+describe('postcardHour', () => {
+  it('pins the hour the form was opened, not the hour the Save button lands', () => {
+    // The player framed dusk, then typed a title for a minute: the day moved a
+    // whole game-hour on, but the postcard keeps the sky they saw.
+    expect(postcardHour(19.9, 21.05)).toBe(19.9);
+    expect(postcardHour(19.9, 21.05)).not.toBe(21.05);
+  });
+  it('falls back to now when the form was never opened', () => {
+    expect(postcardHour(null, 21.5)).toBe(21.5);
   });
 });

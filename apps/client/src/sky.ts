@@ -386,3 +386,13 @@ export function timeLine(hour: number, cloud: number, frozen: boolean, wind = 0)
   const when = `${formatHour(hour)} · ${describeWeather(cloud)}${breeze ? `, ${breeze}` : ''}`;
   return frozen ? `${when} · the hour is pinned here` : `${when} · hold T to pass time`;
 }
+
+/**
+ * The hour a postcard pins: the moment its form was opened — the moment the
+ * player framed what they are saving — not whenever the Save button lands
+ * after the title is typed. A full day is 24 minutes, so a minute at the
+ * keyboard walks the sky a whole game-hour; the saved hour must not follow.
+ */
+export function postcardHour(openedHour: number | null, nowHour: number): number {
+  return openedHour ?? nowHour;
+}
