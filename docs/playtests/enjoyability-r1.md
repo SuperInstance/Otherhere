@@ -126,14 +126,19 @@ landing in the same palette/light state — and CI confirmed it: the two
 pixel-identity specs failed there on the first push (everything else green). The
 chosen fix: **a pinned `?t=21.5` freezes the clock** (a director's cut — the same
 sky for a screenshot, a test, or a postcard link), and both pixel-identity specs
-now pin their hour, so their byte-compare sees a static sky exactly as main did.
-The reload e2e was also re-run on clean main in the same container and fails
-there too, by at most 2/255 per channel with zero pixels past 12 — software-GL
-rounding, not the sky (see `docs/playtests/functionality-r1.md` F2). Remaining
-levers if any environment still disagrees: quantize the rendered hour (e.g.
-3-game-minute steps), or accept a perceptual tolerance. The capsule freeze
-already removes the largest drift (the friend's whole settle) from the postcard
-comparison.
+now pin their hour. Result, measured on CI: the reload pair is **bit-exact
+(zero pixels differ)**, and the postcard pair — two independent browser
+contexts — differs in **172 of 1,024,000 pixels, every one exactly 1/255**,
+scattered through the fog band: two GPU contexts rounding the fog gradient's
+transcendentals one ulp apart, a place main's fog never surfaced because the
+weather-driven haze rescale moved the gradient into view. So the walk spec keeps
+`Buffer.equals` (same context, bit-exact — the doctrine holds where it is
+achievable) and the postcard's cross-context compare allows at most 1/255 per
+channel (`e2e/identical.ts`, the measurement in the comment; validated on the CI
+evidence itself — a different scene fails at max 197). The reload e2e was also
+re-run on clean main in the same container and fails there too, by at most
+2/255 per channel — that container's software-GL signature, not the sky (see
+`docs/playtests/functionality-r1.md` F2). CI is green on the final push.
 
 ## Next round
 
