@@ -95,8 +95,7 @@ export class TownDO extends DurableObject<Env> {
   /** Write Features and Facts. Same-source rewrites bump `version` only when the value changes. */
   private write(features: Feature[], facts: Fact[]): void {
     this.ctx.storage.transactionSync(() => {
-      // Any version of the Essence cache: the next read recomputes it.
-      this.sql.exec("DELETE FROM meta WHERE key LIKE 'essence%'");
+      this.invalidateEssence();
       for (const f of features) {
         this.sql.exec(
           `INSERT INTO features (id, kind, anchor_cell) VALUES (?, ?, ?)
@@ -175,8 +174,17 @@ export class TownDO extends DurableObject<Env> {
     const n = this.sql
       .exec('DELETE FROM facts WHERE feature_id = ? AND source = ? RETURNING 1', featureId, source)
       .toArray().length;
-    if (n) this.sql.exec("DELETE FROM meta WHERE key = 'essence'");
+    if (n) this.invalidateEssence();
     return n;
+  }
+
+  /**
+   * Drop every cached version of the Essence: the next read recomputes it from the
+   * Facts. The one place that knows the cache key, so a renamed key (`essence:2`)
+   * cannot leave a writer invalidating the old name.
+   */
+  private invalidateEssence(): void {
+    this.sql.exec("DELETE FROM meta WHERE key LIKE 'essence%'");
   }
 
   /** Facts from any source. Validated; the TownDO is the gatekeeper for what enters a World. */

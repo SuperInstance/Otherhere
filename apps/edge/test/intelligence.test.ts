@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SELF, env } from 'cloudflare:test';
+import { SELF, env, runInDurableObject } from 'cloudflare:test';
 import {
   cellsOfBlock,
   townOf,
@@ -166,5 +166,31 @@ describe('moderation', () => {
       resolved: Record<string, ResolvedAttrs>;
     };
     expect(Object.values(resolved[id] ?? {}).every((r) => r.source !== 'capture')).toBe(true);
+  });
+
+  it('recomputes the Essence after removing Facts, so removed Facts stop shaping the Town', async () => {
+    const id = await aBuilding();
+    await observe(id, { cell: CELL, image: '/9j/AAAA' });
+    // Computes and caches the Essence, removed Facts included. (Typed narrowly: the RPC
+    // return types of TownDO are too deep for the checker here.)
+    const stub = town() as unknown as { snapshot(cell: string): Promise<unknown> };
+    await stub.snapshot(CELL);
+    const inside = runInDurableObject as unknown as (
+      stub: unknown,
+      fn: (instance: unknown, state: DurableObjectState) => string[],
+    ) => Promise<string[]>;
+    const cached = () =>
+      inside(town(), (_, state) =>
+        state.storage.sql
+          .exec("SELECT key FROM meta WHERE key LIKE 'essence%'")
+          .toArray()
+          .map((r) => String(r.key)),
+      );
+    expect(await cached()).not.toEqual([]);
+    await SELF.fetch(
+      `https://x/api/ops/cells/${CELL}/features/${encodeURIComponent(id)}/facts?source=capture`,
+      { method: 'DELETE', headers: { authorization: 'Bearer test-ops' } },
+    );
+    expect(await cached()).toEqual([]);
   });
 });

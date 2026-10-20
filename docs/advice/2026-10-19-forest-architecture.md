@@ -58,7 +58,7 @@ Measured on `main` (`buildBundle` for a res-9 Cell with no Facts):
 
 ## Fix now (from the #21 review; still on `main`)
 
-1. **Moderation leaves a stale Essence (live bug).** `TownDO.removeFacts` deletes `key = 'essence'` (`apps/edge/src/town.ts:178`), but the Essence is stored as `'essence:2'`. Use `key LIKE 'essence%'`, as `write()` does at `:99`, and add a test that removes a Fact and checks that the Essence changes.
+1. ~~**Moderation leaves a stale Essence (live bug).**~~ **Fixed in the moderation-essence PR.** Both writers now call one `invalidateEssence()`, and a test checks that the cached Essence is gone after a removal.
 2. **List-position thinning** (`forest/imagine.ts:159`): one new candidate moves every imagined tree. Thin by identity, i.e. a hash of the zone key and grid indices. This becomes moot if imagined trees move to the client.
 3. **Inconsistent defaults without Essence**: `imagineForest` falls back to `forestBiome(cell)` (rainforest around Sitka) while `essenceParams(undefined)` has no biome (temperate). Compute one default and use it in both places.
 4. **`Math.hypot(...) < TREE_CLEARANCE_M`** (`:151`) feeds Bundle bytes. Compare squared distances.
