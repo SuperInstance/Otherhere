@@ -63,10 +63,19 @@ export function speciesFromTags(tags: Record<string, string>): Species | undefin
  *
  * `wild` marks biomes where an unobserved cell is forest until Facts say
  * otherwise; in a temperate town an empty cell stays open ground.
+ *
+ * `windFloor` is the biome-band wind decision (enjoyability r2 → r3): the
+ * r2 day census measured that calm-under-overcast leaves the pacific
+ * rainforest's crowns still 96.6% of the day (Sitka tops out at 0.557, 3.4%
+ * above 0.5) — the wind lives in temperate towns. But an ocean stand never
+ * truly rests: the Alexander Archipelago under grey sky still breathes. The
+ * floor 0.12 sits BELOW the status line's 'a breeze' word (0.3), so the
+ * motion is felt, not named — and the temperate still-air contract
+ * (overcast = exactly 0) holds everywhere else.
  */
 export const FOREST_BIOMES = {
-  temperate: { mix: { broadleaf: 1 }, wild: false },
-  'pacific-rainforest': { mix: { hemlock: 0.7, spruce: 0.25, cedar: 0.05 }, wild: true },
+  temperate: { mix: { broadleaf: 1 }, wild: false, windFloor: 0 },
+  'pacific-rainforest': { mix: { hemlock: 0.7, spruce: 0.25, cedar: 0.05 }, wild: true, windFloor: 0.12 },
 } as const;
 export type ForestBiome = keyof typeof FOREST_BIOMES;
 

@@ -42,7 +42,7 @@ const SCENE = arg('scene', 'walk');
 const PINNED_T = arg('t', ''); // pinned day-clock hour for the URL (?t=)
 const HASH = arg('hash', ''); // saved pose for the URL (#x,y,z,yaw,pitch)
 const SEED = process.argv.includes('--seed');
-const OUT = new URL('../../../../otherhere-lab/playtest-artifacts/', import.meta.url).pathname;
+const OUT = process.env.PLAYTEST_OUT ?? new URL('../../../../otherhere-lab/playtest-artifacts/', import.meta.url).pathname;
 mkdirSync(OUT, { recursive: true });
 
 // The repo's e2e config points at a preinstalled Chromium; do the same, falling
@@ -196,6 +196,29 @@ const hudStatus = async () => {
 };
 
 /**
+ * Click a HUD control under software GL. THE F1 LAW (round 3): the page's
+ * render loop runs at ~1 fps in this container, and Playwright's actionability
+ * checks ride requestAnimationFrame — a real click can take 20 s or more to
+ * land (measured: 19.6 s on live, the button never moving, nothing
+ * intercepting — F1 was an instrument artifact, not a product bug). So: give
+ * the real click a 60 s budget, and if even that is not enough, fall back to a
+ * DOM-level el.click() — the same event the browser would dispatch, still
+ * exercising the product's handler. Which path landed is always logged.
+ */
+const clickHud = async (locator, name, timeoutMs = 60000) => {
+  const t0 = Date.now();
+  try {
+    await locator.click({ timeout: timeoutMs });
+    note('hud-click', { name, path: 'real', ms: Date.now() - t0 });
+    return 'real';
+  } catch (e) {
+    note('hud-click-fallback', { name, path: 'dom', ms: Date.now() - t0, error: String(e).slice(0, 200) });
+    await locator.evaluate((el) => el.click());
+    return 'dom';
+  }
+};
+
+/**
  * Screenshot the rendered world only, with the HUD overlays hidden — the e2e
  * doctrine for pixel compares (the status text can legitimately differ between
  * two views whose worlds are identical: sketch counts, quest lines, time).
@@ -309,15 +332,12 @@ const openHudPanels = async () => {
   const n = await panels.count();
   for (let i = 0; i < n; i++) {
     const d = panels.nth(i);
-    // Under software GL the page renders at 1–3 fps, and Playwright's click
-    // actionability check needs two consecutive animation frames — a real
-    // click can take tens of seconds to land. Budget for it; fall back to
+    // The F1 law: HUD clicks under software GL ride the ~1 fps frame loop
+    // (measured: 19.6 s for one click on live, the button never moving — F1
+    // was an instrument artifact, not a product bug). Budget for it; fall back to
     // the attribute only if even that is not enough.
     if (!(await d.evaluate((el) => el.open))) {
-      await d
-        .locator('summary')
-        .click({ timeout: 30_000 })
-        .catch(() => {});
+      await clickHud(d.locator('summary'), `details-${i}`, 30000).catch(() => {});
       if (!(await d.evaluate((el) => el.open)))
         await d.evaluate((el) => el.setAttribute('open', ''));
     }
@@ -338,13 +358,13 @@ const savePostcard = async (title) => {
   await openHudPanels();
   const details = page.locator('#postcard details');
   if (!(await details.evaluate((el) => el.open)))
-    await page.getByText('Save a postcard', { exact: true }).click({ timeout: 30_000 });
+    await clickHud(page.getByText('Save a postcard', { exact: true }), 'postcard-summary');
   // The app reads the hour to pin at the moment this panel opened; read the sky
   // right after so the session can check the pin against the framed moment.
   const skyAtFormOpen = (await readWorld())?.sky ?? null;
   await page.getByLabel('Postcard title').fill(title, { timeout: 30_000 });
   await page.getByLabel('Who can open it').selectOption('public', { timeout: 30_000 });
-  await page.getByRole('button', { name: 'Save postcard' }).click({ timeout: 30_000 });
+  await clickHud(page.getByRole('button', { name: 'Save postcard' }), 'save-postcard');
   const skyAtClick = (await readWorld())?.sky ?? null; // before the POST resolves
   const link = await page.locator('#pc-result a').getAttribute('href', { timeout: 60_000 });
   return { link, skyAtFormOpen, skyAtClick };
@@ -677,19 +697,47 @@ if (!SCENES[SCENE]) {
   process.exit(2);
 }
 
+// THE F3 LAW (round 3): a scene that dies must not take the session with it —
+// record the failure and keep playing. `--scenes a,b,c` runs several scenes in
+// one process, each on its own page and inside its own try/catch; `--scene`
+// stays the single-scene spelling.
+const sceneList = (arg('scenes', '') || SCENE)
+  .split(',')
+  .map((s) => s.trim())
+  .filter((s) => s && SCENES[s]);
+const unknownScenes = (arg('scenes', '') || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter((s) => s && !SCENES[s]);
+if (unknownScenes.length) console.error(`[probe] unknown scenes skipped: ${unknownScenes.join(',')}`);
+
 try {
   // Every scene starts on its own fresh page (determinism makes more).
   const meta = () => ({
     base: BASE,
     at: AT,
-    scene: SCENE,
+    scene: sceneList.length === 1 ? sceneList[0] : sceneList,
     t: PINNED_T || null,
     hash: HASH || null,
     log,
   });
   flush = () => writeFileSync(`${OUT}${TAG}-session.json`, JSON.stringify(meta(), null, 2));
-  await newPage();
-  await SCENES[SCENE]();
+  for (const scene of sceneList) {
+    try {
+      await newPage();
+      await SCENES[scene]();
+      note('scene-done', { scene });
+    } catch (e) {
+      // The scene's own evidence so far is already in the log; record the death
+      // and move on to the next scene on a fresh page.
+      note('scene-failed', { scene, error: String(e).slice(0, 400) });
+      try {
+        await shot(`${scene}-failed`);
+      } catch {
+        // even the screenshot may be gone; the log row is the record
+      }
+    }
+  }
 } finally {
   flush();
   await browser.close();

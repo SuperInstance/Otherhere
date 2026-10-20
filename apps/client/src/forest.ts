@@ -545,14 +545,17 @@ export class Forest {
   }
 
   /**
-   * Feed the wind: the sky's elapsed clock seconds and the cloud cover it
-   * reports. Calm overcast keys the strength to 0, clear sky runs travelling
-   * gusts through the stands, and a frozen clock (a pinned `?t=` or a postcard
-   * link) freezes the crowns with it — the sway is as deterministic as the sky.
+   * Feed the wind: the sky's elapsed clock seconds, the cloud cover it
+   * reports, and the biome's wind floor (the biome-band decision: the pacific
+   * rainforest keeps a breath under grey sky; temperate overcast is exactly
+   * still). Calm overcast keys the strength to the floor, clear sky runs
+   * travelling gusts through the stands, and a frozen clock (a pinned `?t=`
+   * or a postcard link) freezes the crowns with it — the sway is as
+   * deterministic as the sky.
    */
-  setWind(elapsed: number, cloud: number): void {
+  setWind(elapsed: number, cloud: number, floor = 0): void {
     windTimeU.value = elapsed;
-    windStrengthU.value = windStrength(elapsed, cloud);
+    windStrengthU.value = windStrength(elapsed, cloud, floor);
   }
 
   dispose(): void {
