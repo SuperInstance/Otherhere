@@ -10,7 +10,30 @@ import {
   type Scene,
   Vector3,
 } from 'three/webgpu';
-import { float, mix, positionLocal, smoothstep, vec3 } from 'three/tsl';
+import {
+  attribute,
+  cameraPosition,
+  cos,
+  distance,
+  float,
+  mix,
+  positionLocal,
+  sin,
+  smoothstep,
+  uniform,
+  vec3,
+} from 'three/tsl';
+import {
+  FLUTTER_RATE,
+  GUST_LONG,
+  GUST_SHORT,
+  SHIVER_RATE,
+  SWAY_MAX_M,
+  WIND_TOWARD,
+  windStrength,
+  WOBBLE_RAD,
+  WOBBLE_RATE,
+} from './wind';
 
 /* ---------------------------------------------------------------- world grid */
 
@@ -69,6 +92,20 @@ function strideBoundary(stride: number): number {
 /** Spruce reads bluish, hemlock warmer — the only thing telling the species apart at distance. */
 const SPRUCE_TINT = new Color('#2c4a32');
 const HEMLOCK_TINT = new Color('#36503a');
+
+/* --------------------------------------------------------------------- wind */
+
+/**
+ * The wind's clock and weather, as uniforms written by `Forest.setWind` from the
+ * sky's elapsed time and cloud cover. Keyed to the *freezable* clock, never the
+ * renderer's own `time`, so a pinned `?t=` (or a postcard link) freezes the
+ * crowns with the sky it froze — the pixel-identity doctrine holds for motion too.
+ */
+const windTimeU = uniform(0);
+const windStrengthU = uniform(0);
+
+/** Sway is pointless past this range, where a tree is a couple of pixels. */
+const SWAY_FADE_M = 1400;
 
 /* ------------------------------------------------------------------- hashing */
 
@@ -172,6 +209,11 @@ function pushTrunk(out: number[], radius: number, topY: number, segments: number
  * Unit-height conifer, base at y = 0, centred on x/z, so an instance only needs to
  * scale by (width, height, width). Spruce is a narrow three-tier spire at 54
  * triangles; hemlock a broader two-tier crown with a leaning tip at 40.
+ *
+ * Each vertex also carries `flex`, its willingness to move in the wind (0 at the
+ * root, ~1 at the whippiest tip): spruce's stiff tiers ride as a block and give
+ * less; the hemlock's crown bends more and its leader whips. The attribute is
+ * baked here, per species, so one shared material can sway both silhouettes.
  */
 function buildConiferGeometry(spruce: boolean): BufferGeometry {
   const out: number[] = [];
@@ -188,24 +230,93 @@ function buildConiferGeometry(spruce: boolean): BufferGeometry {
   g.setAttribute('position', new Float32BufferAttribute(out, 3));
   // Non-indexed, so this gives flat per-face normals: exactly the low-poly read we want.
   g.computeVertexNormals();
+  // How far up the crown this vertex sits, 0 at the trunk to 1 at the tip.
+  const flex: number[] = [];
+  for (let i = 0; i < out.length; i += 3) {
+    const t = Math.min(1, Math.max(0, (out[i + 1]! - 0.1) / 0.9));
+    if (spruce) flex.push(0.72 * t ** 1.8); // stiff tiers: the crown moves as one
+    else
+      flex.push(
+        t ** 2.4 + 0.18 * Math.max(0, (out[i + 1]! - 0.75) / 0.25) ** 2, // whip the leader
+      );
+  }
+  g.setAttribute('flex', new Float32BufferAttribute(flex, 1));
   return g;
 }
 
 /* ------------------------------------------------------------------ material */
+
+const TAU = Math.PI * 2;
 
 /**
  * One material for every tree of both species. three multiplies each instance's colour
  * into `colorNode` itself (NodeMaterial.setupDiffuseColor), so this is only the shading:
  * darker toward the base so a stand has depth instead of reading as a flat wall, and a
  * faint lift on the upper third so the crowns don't go black against the sky.
+ *
+ * On top of the shading sits the wind — the TSL mirror of `swayOffset` in wind.ts,
+ * term for term. `positionLocal` is already the *world* position here (the instance
+ * transform runs before `positionNode` in NodeMaterial.setupPosition), so the gust
+ * phase reads true ground coordinates and the offset lands in world axes: one wind
+ * field over every chunk, every species, bending crowns downwind inside travelling
+ * gusts. Overcast holds `windStrengthU` at 0 and the whole thing collapses to
+ * `positionLocal + 0` — the forest we had before, vertex for vertex.
  */
 function coniferMaterial(): MeshStandardNodeMaterial {
   const y = positionLocal.y;
   const depth = mix(float(0.55), float(1), smoothstep(0, 0.45, y));
   const rim = mix(float(1), float(1.25), smoothstep(0.65, 1, y).mul(0.4));
 
+  // --- wind: mirrors swayOffset(elapsed, cloud, x, z, flex) from wind.ts ---
+  const flex = attribute('flex', 'float');
+  const downwind = positionLocal.x
+    .mul(WIND_TOWARD[0])
+    .add(positionLocal.z.mul(WIND_TOWARD[1]));
+  const swell = sin(
+    downwind
+      .mul(TAU / GUST_LONG.lambda)
+      .sub(windTimeU.mul((TAU * GUST_LONG.speed) / GUST_LONG.lambda)),
+  );
+  const chop = sin(
+    downwind
+      .mul(TAU / GUST_SHORT.lambda)
+      .sub(windTimeU.mul((TAU * GUST_SHORT.speed) / GUST_SHORT.lambda))
+      .add(2.1),
+  );
+  const gust = float(0.35).add(
+    float(0.65).mul(float(0.5).add(swell.mul(0.3)).add(chop.mul(0.2))),
+  );
+  // Long rotated sines, so stands a few trees apart swing out of phase while one
+  // crown moves as a single thing.
+  const phase = sin(positionLocal.x.mul(0.041).add(positionLocal.z.mul(0.029)))
+    .mul(1.6)
+    .add(sin(positionLocal.x.mul(0.023).sub(positionLocal.z.mul(0.047)).add(1.3)).mul(1.2));
+  const flutter = sin(windTimeU.mul(FLUTTER_RATE).add(phase));
+  const shiver = sin(windTimeU.mul(SHIVER_RATE).add(phase.mul(1.7)));
+  const wobble = sin(windTimeU.mul(WOBBLE_RATE).add(downwind.mul(0.006))).mul(WOBBLE_RAD);
+
+  const reach = float(1).sub(
+    smoothstep(SWAY_FADE_M * 0.7, SWAY_FADE_M, distance(cameraPosition, positionLocal)),
+  );
+  const amp = windStrengthU.mul(gust).mul(flex).mul(SWAY_MAX_M).mul(reach);
+  const lean = amp.mul(float(0.42).add(flutter.mul(0.58)));
+  const cross = amp.mul(0.18).mul(shiver);
+  const dirX = float(WIND_TOWARD[0])
+    .mul(cos(wobble))
+    .sub(float(WIND_TOWARD[1]).mul(sin(wobble)));
+  const dirZ = float(WIND_TOWARD[1])
+    .mul(cos(wobble))
+    .add(float(WIND_TOWARD[0]).mul(sin(wobble)));
+
   const m = new MeshStandardNodeMaterial({ roughness: 1, metalness: 0 });
-  m.colorNode = vec3(depth.mul(rim));
+  m.positionNode = positionLocal.add(
+    vec3(dirX.mul(lean).sub(dirZ.mul(cross)), 0, dirZ.mul(lean).add(dirX.mul(cross))),
+  );
+  // Crowns catch the light as they swing: a ±7% brightness ripple in the flutter's
+  // phase, computed per vertex and carried to the fragments. At distance, where the
+  // bend itself is sub-pixel, this is what makes the wave visible crossing a hillside.
+  const shimmer = flutter.mul(flex).mul(windStrengthU).mul(reach).toVarying('coniferShimmer');
+  m.colorNode = vec3(depth.mul(rim).mul(float(1).add(shimmer.mul(0.07))));
   m.name = 'conifer';
   return m;
 }
@@ -276,7 +387,8 @@ const UP = new Vector3(0, 1, 0);
 /* -------------------------------------------------------------------- forest */
 
 /**
- * A streamed, display-only forest of low-poly conifers.
+ * A streamed, display-only forest of low-poly conifers — and the wind in their
+ * crowns, keyed to the weather the sky reports.
  *
  * The world is cut into fixed 250 m chunks and a chunk's trees are a pure function
  * of its integer coordinates, the ground beneath them, and its detail stride — so
@@ -286,7 +398,8 @@ const UP = new Vector3(0, 1, 0);
  * material are built once. Near chunks carry every tree and distant ones every 2nd
  * or 4th (sparser still when the budget runs out), so the forest always reaches the
  * horizon and sharpens as you walk into it — sketch until sure, like everything
- * else here.
+ * else here. `setWind` feeds the material's shared uniforms once per frame; nothing
+ * about the trees themselves moves, so a replant never disturbs the wind.
  */
 export class Forest {
   readonly root = new Group();
@@ -417,6 +530,17 @@ export class Forest {
 
   stats(): { chunks: number; trees: number } {
     return { chunks: this.chunks.size, trees: this.trees };
+  }
+
+  /**
+   * Feed the wind: the sky's elapsed clock seconds and the cloud cover it
+   * reports. Calm overcast keys the strength to 0, clear sky runs travelling
+   * gusts through the stands, and a frozen clock (a pinned `?t=` or a postcard
+   * link) freezes the crowns with it — the sway is as deterministic as the sky.
+   */
+  setWind(elapsed: number, cloud: number): void {
+    windTimeU.value = elapsed;
+    windStrengthU.value = windStrength(elapsed, cloud);
   }
 
   dispose(): void {
