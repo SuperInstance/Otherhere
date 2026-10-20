@@ -32,6 +32,7 @@ export * from './game/ctf';
 export * from './game/protocol';
 export * from './capsule/place';
 export * from './packs/building';
+export * from './packs/place';
 export * from './essence/compute';
 export * from './forest/species';
 export * from './forest/imagine';

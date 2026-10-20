@@ -4,7 +4,13 @@ import {
   bundleInputsHash,
   computeEssence,
   forestBiome,
+  PLACE_BATTERY,
+  placeCensus,
+  placeState,
+  sha256Hex,
+  StoredPlaceVector,
   type Essence,
+  type PlaceCensus,
   BundleManifest,
   Fact,
   fetchOverpass,
@@ -24,8 +30,10 @@ import {
   type OverpassResponse,
   type ResolvedAttrs,
 } from '@otherhere/core';
+import { askPlaceVectorState, JEV_MODEL } from '@otherhere/models';
 import type { Env } from './env';
 import { jobsStub } from './jobs';
+import { placeJev } from './models';
 
 /** `loading`: an Overpass fetch is still running; the Cell is served as a sketch meanwhile. */
 export type BlockStatus = 'ok' | 'failed' | 'loading';
@@ -179,9 +187,10 @@ export class TownDO extends DurableObject<Env> {
   }
 
   /**
-   * Drop every cached version of the Essence: the next read recomputes it from the
-   * Facts. The one place that knows the cache key, so a renamed key (`essence:2`)
-   * cannot leave a writer invalidating the old name.
+   * Drop every cached version of the Essence and the place vector: the next read
+   * recomputes both from the Facts. The one place that knows the cache keys, so a
+   * renamed key (`essence:2`, `essence-vector:1`) cannot leave a writer
+   * invalidating the old name.
    */
   private invalidateEssence(): void {
     this.sql.exec("DELETE FROM meta WHERE key LIKE 'essence%'");
@@ -371,6 +380,89 @@ export class TownDO extends DurableObject<Env> {
       JSON.stringify(e),
     );
     return e;
+  }
+
+  /**
+   * The census half of a place state (ADR-0018): every Feature and every Fact,
+   * counted. Like `essence()`, a pure read of the Facts; the state's Essence half
+   * is the cached `essence()` itself, so the battery is asked over exactly the
+   * statistics the Town serves.
+   */
+  private placeSnapshot(): { essence: Essence; census: PlaceCensus } {
+    const kinds = this.sql
+      .exec<{ id: string; kind: Feature['kind'] }>('SELECT id, kind FROM features')
+      .toArray();
+    const facts = this.sql
+      .exec<{
+        feature_id: string;
+        attribute: string;
+        source: Fact['source'];
+        value: string;
+        confidence: number;
+        observed_at: string;
+        version: number;
+      }>('SELECT * FROM facts')
+      .toArray()
+      .map((r): Fact => ({
+        featureId: r.feature_id,
+        attribute: r.attribute,
+        source: r.source,
+        value: JSON.parse(r.value) as Fact['value'],
+        confidence: r.confidence,
+        observedAt: r.observed_at,
+        version: r.version,
+      }));
+    const resolved = resolveFacts(facts);
+    return {
+      essence: this.essence(),
+      census: placeCensus(
+        kinds.map((r) => ({ kind: r.kind, attrs: resolved.get(r.id) ?? {} })),
+        facts,
+      ),
+    };
+  }
+
+  /**
+   * The Town's place vector (ADR-0018): the sealed place battery's calibrated
+   * answers over its deterministic state, stored in `meta` beside the Essence and
+   * dropped by the same invalidation. Lazy and stale-checked: the cache is served
+   * only when the battery version, the model pin and the state's sha all match, so
+   * a battery upgrade or a pin move re-asks exactly once per Town. Null when no
+   * Jev is configured. The vector is Town metadata, never a Bundle input.
+   */
+  async essenceVector(): Promise<StoredPlaceVector | null> {
+    const jev = placeJev(this.env);
+    if (!jev) return null;
+    const { essence, census } = this.placeSnapshot();
+    const state = placeState(essence, census);
+    const stateSha = await sha256Hex(state);
+    const row = this.sql
+      .exec<{ value: string }>("SELECT value FROM meta WHERE key = 'essence-vector:1'")
+      .toArray()[0];
+    if (row) {
+      const cached = StoredPlaceVector.safeParse(JSON.parse(row.value));
+      if (
+        cached.success &&
+        cached.data.battery === PLACE_BATTERY &&
+        cached.data.model === JEV_MODEL &&
+        cached.data.stateSha === stateSha
+      )
+        return cached.data;
+    }
+    const r = await askPlaceVectorState(jev, state);
+    const stored: StoredPlaceVector = {
+      battery: PLACE_BATTERY,
+      model: JEV_MODEL,
+      served: r.model_served,
+      stateSha: r.stateSha,
+      vector: r.vector,
+      at: new Date().toISOString(),
+    };
+    this.sql.exec(
+      "INSERT OR REPLACE INTO meta (key, value) VALUES ('essence-vector:1', ?)",
+      JSON.stringify(stored),
+    );
+    return stored;
   }
 
   /** Every Feature anchored in a Cell and every Fact about them, for a Capsule snapshot. */

@@ -1,0 +1,109 @@
+{
+  "id": "pack.place",
+  "version": "1.0.0",
+  "description": "The character of a Town, judged from its deterministic Essence and census summary. Sealed battery (ADR-0018): the text is byte-stable; rewording means a new version, never an edit.",
+  "questions": {
+    "tall_for_a_town": {
+      "type": "noul",
+      "instructions": "Judge the claim: the buildings here are tall for a town.",
+      "criteria": {
+        "true": "The recorded building heights are high for an ordinary town: mid-rise blocks or taller are typical.",
+        "false": "The recorded heights are modest for a town, or too few heights are recorded to call the Town tall."
+      }
+    },
+    "steep_roofs": {
+      "type": "noul",
+      "instructions": "Judge the claim: roofs here pitch steeply rather than lying flat.",
+      "criteria": {
+        "true": "Gable and hip shapes dominate the recorded roof mix.",
+        "false": "Flat roofs dominate the recorded mix, the mix leans flat, or too few roof shapes are recorded to say."
+      }
+    },
+    "uniform_roofs": {
+      "type": "noul",
+      "instructions": "Judge the claim: one roof shape covers almost every building here.",
+      "criteria": {
+        "true": "A single roof shape holds nearly all of the recorded weight.",
+        "false": "The recorded roof mix is genuinely mixed, or too few roof shapes are recorded to say."
+      }
+    },
+    "dense_not_spread": {
+      "type": "noul",
+      "instructions": "Judge the claim: the place feels dense rather than spread out.",
+      "criteria": {
+        "true": "The recorded counts suggest many buildings packed into one Town: a compact, built-up place.",
+        "false": "The counts suggest few buildings for a whole Town, or the counts are too small to say."
+      }
+    },
+    "warm_earthy_walls": {
+      "type": "noul",
+      "instructions": "Judge the claim: the common wall colours here are warm and earthy rather than cool and grey.",
+      "criteria": {
+        "true": "The recorded palette leans warm: browns, creams, ochres, terracottas, wood tones.",
+        "false": "The recorded palette leans cool, grey or dark, or too few colours are recorded to say."
+      }
+    },
+    "mostly_conifers": {
+      "type": "noul",
+      "instructions": "Judge the claim: the trees here are mostly conifers.",
+      "criteria": {
+        "true": "Conifers such as hemlock, spruce and cedar hold most of the recorded tree species mix.",
+        "false": "Broadleaves dominate the recorded mix, conifers are a small share of it, or no tree species are recorded."
+      }
+    },
+    "rainy_coast": {
+      "type": "noul",
+      "instructions": "Judge the claim: this is a rainy coastal place.",
+      "criteria": {
+        "true": "The summary places the Town in a coastal rainforest climate.",
+        "false": "The summary places the Town in a temperate climate, or records no climate for it."
+      }
+    },
+    "heights_recorded": {
+      "type": "noul",
+      "instructions": "Judge the claim: most buildings here have a recorded height.",
+      "criteria": {
+        "true": "A high share of the Town's buildings carries a recorded height.",
+        "false": "Only a small share of the buildings has a recorded height."
+      }
+    },
+    "height_scale": {
+      "type": "score",
+      "instructions": "How tall is the Town's building stock, on this scale?",
+      "criteria": [
+        "Almost nothing rises above a single storey; the place reads as huts and sheds.",
+        "Nearly all buildings are single-storey.",
+        "Single-storey buildings dominate, with a scattering of two-storey ones.",
+        "Two-storey buildings are typical, and single-storey ones remain common.",
+        "A town of two- and three-storey buildings.",
+        "Three- to four-storey buildings line the streets.",
+        "Mid-rise blocks of five to eight storeys are common.",
+        "Mid-rise and high-rise mix: many buildings reach nine to fourteen storeys.",
+        "High-rise: towers of fifteen storeys and more rise over mid-rise blocks.",
+        "A vertical core: towers dominate the skyline."
+      ]
+    },
+    "known_in_detail": {
+      "type": "score",
+      "instructions": "How completely is this place recorded: building heights, roof shapes, wall colours, captures?",
+      "criteria": [
+        "Almost nothing is recorded: heights, roofs and colours are unknown for nearly every building.",
+        "Sparse recording: a small share of buildings has a known height or roof shape.",
+        "Partial recording: many buildings have heights, fewer have roof shapes or colours.",
+        "Good recording: most buildings have known heights and roof shapes.",
+        "Thorough recording: nearly every building's height, roof and colour are known, and captures exist."
+      ]
+    },
+    "green_setting": {
+      "type": "score",
+      "instructions": "How green is the Town's setting, from paved ground to deep forest?",
+      "criteria": [
+        "Paved and built: hardly a tree appears in the summary.",
+        "A built place with street trees and gardens.",
+        "A green town: trees are about as common as buildings.",
+        "Wooded: trees clearly outnumber the buildings.",
+        "Deep forest: the summary is mostly trees, and buildings read as a clearing in them."
+      ]
+    }
+  }
+}

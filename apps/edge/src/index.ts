@@ -4,6 +4,7 @@ import {
   cellRing,
   INTERPRETER_VERSION,
   isCell,
+  isTown,
   townOf,
   TOWN_RES,
   type OverpassResponse,
@@ -144,6 +145,24 @@ async function route(req: Request, env: Env, url: URL, path: string): Promise<Re
         etag: `"${m[1]}"`,
         'x-output-hash': obj.customMetadata?.outputHash ?? '',
       },
+    });
+  }
+
+  // The Town's place vector (ADR-0018): public-safe derived statistics of public
+  // Facts — Town metadata like the Essence, never a Bundle input and never user data.
+  m = /^\/api\/towns\/([^/]+)\/vector$/.exec(path);
+  if (m) {
+    const town = m[1]!;
+    if (!isTown(town)) return error(400, 'not an H3 res-6 Town');
+    const vector = await env.TOWN.get(env.TOWN.idFromName(town)).essenceVector();
+    if (!vector) return error(503, 'place vectors are not configured on this deployment');
+    return json({
+      town,
+      battery: vector.battery,
+      model_served: vector.served,
+      state_sha: vector.stateSha,
+      at: vector.at,
+      vector: vector.vector,
     });
   }
 

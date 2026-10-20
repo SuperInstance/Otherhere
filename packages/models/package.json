@@ -9,7 +9,8 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
-    "smoke": "tsx scripts/smoke.ts"
+    "smoke": "tsx scripts/smoke.ts",
+    "place-vector": "tsx scripts/place-vector.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
