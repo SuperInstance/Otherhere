@@ -116,17 +116,15 @@ note('seed-plan', { farCell, farBlock });
 
 // 5. Watch for the wake: poll fast (the breath is 1600 ms), catch it live.
 let wakeSeen = false;
-let statusAtWake = '';
-let t0 = 0;
 for (let i = 0; i < 240; i++) {
   const s = await state();
   const w = s?.stats?.waking ?? 0;
   if (w > 0) {
     wakeSeen = true;
-    statusAtWake = s?.status ?? '';
-    t0 = Date.now();
+    const statusAtWake = s?.status ?? '';
     note('WAKE-DETECTED', {
       waking: w,
+      detectedAtMs: Date.now(),
       statusFirstLine: statusAtWake.split('\n').find((l) => /sharpen/i.test(l)) ?? null,
     });
     break;
