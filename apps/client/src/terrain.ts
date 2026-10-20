@@ -27,7 +27,6 @@ import {
   texture,
 } from 'three/tsl';
 import type { LocalFrame } from '@otherhere/core';
-import { SUN_DIRECTION } from './atmosphere';
 import { cloudShadow, mistBanks, oceanMaterial, shoreFoam, snowCover } from './ocean';
 
 export type TerrainMode = 'topo' | 'satellite';
@@ -958,7 +957,7 @@ function topoMaterial(): MeshStandardNodeMaterial {
 function oceanMesh(): Mesh {
   const geometry = new PlaneGeometry(OCEAN_SIZE, OCEAN_SIZE, 1, 1);
   geometry.rotateX(-Math.PI / 2);
-  const mesh = new Mesh(geometry, oceanMaterial(SUN_DIRECTION));
+  const mesh = new Mesh(geometry, oceanMaterial());
   mesh.name = 'ocean';
   // Opaque terrain draws in any order; the sea goes last so its fresnel never
   // fights the coastline at y = 0.

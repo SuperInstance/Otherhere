@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+import { expectIdentical } from './identical';
 
 type Stats = {
   ready: number;
@@ -35,14 +36,17 @@ test('save a postcard, open it by link, and see the same place', async ({
     headers: { 'content-type': 'application/json' },
   });
 
-  await page.goto('/?at=47.3769,8.5417#0,1.7,0,0.6,-0.05');
+  // A pinned hour freezes the sky, so the postcard and its opening see the
+  // same one (the saver's link pins the same hour for the friend).
+  await page.goto('/?at=47.3769,8.5417&t=9.5#0,1.7,0,0.6,-0.05');
   await settle(page);
   await page.getByText('Save a postcard', { exact: true }).click();
   await page.getByLabel('Postcard title').fill('Bahnhofplatz at dusk');
   await page.getByLabel('Who can open it').selectOption('friends');
   await page.getByRole('button', { name: 'Save postcard' }).click();
   const link = await page.locator('#pc-result a').getAttribute('href', { timeout: 60_000 });
-  expect(link).toMatch(/\?c=pc_[a-z2-9]{10}$/);
+  // The link pins the hour the postcard was saved: a capsule is a frozen moment.
+  expect(link).toMatch(/\?c=pc_[a-z2-9]{10}(&k=[a-z2-9]+)?&t=\d{1,2}\.\d{2}$/);
   await hideHud(page);
   const live = await page.screenshot({ path: 'test-results/postcard-live.png' });
   await page.close(); // one software-rendered city at a time
@@ -58,8 +62,12 @@ test('save a postcard, open it by link, and see the same place', async ({
   expect(s!.mismatched).toBe(0);
   await hideHud(friend);
   const shared = await friend.screenshot({ path: 'test-results/postcard-shared.png' });
-  // The postcard starts where it was saved and is built from the same Facts, so it looks the same.
-  expect(shared.equals(live)).toBe(true);
+  // The postcard starts where it was saved and is built from the same Facts, so it
+  // looks the same. Two independent browser contexts may round the fog gradient
+  // one ulp apart (measured: 172 pixels of 1,024,000, each exactly 1/255), so the
+  // cross-context compare allows that much and no more; same-context reloads stay
+  // byte-exact (the walk spec).
+  await expectIdentical(shared, live, 1);
   await friendCtx.close();
 });
 

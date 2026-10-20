@@ -1,4 +1,4 @@
-import { MeshStandardNodeMaterial, Vector3, type Node } from 'three/webgpu';
+import { MeshStandardNodeMaterial, type Node } from 'three/webgpu';
 import {
   cameraPosition,
   color,
@@ -18,6 +18,7 @@ import {
   transformNormalToView,
   vec3,
 } from 'three/tsl';
+import { cloudUniform, lightDirUniform, mistUniform } from './atmosphere';
 
 /* ------------------------------------------------------------------ waves */
 
@@ -59,9 +60,11 @@ function waveSlope(w: Wave): { dhx: Node<'float'>; dhz: Node<'float'> } {
  * The ripple normal is the analytic gradient of the four-wave height field,
  * transformed to view space because that is what the lighting stage expects.
  * Sun glint is emissive rather than specular: no env map, but the highlight
- * still reads. Far water fades to flat so the horizon does not shimmer.
+ * still reads. The glint follows the living sky (sun by day, moon by night)
+ * through the shared light-direction uniform. Far water fades to flat so the
+ * horizon does not shimmer.
  */
-export function oceanMaterial(sun: Vector3): MeshStandardNodeMaterial {
+export function oceanMaterial(): MeshStandardNodeMaterial {
   let dhx: Node<'float'> = float(0);
   let dhz: Node<'float'> = float(0);
   for (const w of WAVES) {
@@ -79,9 +82,8 @@ export function oceanMaterial(sun: Vector3): MeshStandardNodeMaterial {
   const viewDir = cameraPosition.sub(positionWorld).normalize();
   const fresnel = pow(float(1).sub(max(dot(viewDir, worldNormal), float(0))), 4);
 
-  const sunDir = vec3(sun.x, sun.y, sun.z);
   const reflectDir = reflect(viewDir.negate(), worldNormal);
-  const glint = pow(max(dot(reflectDir, sunDir), float(0)), 180).mul(2.5);
+  const glint = pow(max(dot(reflectDir, lightDirUniform), float(0)), 180).mul(2.5);
 
   const m = new MeshStandardNodeMaterial({ roughness: 0.18, metalness: 0 });
   m.colorNode = mix(color('#1f4552'), color('#6f97a8'), fresnel);
@@ -118,6 +120,8 @@ export function shoreFoam(height: Node<'float'>, world: Node<'vec3'>): Node<'flo
  * A multiplier 0.78..1 for diffuse colour: two octaves of product-of-sines drifting
  * south-west→north-east at ~6 m/s. Smoothstep keeps most land fully lit and ~30% in
  * soft shadow, so the variation is gentle enough not to fight the topo palette.
+ * Under solid overcast (the shared weather uniform) the contrast flattens: a grey
+ * sky is one big shadow.
  */
 export function cloudShadow(world: Node<'vec3'>): Node<'float'> {
   const drift = time.mul(6);
@@ -127,7 +131,9 @@ export function cloudShadow(world: Node<'vec3'>): Node<'float'> {
   );
   const b = sin(world.x.sub(drift).mul(twoPi / 700)).mul(sin(world.z.add(drift).mul(twoPi / 700)));
   const lit = smoothstep(-0.3, 0.5, a.mul(0.6).add(b.mul(0.4)));
-  return mix(float(0.78), float(1), lit);
+  // Clear sky: strong broken shadows (0.78 floor). Overcast: nearly flat (0.9 floor).
+  const floorStrength = mix(float(0.78), float(0.9), cloudUniform);
+  return mix(floorStrength, float(1), lit);
 }
 
 /* ------------------------------------------------------------------ mist */
@@ -135,7 +141,8 @@ export function cloudShadow(world: Node<'vec3'>): Node<'float'> {
 /**
  * 0..1 mist on mountainsides: soft banks that hang between 150 and 650 m, thickest around
  * 300–400 m, broken into drifting streamers. The caller mixes the ground colour toward the
- * haze colour by this amount.
+ * haze colour by this amount; the weather scales it (overcast pools the mist, clear air
+ * burns it off) through the shared uniform.
  */
 export function mistBanks(height: Node<'float'>, world: Node<'vec3'>): Node<'float'> {
   // Drift enters the phase with a positive sign, so peaks migrate toward smaller x (west)
@@ -167,7 +174,7 @@ export function mistBanks(height: Node<'float'>, world: Node<'vec3'>): Node<'flo
   // cleared again before the summits.
   const envelope = smoothstep(150, 300, height).mul(float(1).sub(smoothstep(400, 650, height)));
   // A wide ramp: mist has no edges, only thinner and thicker parts.
-  return envelope.mul(smoothstep(-1.8, 1.6, streamers));
+  return envelope.mul(smoothstep(-1.8, 1.6, streamers)).mul(mistUniform);
 }
 
 /* ------------------------------------------------------------------ snow */

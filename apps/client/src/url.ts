@@ -6,6 +6,19 @@ export type Start =
   | { capsule: string; key: string | null }
   | null;
 
+/**
+ * A pinned start hour for the day cycle, from `?t=` in hours (0–24, fractions
+ * welcome: `?t=21.5` is half past nine in the evening). Null when absent or
+ * malformed — the day then starts at its default mid-morning hour.
+ */
+export function parseTime(search: string): number | null {
+  const t = new URLSearchParams(search).get('t');
+  if (t === null) return null;
+  const h = Number(t);
+  if (!Number.isFinite(h)) return null;
+  return ((h % 24) + 24) % 24;
+}
+
 export function parseCoords(text: string): { lat: number; lng: number } | null {
   const m = /^\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*$/.exec(text);
   if (!m) return null;
