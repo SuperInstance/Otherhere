@@ -80,8 +80,26 @@ export function makeModels(env: Env): Models | null {
   };
 }
 
+/**
+ * A Jev provider for the place battery (ADR-0018), or null when Jev is not
+ * configured. Like `makeModels`, every call goes through one capped router
+ * (invariant 9) and the ledger is the OpsDO's.
+ */
+export function placeJev(env: Env): JevProvider | null {
+  const apiKey = env.MODEL_FAKE === 'true' ? 'fake' : env.TYPESAFE_KEY;
+  if (!apiKey) return null;
+  const caps = {
+    ...DEFAULT_CAPS,
+    ...(env.MODEL_CAPS_USD ? (JSON.parse(env.MODEL_CAPS_USD) as Record<string, number>) : {}),
+  };
+  return new JevProvider(new ModelRouter({ caps, ledger: opsLedger(env) }), {
+    apiKey,
+    ...(env.MODEL_FAKE === 'true' ? { fetch: fakeModelFetch } : {}),
+  });
+}
+
 /** Canned provider responses for tests and offline development (MODEL_FAKE=true). */
-const fakeModelFetch: FetchLike = async (url) => {
+const fakeModelFetch: FetchLike = async (url, init) => {
   if (url.includes('/chat/completions')) {
     return Response.json({
       model: 'fake-vision',
@@ -96,6 +114,29 @@ const fakeModelFetch: FetchLike = async (url) => {
     });
   }
   if (url.includes('/v1/systemone')) {
+    // The place battery gets its own canned answers (the sealed round's Zürich
+    // medians, so the fake reads like the real instrument does on the seed block).
+    const questions = (JSON.parse(String(init.body)) as { questions?: Record<string, unknown> })
+      .questions;
+    if (questions && 'steep_roofs' in questions) {
+      return Response.json({
+        model: 'fake-jev',
+        answers: {
+          tall_for_a_town: { type: 'noul', noul: 0.23 },
+          steep_roofs: { type: 'noul', noul: 0.17 },
+          uniform_roofs: { type: 'noul', noul: 0.04 },
+          dense_not_spread: { type: 'noul', noul: 0.59 },
+          warm_earthy_walls: { type: 'noul', noul: 0.71 },
+          mostly_conifers: { type: 'noul', noul: 0.02 },
+          rainy_coast: { type: 'noul', noul: 0.06 },
+          heights_recorded: { type: 'noul', noul: 0.27 },
+          height_scale: { type: 'score', score: 4.27, confidence: 0.9 },
+          known_in_detail: { type: 'score', score: 1.54, confidence: 0.9 },
+          green_setting: { type: 'score', score: 1.41, confidence: 0.9 },
+        },
+        usage: { input_tokens: 700, output_tokens: 90 },
+      });
+    }
     return Response.json({
       model: 'fake-jev',
       answers: {
