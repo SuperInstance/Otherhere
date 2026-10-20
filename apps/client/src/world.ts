@@ -75,7 +75,8 @@ type Source = 'api' | 'demo' | { capsule: Map<string, CapsuleCellInput> };
 
 const MAX_PARALLEL = 3;
 
-type Disc = { x: number; z: number; r: number };
+/** `built` marks a building's footprint (not a road or a tree), for `builtUp`. */
+type Disc = { x: number; z: number; r: number; built?: boolean };
 /** Clearings are bucketed on this grid (m), so a point query looks at a handful of discs. */
 const CLEAR_BUCKET = 32;
 
@@ -157,6 +158,21 @@ export class World {
   }
 
   /** True where a building or road stands (with a margin): nothing should grow there. */
+  /**
+   * How built-up the ground is around (x, z): buildings within about 60 m, from the
+   * clearings of loaded Cells. 0 in open country; a town centre reaches 10–30.
+   */
+  builtUp(x: number, z: number): number {
+    const bx = Math.floor(x / CLEAR_BUCKET);
+    const bz = Math.floor(z / CLEAR_BUCKET);
+    let n = 0;
+    for (let i = bx - 2; i <= bx + 2; i++)
+      for (let j = bz - 2; j <= bz + 2; j++)
+        for (const d of this.clearBuckets.get(`${i},${j}`) ?? [])
+          if (d.built && (d.x - x) ** 2 + (d.z - z) ** 2 < 60 * 60) n++;
+    return n;
+  }
+
   occupied(x: number, z: number): boolean {
     const bx = Math.floor(x / CLEAR_BUCKET);
     const bz = Math.floor(z / CLEAR_BUCKET);
@@ -543,6 +559,16 @@ export class World {
     return best;
   }
 
+  /**
+   * False while the Cell under (x, z) is loading or its OpenStreetMap ingest is: what
+   * stands there is not known yet. Points outside every loaded Cell count as settled.
+   */
+  settled(x: number, z: number): boolean {
+    const s = this.cells.get(this.cellAtWorld(x, z));
+    // A failed ingest counts as settled: an Overpass outage must not strip the forest.
+    return !s || (s.state !== 'loading' && s.ingest !== 'loading');
+  }
+
   isReady(cell: string): boolean {
     return this.cells.get(cell)?.state === 'ready';
   }
@@ -713,6 +739,8 @@ function clearingsFor(
       x: ox + (x0 + x1) / 2,
       z: oz + (z0 + z1) / 2,
       r: Math.hypot(x1 - x0, z1 - z0) / 2 + 6,
+      // OSM ways are buildings and areas; trees (`osm:n…`, `gen:…`) are not built-up.
+      built: /^osm:w\d+$/.test(f.id),
     });
   }
   return out;

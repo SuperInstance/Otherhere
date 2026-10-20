@@ -414,6 +414,7 @@ export class Forest {
 
   private readonly ground: ForestGround;
   private readonly occupied: ((x: number, z: number) => boolean) | undefined;
+  private readonly density: ((x: number, z: number) => number) | undefined;
   private readonly radius: number;
   private readonly maxTrees: number;
   private readonly spruceGeometry: BufferGeometry;
@@ -431,12 +432,15 @@ export class Forest {
     ground: ForestGround,
     opts?: {
       occupied?: (x: number, z: number) => boolean;
+      /** 0–1: how wooded this kind of place is (biome, built-up ground). Default 1. */
+      density?: (x: number, z: number) => number;
       radius?: number;
       maxTrees?: number;
     },
   ) {
     this.ground = ground;
     this.occupied = opts?.occupied;
+    this.density = opts?.density;
     this.radius = opts?.radius ?? 1400;
     this.maxTrees = opts?.maxTrees ?? 26000;
     this.spruceGeometry = buildConiferGeometry(true);
@@ -702,7 +706,8 @@ export class Forest {
         const slopeKeep = slope <= 0.35 ? 1 : (0.9 - slope) / 0.55;
         // Timber line: full stocking low down, nothing by 720 m.
         const altKeep = h <= 300 ? 0.85 : (0.85 * (MAX_GROUND - h)) / (MAX_GROUND - 300);
-        if (rKeep > slopeKeep * altKeep) continue;
+        const placeKeep = this.density ? this.density(x, z) : 1;
+        if (rKeep > slopeKeep * altKeep * placeKeep) continue;
 
         if (occupied !== undefined && occupied(x, z)) continue;
         if (valueNoise(x, z) < 0.12) continue; // a clearing the loggers left

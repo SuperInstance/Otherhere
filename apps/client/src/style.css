@@ -151,9 +151,29 @@ input:focus-visible {
     display: none;
   }
 }
+#hud-more {
+  display: none;
+}
 @media (max-width: 480px) {
   #hud {
     padding: 12px;
+  }
+  /* On a phone the panel would cover half the view: show the address box and one
+     status line, and keep the rest a tap away. Context panels (a tapped building,
+     a match) still show. */
+  #hud-more {
+    display: block;
+    margin-top: 8px;
+    width: 100%;
+  }
+  #hud:not(.expanded) .row.secondary,
+  #hud:not(.expanded) #postcard,
+  #hud:not(.expanded) #walk-import {
+    display: none;
+  }
+  #hud:not(.expanded) #status {
+    max-height: 1.5em;
+    overflow: hidden;
   }
 }
 #match {
