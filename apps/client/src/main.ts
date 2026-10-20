@@ -18,6 +18,7 @@ import {
   cellCenter,
   cellRing,
   DEMO_CELL,
+  FOREST_BIOMES,
   forestBiome,
   generatorSet,
   generatorsMatch,
@@ -73,6 +74,15 @@ const input = $<HTMLInputElement>('coords');
 const errorEl = $('coords-error');
 
 // --- Coordinates form ---------------------------------------------------------
+// Phones: the panel starts compact (address and one status line); this opens the rest.
+const hud = $('hud');
+const hudMore = $<HTMLButtonElement>('hud-more');
+hudMore.addEventListener('click', () => {
+  const open = hud.classList.toggle('expanded');
+  hudMore.setAttribute('aria-expanded', String(open));
+  hudMore.textContent = open ? 'Fewer options' : 'More options';
+});
+
 const start = parseStart(location.search);
 if (start && 'lat' in start) input.value = `${start.lat}, ${start.lng}`;
 input.addEventListener('input', () => {
@@ -287,6 +297,16 @@ if (!originCell) {
   const forest = terrain
     ? new Forest(scene, terrain, {
         occupied: (x, z) => world.occupied(x, z),
+        density: (x, z) => {
+          // The coastal rainforest is forest until Facts say otherwise; elsewhere,
+          // scattered woods. Either way, town centres thin out around their buildings.
+          // Nothing grows where the town is not known yet: those chunks replant when
+          // their Cell's Bundle arrives (world.onBuilt), instead of trees popping out.
+          if (!world.settled(x, z)) return 0;
+          const p = world.frame.unproject({ e: x, n: -z });
+          const wild = FOREST_BIOMES[forestBiome(p.lat, p.lng)].wild;
+          return (wild ? 1 : 0.05) / (1 + world.builtUp(x, z) / 3);
+        },
         // Phones and tablets get a smaller, sparser forest: same seeds, fewer chunks.
         ...(matchMedia('(pointer: coarse)').matches ? { radius: 900, maxTrees: 9000 } : {}),
       })
