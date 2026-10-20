@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+import { expectIdentical } from './identical';
 
 type Stats = {
   ready: number;
@@ -61,8 +62,12 @@ test('save a postcard, open it by link, and see the same place', async ({
   expect(s!.mismatched).toBe(0);
   await hideHud(friend);
   const shared = await friend.screenshot({ path: 'test-results/postcard-shared.png' });
-  // The postcard starts where it was saved and is built from the same Facts, so it looks the same.
-  expect(shared.equals(live)).toBe(true);
+  // The postcard starts where it was saved and is built from the same Facts, so it
+  // looks the same. Two independent browser contexts may round the fog gradient
+  // one ulp apart (measured: 172 pixels of 1,024,000, each exactly 1/255), so the
+  // cross-context compare allows that much and no more; same-context reloads stay
+  // byte-exact (the walk spec).
+  await expectIdentical(shared, live, 1);
   await friendCtx.close();
 });
 
