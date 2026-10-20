@@ -57,6 +57,14 @@ test('save a postcard, open it by link, and see the same place', async ({
   await friend.goto(new URL(link!).pathname + new URL(link!).search);
   await settle(friend);
   await expect(friend.locator('#status')).toContainText('Postcard: Bahnhofplatz at dusk');
+  // The gift arrives clean (playtest r5, lane C): the address box and the
+  // technical lines wait behind More options, and expanding brings them back.
+  await expect(friend.locator('#goto')).toBeHidden();
+  await expect(friend.locator('#hud')).toHaveClass(/gift/);
+  await friend.getByRole('button', { name: 'More options' }).click();
+  await expect(friend.locator('#goto')).toBeVisible();
+  await friend.getByRole('button', { name: 'Fewer options' }).click();
+  await expect(friend.locator('#goto')).toBeHidden();
   const s = await stats(friend);
   expect(s!.ready).toBe(7);
   expect(s!.mismatched).toBe(0);

@@ -206,6 +206,12 @@ if (start && 'capsule' in start) {
     errorEl.textContent =
       'This postcard does not exist, or it is private. Check the link with whoever shared it.';
     errorEl.hidden = false;
+  } else {
+    // A postcard opens as a gift, not a dashboard (playtest r5, lane C: the
+    // recipient's view shipped "a debugging console taped to the postcard").
+    // The address box and the technical status lines wait behind More
+    // options; the title, the moment, and the invitation to walk stay.
+    hud.classList.add('gift');
   }
 }
 
