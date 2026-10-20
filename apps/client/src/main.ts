@@ -84,7 +84,9 @@ hudMore.addEventListener('click', () => {
 });
 
 const start = parseStart(location.search);
-if (start && 'lat' in start) input.value = `${start.lat}, ${start.lng}`;
+/** The address the place was found by, if it was typed rather than given as coordinates. */
+const typed = new URLSearchParams(location.search).get('q')?.slice(0, 200) ?? '';
+if (start && 'lat' in start) input.value = typed || `${start.lat}, ${start.lng}`;
 input.addEventListener('input', () => {
   input.removeAttribute('aria-invalid');
   errorEl.hidden = true;
@@ -111,7 +113,10 @@ form.addEventListener('submit', async (e) => {
       return fail(
         body.error ?? 'Could not find that place. Try adding the town, or use coordinates.',
       );
-    location.assign(`?at=${body.lat.toFixed(6)},${body.lng.toFixed(6)}`);
+    // Keep what was typed in the link, so the box (and a shared link) shows the place by name.
+    location.assign(
+      `?at=${body.lat.toFixed(6)},${body.lng.toFixed(6)}&q=${encodeURIComponent(q.slice(0, 200))}`,
+    );
   } catch {
     fail('Could not reach the server. Check your connection, or use coordinates.');
   } finally {
@@ -210,7 +215,8 @@ const place =
   start && 'lat' in start
     ? start
     : (sessionInfo?.origin ?? capsule?.view?.center ?? (start ? null : DEFAULT_PLACE));
-if (place && !isDemo) input.value = `${place.lat}, ${place.lng}`;
+if (place && !isDemo)
+  input.value = (start && 'lat' in start && typed) || `${place.lat}, ${place.lng}`;
 const originCell = isDemo
   ? DEMO_CELL
   : capsule
