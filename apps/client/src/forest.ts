@@ -17,6 +17,7 @@ import {
   distance,
   float,
   mix,
+  positionGeometry,
   positionLocal,
   sin,
   smoothstep,
@@ -234,7 +235,8 @@ function buildConiferGeometry(spruce: boolean): BufferGeometry {
   const flex: number[] = [];
   for (let i = 0; i < out.length; i += 3) {
     const t = Math.min(1, Math.max(0, (out[i + 1]! - 0.1) / 0.9));
-    if (spruce) flex.push(0.72 * t ** 1.8); // stiff tiers: the crown moves as one
+    if (spruce)
+      flex.push(0.72 * t ** 1.8); // stiff tiers: the crown moves as one
     else
       flex.push(
         t ** 2.4 + 0.18 * Math.max(0, (out[i + 1]! - 0.75) / 0.25) ** 2, // whip the leader
@@ -252,26 +254,30 @@ const TAU = Math.PI * 2;
  * One material for every tree of both species. three multiplies each instance's colour
  * into `colorNode` itself (NodeMaterial.setupDiffuseColor), so this is only the shading:
  * darker toward the base so a stand has depth instead of reading as a flat wall, and a
- * faint lift on the upper third so the crowns don't go black against the sky.
+ * faint lift on the upper third so the crowns don't go black against the sky. The
+ * gradient keys on `positionGeometry` — the unit-height crown, 0 at the root to 1 at
+ * the tip — because `positionLocal` reaches the fragment stage already
+ * instance-transformed into world metres (a read that had silently flattened the
+ * gradient to a constant; keying it to the raw attribute restores it).
  *
  * On top of the shading sits the wind — the TSL mirror of `swayOffset` in wind.ts,
- * term for term. `positionLocal` is already the *world* position here (the instance
- * transform runs before `positionNode` in NodeMaterial.setupPosition), so the gust
- * phase reads true ground coordinates and the offset lands in world axes: one wind
- * field over every chunk, every species, bending crowns downwind inside travelling
- * gusts. Overcast holds `windStrengthU` at 0 and the whole thing collapses to
- * `positionLocal + 0` — the forest we had before, vertex for vertex.
+ * term for term (the render-side distance fade aside). `positionLocal` inside
+ * `positionNode` is the *instance-transformed* position (the instance matrix runs
+ * before `positionNode` in NodeMaterial.setupPosition), which is the tree's world
+ * position here — the root group sits at the origin — so the gust phase reads true
+ * ground coordinates and the offset lands in world axes: one wind field over every
+ * chunk, every species, bending crowns downwind inside travelling gusts. Overcast
+ * holds `windStrengthU` at 0 and the whole thing collapses to `positionLocal + 0` —
+ * the forest we had before, vertex for vertex.
  */
 function coniferMaterial(): MeshStandardNodeMaterial {
-  const y = positionLocal.y;
+  const y = positionGeometry.y;
   const depth = mix(float(0.55), float(1), smoothstep(0, 0.45, y));
   const rim = mix(float(1), float(1.25), smoothstep(0.65, 1, y).mul(0.4));
 
   // --- wind: mirrors swayOffset(elapsed, cloud, x, z, flex) from wind.ts ---
   const flex = attribute('flex', 'float');
-  const downwind = positionLocal.x
-    .mul(WIND_TOWARD[0])
-    .add(positionLocal.z.mul(WIND_TOWARD[1]));
+  const downwind = positionLocal.x.mul(WIND_TOWARD[0]).add(positionLocal.z.mul(WIND_TOWARD[1]));
   const swell = sin(
     downwind
       .mul(TAU / GUST_LONG.lambda)
@@ -283,9 +289,7 @@ function coniferMaterial(): MeshStandardNodeMaterial {
       .sub(windTimeU.mul((TAU * GUST_SHORT.speed) / GUST_SHORT.lambda))
       .add(2.1),
   );
-  const gust = float(0.35).add(
-    float(0.65).mul(float(0.5).add(swell.mul(0.3)).add(chop.mul(0.2))),
-  );
+  const gust = float(0.35).add(float(0.65).mul(float(0.5).add(swell.mul(0.3)).add(chop.mul(0.2))));
   // Long rotated sines, so stands a few trees apart swing out of phase while one
   // crown moves as a single thing.
   const phase = sin(positionLocal.x.mul(0.041).add(positionLocal.z.mul(0.029)))
@@ -295,6 +299,8 @@ function coniferMaterial(): MeshStandardNodeMaterial {
   const shiver = sin(windTimeU.mul(SHIVER_RATE).add(phase.mul(1.7)));
   const wobble = sin(windTimeU.mul(WOBBLE_RATE).add(downwind.mul(0.006))).mul(WOBBLE_RAD);
 
+  // The bend fades with range, where it is sub-pixel; the shimmer below does not —
+  // at distance the shimmer is the wind, and it costs the same maths either way.
   const reach = float(1).sub(
     smoothstep(SWAY_FADE_M * 0.7, SWAY_FADE_M, distance(cameraPosition, positionLocal)),
   );
@@ -313,9 +319,11 @@ function coniferMaterial(): MeshStandardNodeMaterial {
     vec3(dirX.mul(lean).sub(dirZ.mul(cross)), 0, dirZ.mul(lean).add(dirX.mul(cross))),
   );
   // Crowns catch the light as they swing: a ±7% brightness ripple in the flutter's
-  // phase, computed per vertex and carried to the fragments. At distance, where the
-  // bend itself is sub-pixel, this is what makes the wave visible crossing a hillside.
-  const shimmer = flutter.mul(flex).mul(windStrengthU).mul(reach).toVarying('coniferShimmer');
+  // phase, riding the same travelling gusts, computed per vertex and carried to the
+  // fragments. Up close the bend carries the read; at distance, where the bend is
+  // sub-pixel, cohorts of crowns brightening as a gust crosses them are what makes
+  // the wave visible running through a hillside.
+  const shimmer = flutter.mul(flex).mul(windStrengthU).mul(gust).toVarying('coniferShimmer');
   m.colorNode = vec3(depth.mul(rim).mul(float(1).add(shimmer.mul(0.07))));
   m.name = 'conifer';
   return m;

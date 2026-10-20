@@ -45,7 +45,7 @@ import {
 } from './sky';
 import { Forest } from './forest';
 import { World } from './world';
-import { windStrength } from './wind';
+import { describeWind, windStrength } from './wind';
 import { Terrain, TERRAIN_ATTRIBUTION, type TerrainMode } from './terrain';
 import { SessionClient } from './net';
 import { describeEvent, MatchView, TEAM_NAMES } from './match';
@@ -336,7 +336,7 @@ if (!originCell) {
   const showStatus = () => {
     const s = world.stats();
     const lines = [
-      `${formatHour(skyNow.hour)} · ${describeWeather(skyNow.cloud)} · hold T to pass time`,
+      `${formatHour(skyNow.hour)} · ${describeWeather(skyNow.cloud)}${describeWind(skyNow.wind) ? `, ${describeWind(skyNow.wind)}` : ''} · hold T to pass time`,
       `${backend} · ${s.ready} cell${s.ready === 1 ? '' : 's'}${s.loading ? ` (+${s.loading} loading)` : ''} · ${s.features.toLocaleString()} features`,
       `${s.verified}/${s.ready} bundle hashes verified${s.mismatched ? ` · ${s.mismatched} MISMATCHED` : ''}`,
     ];

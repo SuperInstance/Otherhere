@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  describeWind,
   gustAt,
   swayOffset,
   windStrength,
@@ -129,5 +130,13 @@ describe('swayOffset', () => {
       const b = swayOffset(t + 0.1, 0.15, 40, -90, 1);
       expect(Math.hypot(b[0] - a[0], b[1] - a[1])).toBeLessThanOrEqual(0.4);
     }
+  });
+});
+
+describe('describeWind', () => {
+  it('speaks only when the wind does', () => {
+    expect(describeWind(0.05)).toBe('');
+    expect(describeWind(0.45)).toBe('a breeze in the crowns');
+    expect(describeWind(0.9)).toBe('wind in the crowns');
   });
 });

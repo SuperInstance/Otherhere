@@ -84,7 +84,9 @@ export function windStrength(elapsed: number, cloud: number): number {
 export function gustAt(elapsed: number, x: number, z: number): number {
   const d = x * WIND_TOWARD[0]! + z * WIND_TOWARD[1]!;
   const a = Math.sin(TAU * (d / GUST_LONG.lambda - (elapsed * GUST_LONG.speed) / GUST_LONG.lambda));
-  const b = Math.sin(TAU * (d / GUST_SHORT.lambda - (elapsed * GUST_SHORT.speed) / GUST_SHORT.lambda) + 2.1);
+  const b = Math.sin(
+    TAU * (d / GUST_SHORT.lambda - (elapsed * GUST_SHORT.speed) / GUST_SHORT.lambda) + 2.1,
+  );
   return 0.35 + 0.65 * (0.5 + 0.3 * a + 0.2 * b);
 }
 
@@ -94,9 +96,7 @@ export function gustAt(elapsed: number, x: number, z: number): number {
  * while one crown — a few metres across — moves as a single thing.
  */
 function flutterPhase(x: number, z: number): number {
-  return (
-    1.6 * Math.sin(0.041 * x + 0.029 * z) + 1.2 * Math.sin(0.023 * x - 0.047 * z + 1.3)
-  );
+  return 1.6 * Math.sin(0.041 * x + 0.029 * z) + 1.2 * Math.sin(0.023 * x - 0.047 * z + 1.3);
 }
 
 /**
@@ -132,4 +132,11 @@ export function swayOffset(
   const dirX = WIND_TOWARD[0]! * cw - WIND_TOWARD[1]! * sw;
   const dirZ = WIND_TOWARD[1]! * cw + WIND_TOWARD[0]! * sw;
   return [dirX * lean - dirZ * cross, dirZ * lean + dirX * cross];
+}
+
+/** One honest phrase for the status line, in the house voice. */
+export function describeWind(strength: number): string {
+  if (strength >= 0.6) return 'wind in the crowns';
+  if (strength >= 0.3) return 'a breeze in the crowns';
+  return '';
 }
