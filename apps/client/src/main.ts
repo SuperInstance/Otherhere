@@ -45,6 +45,7 @@ import {
 } from './sky';
 import { Forest } from './forest';
 import { World } from './world';
+import { describeWind, windStrength } from './wind';
 import { Terrain, TERRAIN_ATTRIBUTION, type TerrainMode } from './terrain';
 import { SessionClient } from './net';
 import { describeEvent, MatchView, TEAM_NAMES } from './match';
@@ -227,7 +228,7 @@ const skyBiome = forestBiome(skyAt.lat, skyAt.lng);
 const skyFrozen = parseTime(location.search) !== null || !!capsule;
 let skyElapsed = 0;
 let skyFast = false;
-let skyNow = { hour: skyStart, elevation: 0, cloud: 0 };
+let skyNow = { hour: skyStart, elevation: 0, cloud: 0, wind: 0 };
 addEventListener('keydown', (e) => {
   if (e.code === 'KeyT' && !(e.target instanceof HTMLInputElement)) skyFast = true;
 });
@@ -252,7 +253,8 @@ const updateSky = (dt: number) => {
   hemi.color.setRGB(...p.hemiSky, SRGBColorSpace);
   hemi.groundColor.setRGB(...p.hemiGround, SRGBColorSpace);
   hemi.intensity = p.hemiIntensity;
-  skyNow = { hour, elevation, cloud };
+  // The wind reads the same weather: still air under overcast, gusts when clear.
+  skyNow = { hour, elevation, cloud, wind: windStrength(skyElapsed, cloud) };
 };
 
 if (!originCell) {
@@ -334,7 +336,7 @@ if (!originCell) {
   const showStatus = () => {
     const s = world.stats();
     const lines = [
-      `${formatHour(skyNow.hour)} · ${describeWeather(skyNow.cloud)} · hold T to pass time`,
+      `${formatHour(skyNow.hour)} · ${describeWeather(skyNow.cloud)}${describeWind(skyNow.wind) ? `, ${describeWind(skyNow.wind)}` : ''} · hold T to pass time`,
       `${backend} · ${s.ready} cell${s.ready === 1 ? '' : 's'}${s.loading ? ` (+${s.loading} loading)` : ''} · ${s.features.toLocaleString()} features`,
       `${s.verified}/${s.ready} bundle hashes verified${s.mismatched ? ` · ${s.mismatched} MISMATCHED` : ''}`,
     ];
@@ -755,6 +757,8 @@ if (!originCell) {
     // Higher up, see further; with terrain there are mountains to see, so the haze
     // reaches much further and mist pools in the valleys.
     updateSky(dt);
+    // The forest's wind follows the same clock — a pinned ?t= freezes the crowns too.
+    forest?.setWind(skyElapsed, skyNow.cloud);
     atmosphere.setTerrain(!!terrain?.active);
     atmosphere.update(camera.position);
     if (moved && now - lastHash > 400) {
