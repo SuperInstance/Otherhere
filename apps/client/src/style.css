@@ -176,6 +176,25 @@ input:focus-visible {
     overflow: hidden;
   }
 }
+/* A postcard link opens as a gift (playtest r5, lane C): the recipient's first
+   view is the moment and its title, not the address box and the technical
+   lines. Everything waits one tap away behind More options — expanding brings
+   the full dashboard back, and saving a postcard back stays visible so the
+   gift can be answered. */
+#hud.gift #hud-more {
+  display: block;
+  margin-top: 8px;
+  width: 100%;
+}
+#hud.gift:not(.expanded) #goto,
+#hud.gift:not(.expanded) .row.secondary,
+#hud.gift:not(.expanded) #walk-import {
+  display: none;
+}
+#hud.gift:not(.expanded) #status {
+  max-height: 3em;
+  overflow: hidden;
+}
 #match {
   margin-top: 12px;
   padding-top: 12px;
