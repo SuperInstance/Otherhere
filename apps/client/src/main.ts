@@ -35,13 +35,12 @@ import {
   cloudCover,
   DAY_OF_YEAR,
   DAY_START_HOUR,
-  describeWeather,
-  FAST_FORWARD,
-  formatHour,
   moonDirection,
   skyPalette,
+  skyStep,
   sunDirection,
   sunPosition,
+  timeLine,
 } from './sky';
 import { Forest } from './forest';
 import { World } from './world';
@@ -235,9 +234,10 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => {
   if (e.code === 'KeyT') skyFast = false;
 });
-const updateSky = (dt: number) => {
-  if (skyFrozen) dt = 0; // the postcard's hour is part of the postcard
-  skyElapsed += dt * (skyFast ? FAST_FORWARD : 1);
+// The sky keeps its own, looser step bound than the walk physics (skyStep),
+// so a slow renderer still sees the day turn at true speed.
+const updateSky = (rawDt: number) => {
+  skyElapsed += skyStep(rawDt, skyFast, skyFrozen);
   const hour = clockHour(skyStart, skyElapsed);
   const sunDir = sunDirection(skyAt.lat, DAY_OF_YEAR, hour);
   const moonDir = moonDirection(sunDir);
@@ -336,7 +336,7 @@ if (!originCell) {
   const showStatus = () => {
     const s = world.stats();
     const lines = [
-      `${formatHour(skyNow.hour)} · ${describeWeather(skyNow.cloud)}${describeWind(skyNow.wind) ? `, ${describeWind(skyNow.wind)}` : ''} · hold T to pass time`,
+      timeLine(skyNow.hour, skyNow.cloud, skyFrozen, skyNow.wind),
       `${backend} · ${s.ready} cell${s.ready === 1 ? '' : 's'}${s.loading ? ` (+${s.loading} loading)` : ''} · ${s.features.toLocaleString()} features`,
       `${s.verified}/${s.ready} bundle hashes verified${s.mismatched ? ` · ${s.mismatched} MISMATCHED` : ''}`,
     ];
@@ -722,9 +722,11 @@ if (!originCell) {
   let lastHash = 0;
   let lastStatus = 0;
   renderer.setAnimationLoop((now) => {
-    // Cap the step so a backgrounded tab does not jump, but keep slow devices at true speed.
-    const dt = Math.min(0.25, (now - last) / 1000);
+    // Cap the walk step so a backgrounded tab does not jump, but keep slow devices
+    // at true speed; the day clock takes its own, looser bound (skyStep).
+    const rawDt = (now - last) / 1000;
     last = now;
+    const dt = Math.min(0.25, rawDt);
     if (arrival && terrain?.unavailable) {
       // No terrain to show off: start at the street, as before.
       Object.assign(walk.pose, street);
@@ -756,7 +758,7 @@ if (!originCell) {
     }
     // Higher up, see further; with terrain there are mountains to see, so the haze
     // reaches much further and mist pools in the valleys.
-    updateSky(dt);
+    updateSky(rawDt);
     // The forest's wind follows the same clock — a pinned ?t= freezes the crowns too.
     forest?.setWind(skyElapsed, skyNow.cloud);
     atmosphere.setTerrain(!!terrain?.active);

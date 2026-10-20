@@ -78,7 +78,13 @@ const formatHour = (hour) => {
   return `${hh}:${String(m).padStart(2, '0')} ${am ? 'AM' : 'PM'}`;
 };
 const describeWeather = (cloud) =>
-  cloud < 0.3 ? 'clear' : cloud < 0.55 ? 'light cloud' : cloud < 0.78 ? 'broken overcast' : 'overcast';
+  cloud < 0.3
+    ? 'clear'
+    : cloud < 0.55
+      ? 'light cloud'
+      : cloud < 0.78
+        ? 'broken overcast'
+        : 'overcast';
 const clock = () => {
   const sky = freshest?.sky;
   if (!sky) return null;
@@ -100,7 +106,14 @@ const note = (kind, detail) => {
 
 const browser = await chromium.launch({
   ...(chromiumPath ? { executablePath: chromiumPath } : {}),
-  args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+  // --disable-dev-shm-usage: small-container /dev/shm (64 MB here) crashes
+  // software-GL tabs otherwise; the writeback goes to /tmp instead.
+  args: [
+    '--use-gl=swiftshader',
+    '--enable-unsafe-swiftshader',
+    '--ignore-gpu-blocklist',
+    '--disable-dev-shm-usage',
+  ],
 });
 
 /** A fresh context wired with the probe's recorders; sets the shared `page`. */
@@ -162,7 +175,12 @@ const settle = async (label, timeoutMs = 90000) => {
 const shot = async (name) => {
   await readWorld(); // the row names the moment the picture was taken
   const b = await page.screenshot({ path: `${OUT}${TAG}-${name}.png` });
-  note('shot', { name, bytes: b.length, stats: freshest?.stats ?? null, sky: freshest?.sky ?? null });
+  note('shot', {
+    name,
+    bytes: b.length,
+    stats: freshest?.stats ?? null,
+    sky: freshest?.sky ?? null,
+  });
   return b;
 };
 
@@ -183,7 +201,8 @@ const pngStats = (a, b) => {
   if (a.equals(b)) return { byteEqual: true };
   const pa = PNG.sync.read(a);
   const pb = PNG.sync.read(b);
-  if (pa.width !== pb.width || pa.height !== pb.height) return { byteEqual: false, sizeMismatch: true };
+  if (pa.width !== pb.width || pa.height !== pb.height)
+    return { byteEqual: false, sizeMismatch: true };
   let max = 0;
   let pixels = 0;
   for (let i = 0; i < pa.data.length; i += 4) {
@@ -213,7 +232,7 @@ const seedBlock = async () => {
 };
 
 /** Fast-forward (hold T) until the day clock reaches `targetHour`, then shoot. */
-const travelTo = async (name, targetHour, budgetMs = 240000) => {
+const travelTo = async (name, targetHour, budgetMs) => {
   const startHour = freshest?.sky?.hour ?? (await readWorld())?.sky?.hour ?? null;
   if (startHour === null) {
     note('travel-skip', { name, reason: 'no sky state exposed' });
@@ -224,6 +243,9 @@ const travelTo = async (name, targetHour, budgetMs = 240000) => {
     note('travel-skip', { name, target: targetHour, at: Number(startHour.toFixed(2)) });
     return;
   }
+  // Under software GL the page runs at ~1 fps, and each frame's clock step is
+  // bounded, so budget by the distance to travel — not a flat guess.
+  const budget = budgetMs ?? Math.min(600_000, 60_000 + want * 60_000);
   await page.keyboard.down('KeyT');
   const t0 = Date.now();
   let last = startHour;
@@ -237,7 +259,7 @@ const travelTo = async (name, targetHour, budgetMs = 240000) => {
       last = h;
     }
     if (progress >= want) break;
-    if (Date.now() - t0 > budgetMs) {
+    if (Date.now() - t0 > budget) {
       note('travel-timeout', {
         name,
         target: targetHour,
@@ -261,14 +283,46 @@ const openHudPanels = async () => {
   const n = await panels.count();
   for (let i = 0; i < n; i++) {
     const d = panels.nth(i);
+    // Under software GL the page renders at 1–3 fps, and Playwright's click
+    // actionability check needs two consecutive animation frames — a real
+    // click can take tens of seconds to land. Budget for it; fall back to
+    // the attribute only if even that is not enough.
     if (!(await d.evaluate((el) => el.open))) {
-      await d.locator('summary').click({ timeout: 5000 }).catch(() => {});
+      await d
+        .locator('summary')
+        .click({ timeout: 30_000 })
+        .catch(() => {});
       if (!(await d.evaluate((el) => el.open)))
         await d.evaluate((el) => el.setAttribute('open', ''));
     }
   }
   note('hud-panels-open', { count: n });
 };
+
+/**
+ * Save a postcard through the HUD form and return its link. Assumes the world
+ * has settled and the walker is standing somewhere worth remembering. Clicking
+ * the summary of an already-open `<details>` would COLLAPSE it, so only click
+ * when it is closed; every HUD interaction gets a 30 s budget because the
+ * actionability checks ride the page's 1–3 fps animation loop in this container.
+ */
+const savePostcard = async (title) => {
+  await openHudPanels();
+  const details = page.locator('#postcard details');
+  if (!(await details.evaluate((el) => el.open)))
+    await page.getByText('Save a postcard', { exact: true }).click({ timeout: 30_000 });
+  await page.getByLabel('Postcard title').fill(title, { timeout: 30_000 });
+  await page.getByLabel('Who can open it').selectOption('public', { timeout: 30_000 });
+  await page.getByRole('button', { name: 'Save postcard' }).click({ timeout: 30_000 });
+  const link = await page.locator('#pc-result a').getAttribute('href', { timeout: 60_000 });
+  return link;
+};
+
+/**
+ * A postcard link is absolute (the app builds it from location.origin), so it
+ * opens as-is; anything else is joined to the probe's base.
+ */
+const openLink = (link) => page.goto(/^https?:\/\//.test(link) ? link : `${BASE}${link}`);
 
 /* ------------------------------------------------------------- scenes */
 
@@ -321,17 +375,12 @@ async function sceneWalk() {
   // collapsed <details> — open the HUD panels first (round 1 recorded
   // `postcard-failed` here because the button was hidden, not broken).
   try {
-    await openHudPanels();
-    await page.getByText('Save a postcard', { exact: true }).click({ timeout: 5000 });
-    await page.getByLabel('Postcard title').fill(`Probe round 2 — ${TAG}`);
-    await page.getByLabel('Who can open it').selectOption('public');
-    await page.getByRole('button', { name: 'Save postcard' }).click();
-    const link = await page.locator('#pc-result a').getAttribute('href', { timeout: 30000 });
+    const link = await savePostcard(`Probe round 2 — ${TAG}`);
     note('postcard', { link });
     await readWorld();
     await shot('07-postcard-saved');
     if (link) {
-      await page.goto(`${BASE}${link}`, { waitUntil: 'domcontentloaded' });
+      await openLink(link);
       await settle('postcard-open', 90000);
       await hudStatus();
       await shot('08-postcard-opened');
@@ -368,14 +417,34 @@ async function sceneDay() {
 
 async function sceneDeterminism() {
   const url = placeUrl();
-  if (!PINNED_T) note('determinism-warning', { note: 'no --t given; the living clock will not be pinned' });
+  if (!PINNED_T)
+    note('determinism-warning', { note: 'no --t given; the living clock will not be pinned' });
   const skies = [];
   const buffers = [];
+  const ambience = [];
   for (const which of ['a', 'b']) {
     const { ctx } = await newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
     note('goto', { url, which });
     await settle(`determinism-${which}`);
+    // A retrying sketch Cell pops mid-reload; only compare a quiet world. Wait
+    // out the sketch-retry timers (10/30 s) so nothing is in flight at the shot.
+    let quietSince = null;
+    const quietFrom = Date.now();
+    for (;;) {
+      const s = await readWorld();
+      if (s && s.stats.ready > 0 && s.stats.loading === 0) {
+        quietSince ??= Date.now();
+        if (Date.now() - quietSince > 35_000) break;
+      } else {
+        quietSince = null;
+      }
+      if (Date.now() - quietFrom > 300_000) {
+        note('never-quiet', { waitedSeconds: 300, last: s?.stats ?? null });
+        break;
+      }
+      await page.waitForTimeout(2500);
+    }
     const s1 = await readWorld();
     await page.waitForTimeout(6000); // frozen means frozen: the hour must not move
     const s2 = await readWorld();
@@ -386,7 +455,14 @@ async function sceneDeterminism() {
     });
     await hudStatus();
     buffers.push(await shot(`20-determinism-${which}`));
+    // The ambience floor: the SAME page, seconds later. Waves lap, stars
+    // twinkle and cloud shadows drift on the render clock, so even a frozen
+    // hour is never byte-still. Whatever moves here is animation, not
+    // nondeterminism — the cross-context pair must be judged against it.
+    await page.waitForTimeout(6000);
+    ambience.push(await shot(`20-determinism-${which}-later`));
     skies.push(s2?.sky ?? null);
+    note('ambience-floor', { which, png: pngStats(buffers.at(-1), ambience.at(-1)) });
     await ctx.close();
   }
   const [a, b] = skies;
@@ -395,6 +471,8 @@ async function sceneDeterminism() {
     skyB: b,
     skyEqual: !!a && !!b && a.hour === b.hour && a.cloud === b.cloud && a.elevation === b.elevation,
     png: pngStats(buffers[0], buffers[1]),
+    pngVsAmbienceFloorA: pngStats(buffers[0], ambience[0]),
+    pngVsAmbienceFloorB: pngStats(buffers[1], ambience[1]),
   });
 }
 
@@ -408,12 +486,7 @@ async function scenePostcard() {
   // A distinctive hour: reach dusk on the living clock, then save.
   await travelTo('20-dusk', 19.9);
   try {
-    await openHudPanels();
-    await page.getByText('Save a postcard', { exact: true }).click({ timeout: 5000 });
-    await page.getByLabel('Postcard title').fill('Dusk over the Bahnhofplatz');
-    await page.getByLabel('Who can open it').selectOption('public');
-    await page.getByRole('button', { name: 'Save postcard' }).click();
-    const link = await page.locator('#pc-result a').getAttribute('href', { timeout: 30000 });
+    const link = await savePostcard('Dusk over the Bahnhofplatz');
     const pinned = link ? Number(/[?&]t=([\d.]+)/.exec(link)?.[1] ?? NaN) : NaN;
     await readWorld();
     note('postcard-saved', {
@@ -423,7 +496,7 @@ async function scenePostcard() {
     });
     const savedShot = await shot('21-postcard-saved');
     if (link) {
-      await page.goto(`${BASE}${link}`, { waitUntil: 'domcontentloaded' });
+      await openLink(link);
       await settle('postcard-open', 90000);
       await page.waitForTimeout(5000); // frozen means frozen
       const opened = await readWorld();
@@ -474,15 +547,15 @@ async function sceneSketch() {
     if (/\/api\/(cells|bundles)\//.test(r.url()))
       cellAsks.push({ t: Date.now(), url: r.url().slice(0, 120) });
   });
-  await page.goto(
-    `${BASE}/?at=${AT || '47.3769,8.5417'}#0,1.7,-${FAR_M},0.9,-0.02`,
-    { waitUntil: 'domcontentloaded', timeout: 60000 },
-  );
+  await page.goto(`${BASE}/?at=${AT || '47.3769,8.5417'}#0,1.7,-${FAR_M},0.9,-0.02`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 60000,
+  });
   note('teleported', { to: `z=-${FAR_M}`, block: farBlock });
 
   // Wait for the ring to resolve to *something* (sketch or real), then watch it.
   await settle('sketch-land', 120000);
-  const firstStatus = await hudStatus();
+  await hudStatus();
   await shot('31-sketch-land');
 
   // 3. Watch the world for a few minutes: sketch count, HUD line, retry asks.
@@ -490,7 +563,10 @@ async function sceneSketch() {
   for (let i = 0; i < 18; i++) {
     await page.waitForTimeout(10000);
     const w = await readWorld();
-    const status = await page.locator('#status').textContent().catch(() => null);
+    const status = await page
+      .locator('#status')
+      .textContent()
+      .catch(() => null);
     note('sketch-watch', {
       seconds: Number(((Date.now() - startedAt) / 1000).toFixed(0)),
       stats: w?.stats ?? null,
@@ -514,10 +590,10 @@ async function sceneSketch() {
   await shot('32-sketch-end');
 
   // 4. A fresh look at the same spot (a reload, as the status line suggests).
-  await page.goto(
-    `${BASE}/?at=${AT || '47.3769,8.5417'}#0,1.7,-${FAR_M},0.9,-0.02`,
-    { waitUntil: 'domcontentloaded', timeout: 60000 },
-  );
+  await page.goto(`${BASE}/?at=${AT || '47.3769,8.5417'}#0,1.7,-${FAR_M},0.9,-0.02`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 60000,
+  });
   await settle('sketch-reloaded', 120000);
   await hudStatus();
   await shot('33-sketch-reloaded');

@@ -1,3 +1,5 @@
+import { describeWind } from './wind';
+
 /**
  * The living sky, as pure functions: where the sun is, what time the day clock
  * reads, what the weather is doing, and what the world should look like because
@@ -34,6 +36,20 @@ export function clockHour(
   hoursPerSecond = HOURS_PER_SECOND,
 ): number {
   return (((startHour + elapsed * hoursPerSecond) % 24) + 24) % 24;
+}
+
+/**
+ * The sky's own time step. The walk loop clamps its step tightly (0.25 s, so a
+ * slow frame cannot tunnel a walker through a wall), and the day used to share
+ * that clamp — which quietly slowed the DAY itself on a slow renderer: below
+ * 4 fps the 24-minute day stretched out of shape, and "hold T to pass time"
+ * barely moved it. So the sky advances at true wall speed up to a generous
+ * bound (a backgrounded tab still never jumps the clock), never backwards,
+ * and not at all in a frozen view.
+ */
+export function skyStep(rawDt: number, fast: boolean, frozen: boolean): number {
+  if (frozen) return 0;
+  return Math.min(2, Math.max(0, rawDt)) * (fast ? FAST_FORWARD : 1);
 }
 
 /* ------------------------------------------------------------------ the sun */
@@ -352,4 +368,17 @@ export function describeWeather(cloud: number): string {
   if (cloud < 0.55) return 'light cloud';
   if (cloud < 0.78) return 'broken overcast';
   return 'overcast';
+}
+
+/**
+ * The status line's opening phrase: the time and the weather (and the wind,
+ * when there is any — the forest's crowns say it too), then the truth about
+ * the clock. A living day invites the player to pass time; a pinned or
+ * postcard view is frozen by design, and must not invite a key that does
+ * nothing.
+ */
+export function timeLine(hour: number, cloud: number, frozen: boolean, wind = 0): string {
+  const breeze = describeWind(wind);
+  const when = `${formatHour(hour)} · ${describeWeather(cloud)}${breeze ? `, ${breeze}` : ''}`;
+  return frozen ? `${when} · the hour is pinned here` : `${when} · hold T to pass time`;
 }

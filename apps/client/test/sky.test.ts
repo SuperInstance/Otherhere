@@ -5,9 +5,12 @@ import {
   formatHour,
   moonDirection,
   skyPalette,
+  skyStep,
   sunDirection,
   sunPosition,
+  timeLine,
   DAY_OF_YEAR,
+  FAST_FORWARD,
 } from '../src/sky';
 
 const closeTo = (a: number, b: number, tol = 0.75) =>
@@ -153,5 +156,34 @@ describe('formatHour', () => {
     expect(formatHour(12)).toBe('12:00 PM');
     expect(formatHour(13.75)).toBe('1:45 PM');
     expect(formatHour(23.99)).toBe('11:59 PM');
+  });
+});
+
+describe('timeLine', () => {
+  it('invites the player to pass time on a living day', () => {
+    expect(timeLine(9.5, 0.24, false)).toBe('9:30 AM · clear · hold T to pass time');
+    expect(timeLine(19.75, 0.7, false)).toBe('7:45 PM · broken overcast · hold T to pass time');
+  });
+  it('never invites the dead key in a pinned or postcard view', () => {
+    const frozen = timeLine(21.5, 0.9, true);
+    expect(frozen).toBe('9:30 PM · overcast · the hour is pinned here');
+    expect(frozen).not.toContain('hold T');
+  });
+});
+
+describe('skyStep', () => {
+  it('keeps a fast renderer at true speed, held key or not', () => {
+    expect(skyStep(1 / 60, false, false)).toBeCloseTo(1 / 60, 9);
+    expect(skyStep(1 / 60, true, false)).toBeCloseTo(FAST_FORWARD / 60, 9);
+  });
+  it('keeps the day at true speed on a slow renderer (a 2 s frame is not 0.25 s)', () => {
+    // The walk physics clamps such a frame to 0.25 s; the day must not.
+    expect(skyStep(2, false, false)).toBe(2);
+    expect(skyStep(1, true, false)).toBe(FAST_FORWARD);
+  });
+  it('bounds a stall, ignores time running backwards, and never moves a frozen view', () => {
+    expect(skyStep(30, false, false)).toBe(2); // a backgrounded tab does not jump the clock
+    expect(skyStep(-5, true, false)).toBe(0);
+    expect(skyStep(30, true, true)).toBe(0); // the postcard's hour is part of the postcard
   });
 });

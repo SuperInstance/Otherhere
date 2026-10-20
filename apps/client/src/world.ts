@@ -40,6 +40,11 @@ type CellState = {
   manifest?: BundleManifest;
   verified?: boolean;
   group?: Group;
+  /**
+   * The Bundle this Cell replaced, still on screen until the new one lands —
+   * a retry or a capture must never blank the neighbourhood it is improving.
+   */
+  stale?: { group: Group; beacons?: Group; clearings?: Disc[] };
   roadPoints?: { x: number; z: number }[];
   /** Vertex ranges per Feature, from the Bundle's extras: what the walker can pick. */
   ranges?: { id: string; first: number; count: number }[];
@@ -165,7 +170,7 @@ export class World {
   private indexClearings() {
     this.clearBuckets.clear();
     for (const s of this.cells.values())
-      for (const d of s.clearings ?? []) {
+      for (const d of [...(s.clearings ?? []), ...(s.stale?.clearings ?? [])]) {
         const key = `${Math.floor(d.x / CLEAR_BUCKET)},${Math.floor(d.z / CLEAR_BUCKET)}`;
         const list = this.clearBuckets.get(key);
         if (list) list.push(d);
@@ -177,7 +182,21 @@ export class World {
     if (s.box) this.onBuilt(s.box.minX, s.box.minZ, s.box.maxX, s.box.maxZ);
   }
 
+  /** Take a replaced Bundle off the screen: its successor is up (or the Cell is gone). */
+  private retire(s: CellState) {
+    const stale = s.stale;
+    if (!stale) return;
+    s.stale = undefined;
+    this.root.remove(stale.group);
+    stale.group.traverse((o) => (o as Mesh).geometry?.dispose());
+    if (stale.beacons) {
+      this.beaconRoot.remove(stale.beacons);
+      stale.beacons.traverse((o) => (o as Mesh).geometry?.dispose());
+    }
+  }
+
   private drop(s: CellState) {
+    this.retire(s); // a failed reload may still be holding the screen
     if (s.clearings?.length) {
       s.clearings = [];
       this.indexClearings();
@@ -310,6 +329,7 @@ export class World {
     this.indexClearings();
     this.root.add(group);
     this.beaconRoot.add(beacons);
+    this.retire(state); // the replaced Bundle, if any, leaves only now
     this.announceBuilt(state);
     // A sketch Cell may be waiting on OpenStreetMap: ask again a few times.
     const retries = state.retries ?? 0;
@@ -500,9 +520,14 @@ export class World {
   /** Throw away a Cell's Bundle and load its current one (after its Facts changed). */
   reload(cell: string): void {
     const s = this.cells.get(cell);
-    if (s) this.drop(s);
     this.cells.delete(cell);
     this.want(cell);
+    if (!s?.group) return;
+    // Keep what is on screen while the reload flies: the old Bundle stays
+    // visible until the new one lands, so a sketch Cell's retry (or a capture
+    // sharpening a building) never pops the neighbourhood to empty ground.
+    const next = this.cells.get(cell);
+    if (next) next.stale = { group: s.group, beacons: s.beacons, clearings: s.clearings ?? [] };
   }
 
   /** A good place to stand: the road vertex nearest the given point, if any is loaded. */
