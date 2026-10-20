@@ -42,7 +42,9 @@ const SCENE = arg('scene', 'walk');
 const PINNED_T = arg('t', ''); // pinned day-clock hour for the URL (?t=)
 const HASH = arg('hash', ''); // saved pose for the URL (#x,y,z,yaw,pitch)
 const SEED = process.argv.includes('--seed');
-const OUT = process.env.PLAYTEST_OUT ?? new URL('../../../../otherhere-lab/playtest-artifacts/', import.meta.url).pathname;
+const OUT =
+  process.env.PLAYTEST_OUT ??
+  new URL('../../../../otherhere-lab/playtest-artifacts/', import.meta.url).pathname;
 mkdirSync(OUT, { recursive: true });
 
 // The repo's e2e config points at a preinstalled Chromium; do the same, falling
@@ -212,7 +214,12 @@ const clickHud = async (locator, name, timeoutMs = 60000) => {
     note('hud-click', { name, path: 'real', ms: Date.now() - t0 });
     return 'real';
   } catch (e) {
-    note('hud-click-fallback', { name, path: 'dom', ms: Date.now() - t0, error: String(e).slice(0, 200) });
+    note('hud-click-fallback', {
+      name,
+      path: 'dom',
+      ms: Date.now() - t0,
+      error: String(e).slice(0, 200),
+    });
     await locator.evaluate((el) => el.click());
     return 'dom';
   }
@@ -709,7 +716,8 @@ const unknownScenes = (arg('scenes', '') || '')
   .split(',')
   .map((s) => s.trim())
   .filter((s) => s && !SCENES[s]);
-if (unknownScenes.length) console.error(`[probe] unknown scenes skipped: ${unknownScenes.join(',')}`);
+if (unknownScenes.length)
+  console.error(`[probe] unknown scenes skipped: ${unknownScenes.join(',')}`);
 
 try {
   // Every scene starts on its own fresh page (determinism makes more).

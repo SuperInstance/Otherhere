@@ -339,8 +339,7 @@ export class World {
     // a same-hash reload; a first-ever load does not wake (the arrival glide
     // already covers first impressions).
     const state0 = this.cells.get(cell);
-    const waking =
-      !!state0?.stale && state0.stale.manifest?.inputsHash !== manifest.inputsHash;
+    const waking = !!state0?.stale && state0.stale.manifest?.inputsHash !== manifest.inputsHash;
     const wakeU = waking ? wakeUniform() : undefined;
     const mat = wakeU ? confidenceMaterial(wakeU) : this.material;
     const wakeMeshes: Mesh[] = [];

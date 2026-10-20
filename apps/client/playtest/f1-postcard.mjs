@@ -28,7 +28,9 @@ const arg = (name, fallback) => {
 const BASE = arg('base', 'https://otherhere.casey-digennaro.workers.dev');
 const AT = arg('at', ''); // "" = the site default (downtown Sitka)
 const TAG = arg('tag', 'live-f1');
-const OUT = process.env.PLAYTEST_OUT ?? new URL('../../../../otherhere-lab/playtest-artifacts/', import.meta.url).pathname;
+const OUT =
+  process.env.PLAYTEST_OUT ??
+  new URL('../../../../otherhere-lab/playtest-artifacts/', import.meta.url).pathname;
 mkdirSync(OUT, { recursive: true });
 
 const chromiumPath =
@@ -36,7 +38,10 @@ const chromiumPath =
   (() => {
     const root = join(homedir(), '.cache', 'ms-playwright');
     if (!existsSync(root)) return undefined;
-    const dir = readdirSync(root).filter((d) => /^chromium-\d+$/.test(d)).sort().at(-1);
+    const dir = readdirSync(root)
+      .filter((d) => /^chromium-\d+$/.test(d))
+      .sort()
+      .at(-1);
     if (!dir) return undefined;
     for (const rel of ['chrome-linux64/chrome', 'chrome-linux/chrome']) {
       const p = join(root, dir, rel);
@@ -48,7 +53,8 @@ const chromiumPath =
 const url = () => (AT ? `${BASE}/?at=${AT}` : `${BASE}/`);
 const rows = [];
 const note = (kind, data = {}) =>
-  rows.push({ t: Date.now() - t0, kind, ...data }) || console.log(`[${kind}]`, JSON.stringify(data).slice(0, 200));
+  rows.push({ t: Date.now() - t0, kind, ...data }) ||
+  console.log(`[${kind}]`, JSON.stringify(data).slice(0, 200));
 const t0 = Date.now();
 
 // The in-page sampler: 200 ms ticks for the whole session. Returns a stop()
@@ -58,18 +64,37 @@ const SAMPLER = () => {
   const btn = document.querySelector('#postcard button[type=submit]');
   const hud = document.getElementById('hud');
   let rafCount = 0;
-  const rafLoop = () => { rafCount++; requestAnimationFrame(rafLoop); };
+  const rafLoop = () => {
+    rafCount++;
+    requestAnimationFrame(rafLoop);
+  };
   requestAnimationFrame(rafLoop);
   const iv = setInterval(() => {
     const s = { t: Date.now(), raf: rafCount };
     if (btn) {
       const r = btn.getBoundingClientRect();
-      s.box = { x: +r.x.toFixed(1), y: +r.y.toFixed(1), w: +r.width.toFixed(1), h: +r.height.toFixed(1) };
-      const cx = r.x + r.width / 2, cy = r.y + r.height / 2;
+      s.box = {
+        x: +r.x.toFixed(1),
+        y: +r.y.toFixed(1),
+        w: +r.width.toFixed(1),
+        h: +r.height.toFixed(1),
+      };
+      const cx = r.x + r.width / 2,
+        cy = r.y + r.height / 2;
       const hit = document.elementFromPoint(cx, cy);
-      s.hit = hit === btn ? 'button' : hit ? `${hit.tagName.toLowerCase()}#${hit.id || ''}.${hit.className || ''}`.slice(0, 60) : 'none';
+      s.hit =
+        hit === btn
+          ? 'button'
+          : hit
+            ? `${hit.tagName.toLowerCase()}#${hit.id || ''}.${hit.className || ''}`.slice(0, 60)
+            : 'none';
       const cs = getComputedStyle(btn);
-      s.style = { display: cs.display, visibility: cs.visibility, pointerEvents: cs.pointerEvents, opacity: cs.opacity };
+      s.style = {
+        display: cs.display,
+        visibility: cs.visibility,
+        pointerEvents: cs.pointerEvents,
+        opacity: cs.opacity,
+      };
       s.disabled = btn.disabled;
       const det = btn.closest('details');
       s.open = det ? det.open : null;
@@ -81,7 +106,13 @@ const SAMPLER = () => {
     s.statusLen = (document.getElementById('status')?.textContent ?? '').length;
     samples.push(s);
   }, 200);
-  window.__f1 = { samples, stop: () => { clearInterval(iv); window.__f1.done = true; } };
+  window.__f1 = {
+    samples,
+    stop: () => {
+      clearInterval(iv);
+      window.__f1.done = true;
+    },
+  };
 };
 
 const summarize = (samples) => {
@@ -101,20 +132,30 @@ const summarize = (samples) => {
   const focus = new Set(arr.map((s) => (s ? s.focus : undefined)));
   const statusLens = new Set(arr.map((s) => (s ? s.statusLen : undefined)));
   return {
-    n: arr.length, nButton: withBtn.length,
+    n: arr.length,
+    nButton: withBtn.length,
     fps: +fps.toFixed(2),
-    uniqueBoxes: uniq.size, boxExamples: [...uniq].slice(0, 6),
-    hitTargets: hits, uniqueStyles: [...styles].map((s) => JSON.parse(s)),
-    detailsOpen: [...opens], pageFocus: [...focus], statusLengths: [...statusLens].sort((a, b) => a - b),
+    uniqueBoxes: uniq.size,
+    boxExamples: [...uniq].slice(0, 6),
+    hitTargets: hits,
+    uniqueStyles: [...styles].map((s) => JSON.parse(s)),
+    detailsOpen: [...opens],
+    pageFocus: [...focus],
+    statusLengths: [...statusLens].sort((a, b) => a - b),
   };
 };
 
-const browser = await chromium.launch({ executablePath: chromiumPath, args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await chromium.launch({
+  executablePath: chromiumPath,
+  args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
+});
 const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
 const page = await context.newPage();
 page.on('console', (m) => note('console', { type: m.type(), text: m.text().slice(0, 160) }));
 page.on('pageerror', (e) => note('pageerror', { error: String(e).slice(0, 200) }));
-page.on('requestfailed', (r) => note('netfail', { url: r.url().slice(0, 120), err: r.failure()?.errorText }));
+page.on('requestfailed', (r) =>
+  note('netfail', { url: r.url().slice(0, 120), err: r.failure()?.errorText }),
+);
 
 note('start', { base: BASE, at: AT || '(default Sitka)', url: url() });
 await page.goto(url(), { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -162,8 +203,17 @@ clickResult.ms = Date.now() - clickStart;
 note('click', clickResult);
 
 // Did the POST go out? Did the result link appear?
-const link = await page.locator('#pc-result a').getAttribute('href', { timeout: 30000 }).catch(() => null);
-note('result', { link, pcResult: await page.locator('#pc-result').textContent().catch(() => null) });
+const link = await page
+  .locator('#pc-result a')
+  .getAttribute('href', { timeout: 30000 })
+  .catch(() => null);
+note('result', {
+  link,
+  pcResult: await page
+    .locator('#pc-result')
+    .textContent()
+    .catch(() => null),
+});
 
 const during = await page.evaluate(() => window.__f1.samples.splice(0));
 note('during-summary', summarize(during));
@@ -172,7 +222,23 @@ await page.evaluate(() => window.__f1.stop());
 await page.screenshot({ path: `${OUT}${TAG}-f1.png` });
 writeFileSync(
   `${OUT}${TAG}-f1.json`,
-  JSON.stringify({ tag: TAG, base: BASE, at: AT, url: url(), clickResult, link, rows, rest, during, restSummary: summarize(rest), duringSummary: summarize(during) }, null, 1),
+  JSON.stringify(
+    {
+      tag: TAG,
+      base: BASE,
+      at: AT,
+      url: url(),
+      clickResult,
+      link,
+      rows,
+      rest,
+      during,
+      restSummary: summarize(rest),
+      duringSummary: summarize(during),
+    },
+    null,
+    1,
+  ),
 );
 console.log(`\n[f1] click: ${clickResult.clicked ? 'LANDED' : 'FAILED'} in ${clickResult.ms}ms`);
 console.log(`[f1] link: ${link ?? 'none'}`);

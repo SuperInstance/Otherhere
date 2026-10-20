@@ -810,11 +810,7 @@ if (!originCell) {
     // overcast stays exactly still.
     if (forest) {
       const p = world.frame.unproject({ e: walk.pose.x, n: -walk.pose.z });
-      forest.setWind(
-        skyElapsed,
-        skyNow.cloud,
-        FOREST_BIOMES[forestBiome(p.lat, p.lng)].windFloor,
-      );
+      forest.setWind(skyElapsed, skyNow.cloud, FOREST_BIOMES[forestBiome(p.lat, p.lng)].windFloor);
     }
     atmosphere.setTerrain(!!terrain?.active);
     atmosphere.update(camera.position);

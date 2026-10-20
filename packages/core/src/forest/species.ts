@@ -75,7 +75,11 @@ export function speciesFromTags(tags: Record<string, string>): Species | undefin
  */
 export const FOREST_BIOMES = {
   temperate: { mix: { broadleaf: 1 }, wild: false, windFloor: 0 },
-  'pacific-rainforest': { mix: { hemlock: 0.7, spruce: 0.25, cedar: 0.05 }, wild: true, windFloor: 0.12 },
+  'pacific-rainforest': {
+    mix: { hemlock: 0.7, spruce: 0.25, cedar: 0.05 },
+    wild: true,
+    windFloor: 0.12,
+  },
 } as const;
 export type ForestBiome = keyof typeof FOREST_BIOMES;
 
