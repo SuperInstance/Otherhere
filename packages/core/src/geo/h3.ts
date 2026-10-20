@@ -35,6 +35,11 @@ export function townOf(cell: string): string {
   return cellToParent(cell, TOWN_RES);
 }
 
+/** A Town is an H3 res-6 cell (ADR-0002). */
+export function isTown(id: string): boolean {
+  return isValidCell(id) && getResolution(id) === TOWN_RES;
+}
+
 export function ingestBlockOf(cell: string): string {
   return cellToParent(cell, INGEST_RES);
 }

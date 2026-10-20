@@ -11,12 +11,12 @@ const MIN_CONF = 0.5;
 const q = (v: number, step: number) => Math.round(v / step) * step;
 
 /** Sample counts are bucketed too: generators only need "enough or not", and raw counts change on every Fact. */
-const BUCKETS = [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
-const bucket = (n: number) => BUCKETS.filter((b) => b <= n).pop() ?? 0;
+export const SAMPLE_BUCKETS = [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
+export const bucket = (n: number) => SAMPLE_BUCKETS.filter((b) => b <= n).pop() ?? 0;
 const round = (v: number, dp: number) => Math.round(v * 10 ** dp) / 10 ** dp;
 
 /** A building's known height, from `height` or else `levels`; null if neither is known. */
-function knownHeight(a: ResolvedAttrs): number | null {
+export function knownHeight(a: ResolvedAttrs): number | null {
   const h = a.height;
   if (h && h.confidence >= MIN_CONF && typeof h.value === 'number') return h.value;
   const l = a.levels;
@@ -25,7 +25,7 @@ function knownHeight(a: ResolvedAttrs): number | null {
 }
 
 /** A tree's known species, from any source we trust enough to count. */
-function knownSpecies(a: ResolvedAttrs): Species | null {
+export function knownSpecies(a: ResolvedAttrs): Species | null {
   const s = a.species;
   if (s && s.confidence >= MIN_CONF && typeof s.value === 'string')
     return (FOREST_SPECIES as readonly string[]).includes(s.value) ? (s.value as Species) : null;

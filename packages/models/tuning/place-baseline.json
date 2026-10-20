@@ -1,0 +1,434 @@
+{
+  "battery": "place.v1",
+  "at": "2026-10-20T03:55:03.536Z",
+  "model_requested": "jev-1.13.0",
+  "models_served": ["jev-1.13.0"],
+  "runs_per_state": 5,
+  "total_calls": 11,
+  "total_cost_usd": 0.000689,
+  "states": {
+    "zurich-seed-block": {
+      "state": "PLACE SUMMARY (deterministic statistics of one Town)\nbiome: temperate\nbuilding height: median 13.5 m, upper decile 19.5 m, 100 known heights\nroof shape mix: flat 0.45, gable 0.15, hip 0.35, shed 0.05\nwall colour palette: #e3d5b8, #ff9e6b, #9a9a9a, #cccccc, #d2b48c, #eecfaf\ntree species mix: broadleaf 1.00\nfeatures: bench 100, building 500, road 2500, streetlight 25, tree 250\nknown shares: building height 0.30, roof shape 0.05, wall colour 0.00, tree species 0.45\nfacts by source: osm 10000",
+      "stateSha": "d722a81ebfec2d892f030499421ae85d32a2d621bfbd7eea74c12c1aba73f343",
+      "provenance": "computed from packages/core/test/fixtures/overpass-zurich.json (seed block 881f8ed951fffff), as TownDO.essence() sees it"
+    },
+    "sitka-priors": {
+      "state": "PLACE SUMMARY (deterministic statistics of one Town)\nbiome: pacific-rainforest\nbuilding height: median 6.0 m, upper decile 7.0 m, 10 known heights\nroof shape mix: gable 1.00\nwall colour palette: #7a5a43, #e3d5b8, #f2f0ea, #efe4c8\ntree species mix: cedar 0.05, hemlock 0.70, spruce 0.25\nfeatures: bench 5, building 10, road 25, tree 10\nknown shares: building height 1.00, roof shape 1.00, wall colour 1.00, tree species 1.00\nfacts by source: osm 50",
+      "stateSha": "1716b84a2a96c13eaa143af7499e238697e5088ffe293d0d230bd38b72fe19a2",
+      "provenance": "constructed from the pacific-rainforest biome and ADR-0017 regional priors (low wooden buildings; ~70/25/5 hemlock/spruce/cedar); NOT recorded Sitka OSM data"
+    }
+  },
+  "decoy": {
+    "state": "the frobnicated zix quibbles murpl",
+    "model_served": "jev-1.13.0",
+    "vector": {
+      "tall_for_a_town": 0.26,
+      "steep_roofs": 0.37,
+      "uniform_roofs": 0.25,
+      "dense_not_spread": 0.35,
+      "warm_earthy_walls": 0.26,
+      "mostly_conifers": 0.29,
+      "rainy_coast": 0.1,
+      "heights_recorded": 0.39,
+      "height_scale": 2.49,
+      "known_in_detail": 0,
+      "green_setting": 0.36
+    }
+  },
+  "runs": {
+    "zurich-seed-block": [
+      {
+        "battery": "place.v1",
+        "vector": {
+          "tall_for_a_town": 0.22,
+          "steep_roofs": 0.16,
+          "uniform_roofs": 0.04,
+          "dense_not_spread": 0.59,
+          "warm_earthy_walls": 0.71,
+          "mostly_conifers": 0.02,
+          "rainy_coast": 0.06,
+          "heights_recorded": 0.3,
+          "height_scale": 4.32,
+          "known_in_detail": 1.59,
+          "green_setting": 1.4
+        },
+        "model_served": "jev-1.13.0",
+        "stateSha": "d722a81ebfec2d892f030499421ae85d32a2d621bfbd7eea74c12c1aba73f343",
+        "costUsd": 0.00006400800000000001
+      },
+      {
+        "battery": "place.v1",
+        "vector": {
+          "tall_for_a_town": 0.23,
+          "steep_roofs": 0.17,
+          "uniform_roofs": 0.05,
+          "dense_not_spread": 0.59,
+          "warm_earthy_walls": 0.7,
+          "mostly_conifers": 0.02,
+          "rainy_coast": 0.06,
+          "heights_recorded": 0.28,
+          "height_scale": 4.17,
+          "known_in_detail": 1.67,
+          "green_setting": 1.41
+        },
+        "model_served": "jev-1.13.0",
+        "stateSha": "d722a81ebfec2d892f030499421ae85d32a2d621bfbd7eea74c12c1aba73f343",
+        "costUsd": 0.00006400800000000001
+      },
+      {
+        "battery": "place.v1",
+        "vector": {
+          "tall_for_a_town": 0.23,
+          "steep_roofs": 0.17,
+          "uniform_roofs": 0.04,
+          "dense_not_spread": 0.59,
+          "warm_earthy_walls": 0.71,
+          "mostly_conifers": 0.02,
+          "rainy_coast": 0.06,
+          "heights_recorded": 0.21,
+          "height_scale": 4.26,
+          "known_in_detail": 1.51,
+          "green_setting": 1.41
+        },
+        "model_served": "jev-1.13.0",
+        "stateSha": "d722a81ebfec2d892f030499421ae85d32a2d621bfbd7eea74c12c1aba73f343",
+        "costUsd": 0.00006400800000000001
+      },
+      {
+        "battery": "place.v1",
+        "vector": {
+          "tall_for_a_town": 0.23,
+          "steep_roofs": 0.15,
+          "uniform_roofs": 0.05,
+          "dense_not_spread": 0.59,
+          "warm_earthy_walls": 0.72,
+          "mostly_conifers": 0.02,
+          "rainy_coast": 0.06,
+          "heights_recorded": 0.27,
+          "height_scale": 4.27,
+          "known_in_detail": 1.54,
+          "green_setting": 1.42
+        },
+        "model_served": "jev-1.13.0",
+        "stateSha": "d722a81ebfec2d892f030499421ae85d32a2d621bfbd7eea74c12c1aba73f343",
+        "costUsd": 0.00006400800000000001
+      },
+      {
+        "battery": "place.v1",
+        "vector": {
+          "tall_for_a_town": 0.23,
+          "steep_roofs": 0.17,
+          "uniform_roofs": 0.04,
+          "dense_not_spread": 0.57,
+          "warm_earthy_walls": 0.72,
+          "mostly_conifers": 0.02,
+          "rainy_coast": 0.06,
+          "heights_recorded": 0.23,
+          "height_scale": 4.3,
+          "known_in_detail": 1.54,
+          "green_setting": 1.37
+        },
+        "model_served": "jev-1.13.0",
+        "stateSha": "d722a81ebfec2d892f030499421ae85d32a2d621bfbd7eea74c12c1aba73f343",
+        "costUsd": 0.00006400800000000001
+      }
+    ],
+    "sitka-priors": [
+      {
+        "battery": "place.v1",
+        "vector": {
+          "tall_for_a_town": 0.09,
+          "steep_roofs": 0.92,
+          "uniform_roofs": 0.97,
+          "dense_not_spread": 0.32,
+          "warm_earthy_walls": 0.93,
+          "mostly_conifers": 0.98,
+          "rainy_coast": 0.78,
+          "heights_recorded": 0.9,
+          "height_scale": 2.76,
+          "known_in_detail": 3.87,
+          "green_setting": 2.07
+        },
+        "model_served": "jev-1.13.0",
+        "stateSha": "1716b84a2a96c13eaa143af7499e238697e5088ffe293d0d230bd38b72fe19a2",
+        "costUsd": 0.00006262200000000001
+      },
+      {
+        "battery": "place.v1",
+        "vector": {
+          "tall_for_a_town": 0.08,
+          "steep_roofs": 0.91,
+          "uniform_roofs": 0.97,
+          "dense_not_spread": 0.33,
+          "warm_earthy_walls": 0.92,
+          "mostly_conifers": 0.98,
+          "rainy_coast": 0.79,
+          "heights_recorded": 0.91,
+          "height_scale": 2.65,
+          "known_in_detail": 3.85,
+          "green_setting": 2.08
+        },
+        "model_served": "jev-1.13.0",
+        "stateSha": "1716b84a2a96c13eaa143af7499e238697e5088ffe293d0d230bd38b72fe19a2",
+        "costUsd": 0.00006262200000000001
+      },
+      {
+        "battery": "place.v1",
+        "vector": {
+          "tall_for_a_town": 0.08,
+          "steep_roofs": 0.91,
+          "uniform_roofs": 0.97,
+          "dense_not_spread": 0.34,
+          "warm_earthy_walls": 0.93,
+          "mostly_conifers": 0.98,
+          "rainy_coast": 0.77,
+          "heights_recorded": 0.91,
+          "height_scale": 2.84,
+          "known_in_detail": 3.87,
+          "green_setting": 2.04
+        },
+        "model_served": "jev-1.13.0",
+        "stateSha": "1716b84a2a96c13eaa143af7499e238697e5088ffe293d0d230bd38b72fe19a2",
+        "costUsd": 0.00006262200000000001
+      },
+      {
+        "battery": "place.v1",
+        "vector": {
+          "tall_for_a_town": 0.08,
+          "steep_roofs": 0.91,
+          "uniform_roofs": 0.96,
+          "dense_not_spread": 0.32,
+          "warm_earthy_walls": 0.93,
+          "mostly_conifers": 0.98,
+          "rainy_coast": 0.79,
+          "heights_recorded": 0.91,
+          "height_scale": 2.83,
+          "known_in_detail": 3.82,
+          "green_setting": 2.08
+        },
+        "model_served": "jev-1.13.0",
+        "stateSha": "1716b84a2a96c13eaa143af7499e238697e5088ffe293d0d230bd38b72fe19a2",
+        "costUsd": 0.00006262200000000001
+      },
+      {
+        "battery": "place.v1",
+        "vector": {
+          "tall_for_a_town": 0.08,
+          "steep_roofs": 0.92,
+          "uniform_roofs": 0.97,
+          "dense_not_spread": 0.33,
+          "warm_earthy_walls": 0.93,
+          "mostly_conifers": 0.98,
+          "rainy_coast": 0.79,
+          "heights_recorded": 0.91,
+          "height_scale": 2.84,
+          "known_in_detail": 3.9,
+          "green_setting": 2.07
+        },
+        "model_served": "jev-1.13.0",
+        "stateSha": "1716b84a2a96c13eaa143af7499e238697e5088ffe293d0d230bd38b72fe19a2",
+        "costUsd": 0.00006262200000000001
+      }
+    ]
+  },
+  "table": [
+    {
+      "id": "tall_for_a_town",
+      "zurich": {
+        "median": 0.23,
+        "spread": 0.01
+      },
+      "sitka": {
+        "median": 0.08,
+        "spread": 0.01
+      },
+      "separation": 0.15,
+      "decoy": 0.26
+    },
+    {
+      "id": "steep_roofs",
+      "zurich": {
+        "median": 0.17,
+        "spread": 0.02
+      },
+      "sitka": {
+        "median": 0.91,
+        "spread": 0.01
+      },
+      "separation": 0.74,
+      "decoy": 0.37
+    },
+    {
+      "id": "uniform_roofs",
+      "zurich": {
+        "median": 0.04,
+        "spread": 0.01
+      },
+      "sitka": {
+        "median": 0.97,
+        "spread": 0.01
+      },
+      "separation": 0.93,
+      "decoy": 0.25
+    },
+    {
+      "id": "dense_not_spread",
+      "zurich": {
+        "median": 0.59,
+        "spread": 0.02
+      },
+      "sitka": {
+        "median": 0.33,
+        "spread": 0.02
+      },
+      "separation": 0.26,
+      "decoy": 0.35
+    },
+    {
+      "id": "warm_earthy_walls",
+      "zurich": {
+        "median": 0.71,
+        "spread": 0.02
+      },
+      "sitka": {
+        "median": 0.93,
+        "spread": 0.01
+      },
+      "separation": 0.22,
+      "decoy": 0.26
+    },
+    {
+      "id": "mostly_conifers",
+      "zurich": {
+        "median": 0.02,
+        "spread": 0
+      },
+      "sitka": {
+        "median": 0.98,
+        "spread": 0
+      },
+      "separation": 0.96,
+      "decoy": 0.29
+    },
+    {
+      "id": "rainy_coast",
+      "zurich": {
+        "median": 0.06,
+        "spread": 0
+      },
+      "sitka": {
+        "median": 0.79,
+        "spread": 0.02
+      },
+      "separation": 0.73,
+      "decoy": 0.1
+    },
+    {
+      "id": "heights_recorded",
+      "zurich": {
+        "median": 0.27,
+        "spread": 0.09
+      },
+      "sitka": {
+        "median": 0.91,
+        "spread": 0.01
+      },
+      "separation": 0.64,
+      "decoy": 0.39
+    },
+    {
+      "id": "height_scale",
+      "zurich": {
+        "median": 4.27,
+        "spread": 0.15
+      },
+      "sitka": {
+        "median": 2.83,
+        "spread": 0.19
+      },
+      "separation": 1.44,
+      "decoy": 2.49
+    },
+    {
+      "id": "known_in_detail",
+      "zurich": {
+        "median": 1.54,
+        "spread": 0.16
+      },
+      "sitka": {
+        "median": 3.87,
+        "spread": 0.08
+      },
+      "separation": 2.33,
+      "decoy": 0
+    },
+    {
+      "id": "green_setting",
+      "zurich": {
+        "median": 1.41,
+        "spread": 0.05
+      },
+      "sitka": {
+        "median": 2.07,
+        "spread": 0.04
+      },
+      "separation": 0.66,
+      "decoy": 0.36
+    }
+  ],
+  "band": [
+    {
+      "id": "tall_for_a_town",
+      "spread": 0.01
+    },
+    {
+      "id": "steep_roofs",
+      "spread": 0.02
+    },
+    {
+      "id": "uniform_roofs",
+      "spread": 0.01
+    },
+    {
+      "id": "dense_not_spread",
+      "spread": 0.02
+    },
+    {
+      "id": "warm_earthy_walls",
+      "spread": 0.02
+    },
+    {
+      "id": "mostly_conifers",
+      "spread": 0
+    },
+    {
+      "id": "rainy_coast",
+      "spread": 0.02
+    },
+    {
+      "id": "heights_recorded",
+      "spread": 0.09
+    },
+    {
+      "id": "height_scale",
+      "spread": 0.021
+    },
+    {
+      "id": "known_in_detail",
+      "spread": 0.04
+    },
+    {
+      "id": "green_setting",
+      "spread": 0.012
+    }
+  ],
+  "checks": {
+    "drift_band_breaches": [],
+    "decoy_noul_max": 0.39,
+    "decoy_score": {
+      "height_scale": 2.49,
+      "known_in_detail": 0,
+      "green_setting": 0.36
+    }
+  }
+}
