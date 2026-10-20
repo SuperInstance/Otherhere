@@ -29,7 +29,8 @@ import {
   type LocalFrame,
 } from '@otherhere/core';
 import { MAX_GROUND, MIN_GROUND } from './forest';
-import { confidenceMaterial } from './material';
+import { confidenceMaterial, wakeUniform, WAKE_MS, type WakeUniform } from './material';
+import type { MeshStandardNodeMaterial } from 'three/webgpu';
 
 type CellState = {
   state: 'loading' | 'ready' | 'error';
@@ -43,8 +44,17 @@ type CellState = {
   /**
    * The Bundle this Cell replaced, still on screen until the new one lands —
    * a retry or a capture must never blank the neighbourhood it is improving.
+   * The manifest rides along so the World can tell a real change (wake up!)
+   * from a no-op retry of the same bytes (stay still).
    */
-  stale?: { group: Group; beacons?: Group; clearings?: Disc[] };
+  stale?: { group: Group; beacons?: Group; clearings?: Disc[]; manifest?: BundleManifest };
+  /** The wake-up animation in flight: a replaced Bundle breathing from paper. */
+  wake?: {
+    mat: MeshStandardNodeMaterial;
+    u: WakeUniform;
+    t0: number;
+    meshes: Mesh[];
+  };
   roadPoints?: { x: number; z: number }[];
   /** Vertex ranges per Feature, from the Bundle's extras: what the walker can pick. */
   ranges?: { id: string; first: number; count: number }[];
@@ -68,6 +78,8 @@ export type WorldStats = {
   verified: number;
   mismatched: number;
   quests: number;
+  /** Cells mid-wake: new knowledge still breathing from paper. */
+  waking: number;
 };
 
 /** Where Bundles come from: the edge API, the built-in demo lot, or a postcard's Fact snapshot. */
@@ -135,6 +147,7 @@ export class World {
 
   /** Keep the walker's Cell and its ring loaded; drop Cells more than 2 rings away. */
   update(x: number, z: number): void {
+    this.advanceWakes();
     this.standAgain();
     if (this.source === 'demo') {
       this.want(DEMO_CELL);
@@ -198,6 +211,27 @@ export class World {
     if (s.box) this.onBuilt(s.box.minX, s.box.minZ, s.box.maxX, s.box.maxZ);
   }
 
+  /**
+   * THE WAKE-UP MOMENT: advance every in-flight wake. Called from update()
+   * every frame; a wake ends by handing its meshes back the shared material.
+   * Ease-out cubic — a quick inhale, a slow settle — so the sharpening reads
+   * as one gesture, not a linear wipe.
+   */
+  private advanceWakes(): void {
+    const now = performance.now();
+    for (const s of this.cells.values()) {
+      const w = s.wake;
+      if (!w) continue;
+      const k = Math.min(1, (now - w.t0) / WAKE_MS);
+      w.u.value = 1 - (1 - k) ** 3;
+      if (k >= 1) {
+        for (const m of w.meshes) m.material = this.material;
+        w.mat.dispose();
+        s.wake = undefined;
+      }
+    }
+  }
+
   /** Take a replaced Bundle off the screen: its successor is up (or the Cell is gone). */
   private retire(s: CellState) {
     const stale = s.stale;
@@ -213,6 +247,10 @@ export class World {
 
   private drop(s: CellState) {
     this.retire(s); // a failed reload may still be holding the screen
+    if (s.wake) {
+      s.wake.mat.dispose();
+      s.wake = undefined;
+    }
     if (s.clearings?.length) {
       s.clearings = [];
       this.indexClearings();
@@ -296,13 +334,23 @@ export class World {
 
     const group = new Group();
     group.name = cell;
+    // THE WAKE-UP MOMENT: a genuinely replaced Bundle (new bytes, not a no-op
+    // retry) breathes in from paper. The stale manifest tells real change from
+    // a same-hash reload; a first-ever load does not wake (the arrival glide
+    // already covers first impressions).
+    const state0 = this.cells.get(cell);
+    const waking = !!state0?.stale && state0.stale.manifest?.inputsHash !== manifest.inputsHash;
+    const wakeU = waking ? wakeUniform() : undefined;
+    const mat = wakeU ? confidenceMaterial(wakeU) : this.material;
+    const wakeMeshes: Mesh[] = [];
     const roadPoints: { x: number; z: number }[] = [];
     gltf.scene.traverse((o) => {
       const mesh = o as Mesh;
       if (!mesh.isMesh) return;
       const geometry = mesh.geometry as BufferGeometry;
-      const m = new Mesh(geometry, this.material);
+      const m = new Mesh(geometry, mat);
       m.name = mesh.name;
+      if (wakeU) wakeMeshes.push(m);
       // Coplanar surfaces from neighbouring Cells tie in depth; three breaks ties by
       // creation order, i.e. network order. Order by Cell ID so reloads are identical.
       m.renderOrder = fnv1a32(cell) % 1_000_000;
@@ -325,7 +373,10 @@ export class World {
     }
 
     const state = this.cells.get(cell);
-    if (!state) return; // evicted while loading
+    if (!state) {
+      if (mat !== this.material) mat.dispose(); // evicted while loading; the wake never flew
+      return;
+    }
     const ranges = featureRanges;
     const beacons = this.beaconsFor(group, ranges, quests);
     beacons.position.copy(group.position);
@@ -345,6 +396,10 @@ export class World {
     this.indexClearings();
     this.root.add(group);
     this.beaconRoot.add(beacons);
+    if (wakeU) {
+      state.wake = { mat, u: wakeU, t0: performance.now(), meshes: wakeMeshes };
+      this.onChange();
+    }
     this.retire(state); // the replaced Bundle, if any, leaves only now
     this.announceBuilt(state);
     // A sketch Cell may be waiting on OpenStreetMap: ask again a few times.
@@ -543,7 +598,13 @@ export class World {
     // visible until the new one lands, so a sketch Cell's retry (or a capture
     // sharpening a building) never pops the neighbourhood to empty ground.
     const next = this.cells.get(cell);
-    if (next) next.stale = { group: s.group, beacons: s.beacons, clearings: s.clearings ?? [] };
+    if (next)
+      next.stale = {
+        group: s.group,
+        beacons: s.beacons,
+        clearings: s.clearings ?? [],
+        manifest: s.manifest,
+      };
   }
 
   /** A good place to stand: the road vertex nearest the given point, if any is loaded. */
@@ -583,6 +644,7 @@ export class World {
       verified: 0,
       mismatched: 0,
       quests: 0,
+      waking: 0,
     };
     for (const c of this.cells.values()) {
       if (c.state === 'loading') s.loading++;
@@ -594,6 +656,7 @@ export class World {
         if (c.ingest === 'failed') s.sketch++;
         if (c.verified) s.verified++;
         else s.mismatched++;
+        if (c.wake) s.waking++;
       }
     }
     return s;

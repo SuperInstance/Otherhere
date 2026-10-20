@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Scene } from 'three/webgpu';
-import { DEMO_CELL } from '@otherhere/core';
+import { DEMO_CELL, demoLot } from '@otherhere/core';
 import { standFeatures, World } from '../src/world';
+import { WAKE_MS } from '../src/material';
 
 /** A position attribute shaped like three's, backed by a plain array. */
 class Positions {
@@ -144,6 +145,52 @@ describe('World.reload', () => {
     expect(after).toHaveLength(1); // exactly one Bundle for the Cell
     expect(after[0]).not.toBe(before); // …and it is the new one
     expect(demoGroups()).not.toContain(before); // the stale one is retired
+    expect(world.stats()).toMatchObject({ ready: 1, loading: 0, verified: 1 });
+  }, 30_000);
+});
+
+describe('World wake-up (the moment new knowledge lands)', () => {
+  it('wakes only when the Bundle really changed: a no-op retry stays still, a capture breathes from paper', async () => {
+    const scene = new Scene();
+    // A capsule we can rewrite between reloads: the stand-in for facts changing.
+    const capsule = new Map([[DEMO_CELL, { features: demoLot(DEMO_CELL) }]]);
+    const world = new World(scene, DEMO_CELL, { capsule });
+    const settle = async () => {
+      for (let i = 0; i < 1000; i++) {
+        const s = world.stats();
+        if (s.ready === 1 && s.loading === 0) return s;
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      throw new Error('capsule cell never settled');
+    };
+    world.update(0, 0);
+    await settle();
+    expect(world.stats().waking).toBe(0); // a first-ever load does not wake
+
+    // A same-bytes reload (the sketch-retry case): the manifest hash matches,
+    // so the world must hold still — a pulsing paper town would be noise.
+    world.reload(DEMO_CELL);
+    await settle();
+    world.update(0, 0);
+    expect(world.stats().waking).toBe(0);
+
+    // New knowledge: one house's height becomes known differently (the effect
+    // a capture has on the resolved attrs). The bytes change, the hash changes.
+    const lot = demoLot(DEMO_CELL);
+    const height = lot[1]!.attrs.height as unknown as { value: number };
+    height.value = 12;
+    capsule.set(DEMO_CELL, { features: lot });
+    world.reload(DEMO_CELL);
+    await settle();
+    // The wake is in flight the moment the new Bundle stands in: the status
+    // line can name it, and the material is still the waking one.
+    expect(world.stats().waking).toBe(1);
+
+    // WAKE_MS later it has breathed out: meshes back on the shared material,
+    // the counter at rest.
+    await new Promise((r) => setTimeout(r, WAKE_MS + 150));
+    world.update(0, 0);
+    expect(world.stats().waking).toBe(0);
     expect(world.stats()).toMatchObject({ ready: 1, loading: 0, verified: 1 });
   }, 30_000);
 });

@@ -377,6 +377,15 @@ if (!originCell) {
       const are = s.sketch === 1 ? '1 cell is' : `${s.sketch} cells are`;
       lines.push(`${are} still a sketch: waiting for OpenStreetMap, trying again shortly.`);
     }
+    if (s.waking) {
+      // The wake-up moment, named: a player who looks away and back should find
+      // the HUD accounting for what they just felt.
+      lines.push(
+        s.waking === 1
+          ? 'Something here just sharpened: the new knowledge is settling in.'
+          : `${s.waking} cells just sharpened: new knowledge settling in.`,
+      );
+    }
     if (s.errors)
       lines.push(`${s.errors} cell${s.errors === 1 ? '' : 's'} failed to load. Reload to retry.`);
     if (s.quests) {
@@ -796,7 +805,13 @@ if (!originCell) {
     // reaches much further and mist pools in the valleys.
     updateSky(rawDt);
     // The forest's wind follows the same clock — a pinned ?t= freezes the crowns too.
-    forest?.setWind(skyElapsed, skyNow.cloud);
+    // The biome band decides the floor: under the rainforest's grey ceiling the
+    // stand keeps a breath (felt, below the status line's word); temperate
+    // overcast stays exactly still.
+    if (forest) {
+      const p = world.frame.unproject({ e: walk.pose.x, n: -walk.pose.z });
+      forest.setWind(skyElapsed, skyNow.cloud, FOREST_BIOMES[forestBiome(p.lat, p.lng)].windFloor);
+    }
     atmosphere.setTerrain(!!terrain?.active);
     atmosphere.update(camera.position);
     if (moved && now - lastHash > 400) {

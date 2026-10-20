@@ -9,6 +9,7 @@ import {
   GUST_LONG,
   GUST_SHORT,
 } from '../src/wind';
+import { FOREST_BIOMES } from '@otherhere/core';
 
 /** Downwind metres `d` as a ground position along the wind axis. */
 const alongWind = (d: number): [number, number] => [WIND_TOWARD[0]! * d, WIND_TOWARD[1]! * d];
@@ -138,5 +139,30 @@ describe('describeWind', () => {
     expect(describeWind(0.05)).toBe('');
     expect(describeWind(0.45)).toBe('a breeze in the crowns');
     expect(describeWind(0.9)).toBe('wind in the crowns');
+  });
+});
+
+describe('windStrength biome floor (the rainforest breathes under grey sky)', () => {
+  it('temperate overcast is still exactly still (the r2 contract, unchanged)', () => {
+    for (let t = 0; t < 300; t += 3) {
+      expect(windStrength(t, 0.9, 0)).toBe(0);
+      expect(windStrength(t, 0.78, 0)).toBe(0);
+    }
+  });
+  it('the rainforest floor rides under the weather key: a breath, never a word', () => {
+    const floor = FOREST_BIOMES['pacific-rainforest'].windFloor;
+    expect(floor).toBeGreaterThan(0);
+    expect(floor).toBeLessThan(0.3); // below 'a breeze' — felt, not named
+    for (let t = 0; t < 300; t += 3) {
+      const s = windStrength(t, 0.9, floor);
+      expect(s).toBeGreaterThanOrEqual(floor); // grey sky: the breath holds
+      expect(s).toBeLessThan(0.3); // and never claims the breeze word
+      // Clear sky is untouched by the floor (key >= breath value dominates).
+      expect(windStrength(t, 0.15, floor)).toBe(windStrength(t, 0.15));
+    }
+  });
+  it('biomes carry the decision (census-informed: only the rainforest floor is set)', () => {
+    expect(FOREST_BIOMES.temperate.windFloor).toBe(0);
+    expect(FOREST_BIOMES['pacific-rainforest'].windFloor).toBe(0.12);
   });
 });

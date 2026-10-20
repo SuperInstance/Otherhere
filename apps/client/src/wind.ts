@@ -69,10 +69,16 @@ function breathNoise(t: number): number {
  * reports. Overcast is *exactly* still (the key clamps to 0); clear sky blows
  * full strength; broken sky fades between. The wind also breathes — it comes
  * and goes over ~16 s — so even under a clear sky the crowns rest between gusts.
+ *
+ * `floor` is the biome band (enjoyability r3): in the pacific rainforest a
+ * grey ceiling no longer sits dead on the forest — the ocean stand keeps a
+ * breath. The floor rides UNDER the weather key, so a clear sky still blows
+ * exactly as hard as before; only the overcast silence is lifted, and only
+ * where the biome says so. Below the status line's word (0.3): felt, not named.
  */
-export function windStrength(elapsed: number, cloud: number): number {
+export function windStrength(elapsed: number, cloud: number, floor = 0): number {
   const key = smoothstep(0.75, 0.4, cloud);
-  return key * (0.55 + 0.45 * breathNoise(elapsed));
+  return Math.max(floor, key * (0.55 + 0.45 * breathNoise(elapsed)));
 }
 
 /**
