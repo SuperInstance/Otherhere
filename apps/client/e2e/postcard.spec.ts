@@ -56,13 +56,31 @@ test('save a postcard, open it by link, and see the same place', async ({
   const friend = await friendCtx.newPage();
   await friend.goto(new URL(link!).pathname + new URL(link!).search);
   await settle(friend);
-  await expect(friend.locator('#status')).toContainText('Postcard: Bahnhofplatz at dusk');
+  await expect(friend.locator('#status-moment')).toContainText('Postcard: Bahnhofplatz at dusk');
   // The gift arrives clean (playtest r5, lane C): the address box and the
-  // technical lines wait behind More options, and expanding brings them back.
+  // routine counts wait behind More options, and expanding brings them back.
   await expect(friend.locator('#goto')).toBeHidden();
   await expect(friend.locator('#hud')).toHaveClass(/gift/);
+  // What the recipient and the licence need stays whole (review P0 #2): the
+  // moment tier is visible — the attribution rides it too (e2e terrain is
+  // closed by design, so its text cannot render here; placement is unit-tested
+  // in test/status.test.ts) — and no tier is ever height-clipped.
+  await expect(friend.locator('#status-moment')).toBeVisible();
+  const clipped = await friend.evaluate(() =>
+    ['status-moment', 'status', 'status-cells'].map((id) => {
+      const cs = getComputedStyle(document.getElementById(id)!);
+      return cs.overflow === 'hidden' || cs.maxHeight !== 'none';
+    }),
+  );
+  expect(clipped).toEqual([false, false, false]);
+  // Problems and notices are never clipped away: a quest invitation is a
+  // notice, and it must be visible whole in the compact panel.
+  await expect(friend.locator('#status span', { hasText: 'quests nearby' })).toBeVisible();
+  // The routine counts are a whole tier behind More options, not a mid-line cut.
+  await expect(friend.locator('#status-cells')).toBeHidden();
   await friend.getByRole('button', { name: 'More options' }).click();
   await expect(friend.locator('#goto')).toBeVisible();
+  await expect(friend.locator('#status-cells')).toBeVisible();
   await friend.getByRole('button', { name: 'Fewer options' }).click();
   await expect(friend.locator('#goto')).toBeHidden();
   const s = await stats(friend);
@@ -92,5 +110,7 @@ test('private postcards do not open without their key', async ({ page, request }
   await page.goto(`/?c=${id}`);
   await expect(page.getByRole('alert')).toContainText('does not exist, or it is private');
   await page.goto(`/?c=${id}&k=${ownerKey}`);
-  await expect(page.locator('#status')).toContainText('Postcard: Home', { timeout: 60_000 });
+  await expect(page.locator('#status-moment')).toContainText('Postcard: Home', {
+    timeout: 60_000,
+  });
 });
