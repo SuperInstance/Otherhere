@@ -11,6 +11,7 @@ import { observeBuilding } from '@otherhere/models';
 import type { Env } from './env';
 import { makeModels } from './models';
 import { opsStub } from './ops';
+import { driftRoute } from './drift';
 import type { PlaceVectorCompute } from './town';
 
 const json = (body: unknown, status = 200) =>
@@ -64,6 +65,9 @@ export async function intelligenceRoutes(
       );
     if (path === '/api/ops/spend')
       return json(await ops.spendToday(new Date().toISOString().slice(0, 10)));
+    // GET /api/ops/drift — the canary's readings (see drift.ts). Never spends.
+    if (path === '/api/ops/drift')
+      return driftRoute(env, Number(new URL(req.url).searchParams.get('limit') ?? 48));
 
     // POST /api/ops/towns/:town/vector — compute (or refresh) a Town's place
     // vector (ADR-0018, as amended). The only path that can spend `jev-place`

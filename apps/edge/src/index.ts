@@ -23,6 +23,8 @@ export { SessionDO } from './session';
 export { OpsDO } from './ops';
 export { JobsDO } from './jobs';
 
+import { runDriftCanary } from './drift';
+
 const json = (body: unknown, init: ResponseInit = {}) =>
   Response.json(body, {
     ...init,
@@ -44,6 +46,14 @@ function limiterFor(req: Request, env: Env, path: string) {
 }
 
 export default {
+  /**
+   * The hourly drift canary (see drift.ts): one paid call from the cron, never
+   * from traffic — the flip watch the rounds have run by hand since r3, made
+   * ambient. Costs under a mil a day, capped at a nickel (jev-canary).
+   */
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(runDriftCanary(env).catch((err) => console.error('drift canary failed', err)));
+  },
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
     const path = url.pathname;
