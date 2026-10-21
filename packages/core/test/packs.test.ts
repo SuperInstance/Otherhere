@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDING_PACK, buildingFacts } from '../src/packs/building';
 import {
+  batterySha,
   PLACE_BATTERY,
+  PLACE_BATTERY_SHA,
   PLACE_PACK,
   placeCensus,
   placeState,
@@ -149,6 +151,7 @@ describe('place battery (ADR-0018)', () => {
   it('stores vectors with their battery, pin, canary, state sha and time', () => {
     const v = StoredPlaceVector.parse({
       battery: 'place.v1',
+      batterySha: 'b'.repeat(64),
       model: 'jev-1.13.0',
       served: 'jev-1.13.0',
       stateSha: 'a'.repeat(64),
@@ -157,5 +160,26 @@ describe('place battery (ADR-0018)', () => {
     });
     expect(v.battery).toBe('place.v1');
     expect(StoredPlaceVector.safeParse({ battery: 'place.v1' }).success).toBe(false);
+  });
+
+  it('seals the battery text: rewording changes the seal, formatting does not', async () => {
+    const seal = await PLACE_BATTERY_SHA;
+    // The wiring proof: the exported seal is the pack's own canonical hash.
+    expect(await batterySha(PLACE_PACK)).toBe(seal);
+    // A reworded question — same battery name, different text — is a different
+    // battery to the cache, which is the whole point of the seal.
+    const reworded = structuredClone(PLACE_PACK);
+    const first = Object.keys(reworded.questions)[0]!;
+    reworded.questions[first]!.instructions += ' (reworded)';
+    expect(await batterySha(reworded)).not.toBe(seal);
+    // Key order and whitespace are free: the canonical form sorts keys, so a
+    // formatting-only edit of the file keeps every stored vector valid.
+    const reordered = {
+      description: PLACE_PACK.description,
+      version: PLACE_PACK.version,
+      id: PLACE_PACK.id,
+      questions: Object.fromEntries(Object.entries(PLACE_PACK.questions).reverse()),
+    };
+    expect(await batterySha(reordered as typeof PLACE_PACK)).toBe(seal);
   });
 });

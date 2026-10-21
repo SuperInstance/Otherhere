@@ -4,6 +4,7 @@ import type { Essence } from '../schema/world';
 import type { FeatureKind } from '../schema/feature';
 import type { ResolvedAttrs } from '../facts/resolve';
 import { bucket, knownHeight, knownSpecies } from '../essence/compute';
+import { sha256Hex } from '../hash/sha256';
 import place from './place.v1.json';
 
 /**
@@ -17,6 +18,32 @@ export const PLACE_PACK: QuestionPack = QuestionPack.parse(place);
 
 /** The battery's sealed short name, stamped on every vector and baseline. */
 export const PLACE_BATTERY = 'place.v1' as const;
+
+/**
+ * The battery's seal (ADR-0018, as amended): the SHA-256 of the pack's
+ * canonical JSON — keys sorted recursively, so formatting and key order in the
+ * file are free, but any change to what the battery asks changes the hash. A
+ * stored place vector carries the seal it was asked under; the cache treats a
+ * mismatch as stale and re-asks, so rewording the battery without bumping
+ * PLACE_BATTERY cannot keep serving old answers. Memoized because it hashes
+ * through crypto.subtle.
+ */
+export const PLACE_BATTERY_SHA: Promise<string> = batterySha(PLACE_PACK);
+
+/** The seal of any question pack: the sha of its canonical JSON. */
+export async function batterySha(pack: QuestionPack): Promise<string> {
+  return sha256Hex(canonicalJson(pack));
+}
+
+/** Deterministic JSON: sorted keys, no whitespace — the same content is the same bytes. */
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  const keys = Object.keys(value as Record<string, unknown>).sort();
+  return `{${keys
+    .map((k) => `${JSON.stringify(k)}:${canonicalJson((value as Record<string, unknown>)[k])}`)
+    .join(',')}}`;
+}
 
 /** Same bar as Essence: below this confidence a Fact does not count as "known". */
 const MIN_CONF = 0.5;
@@ -148,6 +175,9 @@ export function placeState(essence: Essence, census: PlaceCensus): string {
 /** A stored place vector: what was asked, of which state, by which served model. */
 export const StoredPlaceVector = z.strictObject({
   battery: z.string(),
+  /** The seal of the battery's exact text at ask time (PLACE_BATTERY_SHA); a
+   * mismatch — or its absence, before the seal existed — makes the vector stale. */
+  batterySha: z.string(),
   /** The pinned model the battery was asked of — the cache's invalidation key. */
   model: z.string(),
   /** What the provider actually served on that ask (the version canary). */
