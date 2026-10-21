@@ -88,3 +88,39 @@ test('two players see each other move over WebRTC, then play capture the flag', 
   await ctxA.close();
   await ctxB.close();
 });
+
+test('a phone in a match keeps the match buttons in the compact panel', async ({
+  browser,
+  request,
+}) => {
+  const fixture = readFileSync(
+    new URL('../../../packages/core/test/fixtures/overpass-zurich.json', import.meta.url),
+  );
+  await request.post('/api/dev/blocks/881f8ed951fffff', {
+    data: fixture,
+    headers: { 'content-type': 'application/json' },
+  });
+
+  // Host from a desktop-size page, join from a phone-width one.
+  const ctxA = await browser.newContext();
+  const a = await ctxA.newPage();
+  await a.goto('/?at=47.3769,8.5417&name=Ada');
+  await a.getByRole('button', { name: 'Start a match here' }).click();
+  await a.waitForURL(/\?s=[A-Z2-9]{6}/);
+  const code = new URL(a.url()).searchParams.get('s')!;
+
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const b = await phone.newPage();
+  await b.goto(`/?s=${code}&name=Bo`);
+  await b.locator('#match-line').waitFor({ timeout: 60_000 });
+
+  // The compact phone panel hides forms and counts, never the social step: the
+  // match's own buttons stay reachable without expanding (review P0 #2).
+  await expect(b.locator('#hud')).not.toHaveClass(/expanded/);
+  await expect(b.locator('#match-invite')).toBeVisible();
+  await expect(b.locator('#postcard')).toBeHidden();
+  await expect(b.locator('#status-cells')).toBeHidden();
+
+  await ctxA.close();
+  await phone.close();
+});

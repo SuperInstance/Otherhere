@@ -42,16 +42,16 @@ import {
   skyStep,
   sunDirection,
   sunPosition,
-  timeLine,
 } from './sky';
 import { Forest } from './forest';
 import { World } from './world';
 import { windStrength } from './wind';
-import { Terrain, TERRAIN_ATTRIBUTION, type TerrainMode } from './terrain';
+import { Terrain, type TerrainMode } from './terrain';
 import { SessionClient } from './net';
 import { describeEvent, MatchView, TEAM_NAMES } from './match';
 import { describeFacts, photoToJpegBase64, questLine, questsDone } from './feature';
 import { learnFromWalk } from './capture';
+import { composeStatus, StatusLine } from './status';
 import { WalkControls } from './walk';
 import { PAPER } from './material';
 import {
@@ -68,7 +68,11 @@ const SKY = '#e7e2d8';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const canvas = $<HTMLCanvasElement>('view');
-const statusEl = $('status');
+const statusLine = new StatusLine($('status-moment'), $('status'), $('status-cells'), (text) => {
+  const span = document.createElement('span');
+  span.textContent = text;
+  return span;
+});
 const form = $<HTMLFormElement>('goto');
 const input = $<HTMLInputElement>('coords');
 const errorEl = $('coords-error');
@@ -129,11 +133,11 @@ $('locate').addEventListener('click', () => {
     errorEl.hidden = false;
     return;
   }
-  statusEl.textContent = 'Finding you…';
+  statusLine.boot('Finding you…');
   navigator.geolocation.getCurrentPosition(
     (p) => location.assign(`?at=${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`),
     () => {
-      statusEl.textContent = '';
+      statusLine.boot('');
       errorEl.textContent = 'Location was not shared. Type coordinates instead.';
       errorEl.hidden = false;
     },
@@ -283,7 +287,7 @@ const updateSky = (rawDt: number) => {
 };
 
 if (!originCell) {
-  statusEl.textContent = `${backend} · Enter coordinates to walk a place.`;
+  statusLine.boot(`${backend} · Enter coordinates to walk a place.`);
   renderer.setAnimationLoop(() => {
     updateSky(1 / 60);
     renderer.render(scene, camera);
@@ -370,44 +374,18 @@ if (!originCell) {
 
   const showStatus = () => {
     const s = world.stats();
-    const lines = [
-      timeLine(skyNow.hour, skyNow.cloud, skyFrozen, skyNow.wind),
-      `${backend} · ${s.ready} cell${s.ready === 1 ? '' : 's'}${s.loading ? ` (+${s.loading} loading)` : ''} · ${s.features.toLocaleString()} features`,
-      `${s.verified}/${s.ready} bundle hashes verified${s.mismatched ? ` · ${s.mismatched} MISMATCHED` : ''}`,
-    ];
-    if (terrain?.active)
-      lines.push(
-        `${terrain.mode === 'topo' ? 'Topographic' : 'Satellite'} (M to switch) · ${TERRAIN_ATTRIBUTION[terrain.mode]}`,
-      );
-    if (s.sketch) {
-      const are = s.sketch === 1 ? '1 cell is' : `${s.sketch} cells are`;
-      lines.push(`${are} still a sketch: waiting for OpenStreetMap, trying again shortly.`);
-    }
-    if (s.waking) {
-      // The wake-up moment, named: a player who looks away and back should find
-      // the HUD accounting for what they just felt.
-      lines.push(
-        s.waking === 1
-          ? 'Something here just sharpened: the new knowledge is settling in.'
-          : `${s.waking} cells just sharpened: new knowledge settling in.`,
-      );
-    }
-    if (s.errors)
-      lines.push(`${s.errors} cell${s.errors === 1 ? '' : 's'} failed to load. Reload to retry.`);
-    if (s.quests) {
-      const done = questsDone.get();
-      lines.push(
-        `${s.quests} quest${s.quests === 1 ? '' : 's'} nearby: photograph a building under an amber beacon${done ? ` · ${done} done` : ''}`,
-      );
-    }
-    if (capsule) {
-      lines.unshift(
-        `Postcard: ${capsule.title} · saved ${capsule.createdAt.slice(0, 10)} · built in your browser`,
-      );
-      if (!generatorsCurrent)
-        lines.push('Drawn with newer generators than it was saved with, so details may differ.');
-    }
-    statusEl.textContent = lines.join('\n');
+    statusLine.update(
+      composeStatus({
+        backend,
+        stats: s,
+        sky: skyNow,
+        skyFrozen,
+        terrain: terrain ?? null,
+        capsule,
+        generatorsCurrent,
+        questsDone: questsDone.get(),
+      }),
+    );
     (window as unknown as { __otherhere: unknown }).__otherhere = {
       stats: s,
       quests: world.questTargets(),
