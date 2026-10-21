@@ -23,13 +23,18 @@
           />
           <button type="submit">Walk here</button>
         </div>
-        <p class="hint" id="coords-error" role="alert" hidden></p>
         <div class="row secondary">
           <button type="button" id="locate">Use my location</button>
           <button type="button" id="demo">Show generator demo</button>
-          <button type="button" id="host" hidden>Start a match here</button>
         </div>
       </form>
+      <!-- An error and the invitation to play are never clipped by the compact
+           phone panel or gift mode: they live outside the #goto form those
+           modes hide (round 08, review item 2 of rounds 06-07). -->
+      <p class="hint" id="coords-error" role="alert" hidden></p>
+      <div class="row secondary" id="host-row">
+        <button type="button" id="host" hidden>Start a match here</button>
+      </div>
       <form id="postcard" hidden autocomplete="off" aria-label="Save a postcard">
         <details>
           <summary>Save a postcard</summary>

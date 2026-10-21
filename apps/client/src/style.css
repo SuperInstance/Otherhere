@@ -171,7 +171,8 @@ input:focus-visible {
   /* On a phone the panel would cover half the view: show the address box and
      the status tiers that must never hide (the moment, problems and notices;
      the routine counts wait behind More options). Context panels (a tapped
-     building, a match) still show — including the match's own buttons. */
+     building, a match) still show — including the match's own buttons, and the
+     host row, which lives outside #goto so this rule cannot reach it. */
   #hud-more {
     display: block;
     margin-top: 8px;
@@ -184,11 +185,17 @@ input:focus-visible {
     display: none;
   }
 }
+/* The host row holds one button whose own [hidden] decides everything; without
+   this, a hidden button would leave its row's margin behind. */
+#host-row:has(#host[hidden]) {
+  display: none;
+}
 /* A postcard link opens as a gift (playtest r5, lane C): the recipient's first
    view is the moment and its title, not the address box and the technical
    lines. The routine counts wait one tap away behind More options; the moment
    (title, clock, attribution) and the problems and notices stay, whole — a
-   licence line, a MISMATCHED line or an error is never clipped mid-line.
+   licence line, a MISMATCHED line or an error is never clipped mid-line, and
+   the error and host row live outside #goto so this rule cannot reach them.
    Expanding brings the full dashboard back, and saving a postcard back stays
    visible so the gift can be answered. */
 #hud.gift #hud-more {
