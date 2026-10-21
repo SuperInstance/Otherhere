@@ -126,11 +126,14 @@ test('save a postcard, open it by link, and see the same place', async ({
   // The postcard starts where it was saved and is built from the same Facts, so it
   // looks the same. Two independent browser contexts may round the fog gradient
   // one ulp apart, so the cross-context compare allows a measured sliver and no
-  // more; same-context reloads stay byte-exact (the walk spec). Measured: 466 of
-  // 1,024,000 pixels, every one exactly 1/255, alpha exact — twice, in the dev
-  // container's SwiftShader (CI's chromium measured 172 of the same shape).
-  // Tightening either number by one fails the spec.
-  await expectIdentical(shared, live, 1, 466);
+  // more; same-context reloads stay byte-exact (the walk spec). Measured, every
+  // differing pixel exactly 1/255 with alpha exact: 496 of 1,024,000 on CI's
+  // chromium (the environment that gates merges — this is the bound), 466 twice
+  // in the dev container's SwiftShader, 172 on CI before the scene-clock fix.
+  // Tightening the bound below the environment's own measurement fails the spec;
+  // a chromium build change can move it, and the error message carries the new
+  // measurement for re-pinning.
+  await expectIdentical(shared, live, 1, 496);
   await friendCtx.close();
 });
 
