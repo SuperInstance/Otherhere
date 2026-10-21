@@ -86,7 +86,12 @@
       </section>
       <p id="status-moment"></p>
       <p id="status" aria-live="polite"></p>
-      <p id="status-cells" aria-live="polite"></p>
+      <p id="status-cells"></p>
+      <!-- The one announcement a listener gets that the place stood up: visually
+           hidden, polite, and written once per quiet load (LoadAnnouncer). The
+           routine counts in #status-cells are not a live region — they change on
+           every cell landing (round 08, review of rounds 06-07, item 3). -->
+      <p id="announce" class="sr-only" aria-live="polite"></p>
       <button type="button" id="hud-more" aria-expanded="false" aria-controls="hud">
         More options
       </button>

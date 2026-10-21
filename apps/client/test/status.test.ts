@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest';
-import { composeStatus, StatusLine, type StatusInput, type StatusTiers } from '../src/status';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  composeStatus,
+  LoadAnnouncer,
+  StatusLine,
+  type StatusInput,
+  type StatusTiers,
+} from '../src/status';
 import type { WorldStats } from '../src/world';
 
 const stats: WorldStats = {
@@ -153,5 +159,61 @@ describe('StatusLine writes one span per line', () => {
     // And the same content again, via a fresh array: still silent.
     line.update({ ...tiers, live: ['2 cells failed to load. Reload to retry.'] });
     expect(live.writes).toHaveLength(2);
+  });
+});
+
+describe('LoadAnnouncer says Loaded once per quiet load (review of rounds 06-07, item 3)', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const makeAnnouncer = () => {
+    const said: string[] = [];
+    return { said, announcer: new LoadAnnouncer((t) => said.push(t), 1_500) };
+  };
+
+  it('says Loaded once after the world goes quiet, not on every tick', async () => {
+    const { said, announcer } = makeAnnouncer();
+    announcer.update(7, 0); // cells in flight
+    announcer.update(3, 4); // landings, still loading
+    announcer.update(0, 7); // quiet
+    await vi.advanceTimersByTimeAsync(100);
+    expect(said).toEqual([]); // not yet: a burst must read as one moment
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(said).toEqual(['Loaded']);
+    for (let i = 0; i < 10; i++) announcer.update(0, 7); // a quiet world stays quiet
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(said).toEqual(['Loaded']); // once, not per tick
+  });
+
+  it('cancels the pending announcement when a new burst starts first', async () => {
+    const { said, announcer } = makeAnnouncer();
+    announcer.update(2, 3);
+    announcer.update(0, 7);
+    await vi.advanceTimersByTimeAsync(1_000); // close to quiet, not there
+    announcer.update(1, 7); // a new cell starts loading
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(said).toEqual([]); // the first timer was cancelled, the load is in flight
+    announcer.update(0, 7);
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(said).toEqual(['Loaded']); // one announcement for the whole episode
+  });
+
+  it('never announces before anything loaded', async () => {
+    const { said, announcer } = makeAnnouncer();
+    announcer.update(0, 0); // pre-world ticks
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(said).toEqual([]);
+  });
+
+  it('speaks again for a new load episode, and only then', async () => {
+    const { said, announcer } = makeAnnouncer();
+    announcer.update(2, 3);
+    announcer.update(0, 7);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(said).toEqual(['Loaded']);
+    announcer.update(1, 7); // walking into new cells
+    announcer.update(0, 8);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(said).toEqual(['Loaded', 'Loaded']);
   });
 });

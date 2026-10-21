@@ -16,8 +16,12 @@ import type { WorldStats } from './world';
  *   #status-cells   the routine counts — backend, cells, features, hash checks.
  *                   Visible in full; in gift mode and the compact phone panel it
  *                   waits behind More options (a whole tier hides; a line is
- *                   never cut mid-line). aria-live="polite": a cell landing is
- *                   a meaningful change worth announcing.
+ *                   never cut mid-line). Not a live region: the counts change
+ *                   on every cell landing, so announcing them reads a running
+ *                   counter through every load and every walk. The one fact a
+ *                   listener needs — the place is loaded — is said once per
+ *                   quiet load through the visually hidden #announce region
+ *                   (LoadAnnouncer; review of rounds 06-07, item 3).
  *
  * The ticking clock lives in the moment tier, which is not a live region, and
  * every tier is written only when its lines change (see StatusLine) — so a
@@ -94,6 +98,42 @@ export function composeStatus(input: StatusInput): StatusTiers {
 export type LineSink = {
   replaceChildren(...nodes: unknown[]): void;
 };
+
+/**
+ * Says "Loaded" once per quiet load, into a short visually hidden live region.
+ * The routine counters are not a live region (they would read as a running
+ * counter), so this is the single announcement a listener gets that the place
+ * stood up. A burst of landings must read as one moment: the announcement
+ * waits for `quietMs` of no loading in flight, and a new burst cancels it.
+ */
+export class LoadAnnouncer {
+  private loading = false;
+  private timer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(
+    private readonly announce: (text: string) => void,
+    private readonly quietMs = 1_500,
+  ) {}
+
+  /** Called with the world's loading and ready counts on every status tick. */
+  update(loading: number, ready: number): void {
+    if (loading > 0) {
+      this.loading = true;
+      if (this.timer) {
+        clearTimeout(this.timer);
+        this.timer = null;
+      }
+      return;
+    }
+    // Nothing to say before the first load, and only one pending announcement.
+    if (!this.loading || ready === 0 || this.timer) return;
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      this.loading = false;
+      this.announce('Loaded');
+    }, this.quietMs);
+  }
+}
 
 const linesChanged = (a: string[], b: string[]) =>
   a.length !== b.length || a.some((line, i) => line !== b[i]);
