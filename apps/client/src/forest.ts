@@ -426,6 +426,8 @@ export class Forest {
   /** Fresh chunks still to plant inside the radius, by detail band (see `bandOf`). */
   private pending: [number, number, number] = [0, 0, 0];
   private trees = 0;
+  /** Whether `update` has run at least once (before that, settled() is unknown). */
+  private polled = false;
 
   constructor(
     scene: Scene,
@@ -483,6 +485,7 @@ export class Forest {
    * where the budget runs out.
    */
   update(x: number, z: number): void {
+    this.polled = true;
     if (!this.ground.active) return; // no terrain heights yet: plant nothing
 
     const dropDist = this.radius * 1.25;
@@ -542,6 +545,25 @@ export class Forest {
 
   stats(): { chunks: number; trees: number } {
     return { chunks: this.chunks.size, trees: this.trees };
+  }
+
+  /**
+   * True when the streaming pass has nothing left to do from here: every chunk
+   * in radius is planted and no partial chunk can still take trees (a spent
+   * budget leaves partials partial forever — that is its stable end state). A
+   * world with no ground yet never plants, so it counts as settled; the flag
+   * flips the moment ground arrives and planting begins. Before the first
+   * `update` the answer is unknown, so it says false.
+   */
+  settled(): boolean {
+    if (!this.polled) return false;
+    if (!this.ground.active) return true;
+    if (this.pending[0] + this.pending[1] + this.pending[2] > 0) return false;
+    // A capped forest is settled regardless of partials: with the budget spent
+    // they can never take another tree, so this is their stable end state.
+    if (this.trees >= this.maxTrees) return true;
+    for (const chunk of this.chunks.values()) if (chunk.partial) return false;
+    return true;
   }
 
   /**

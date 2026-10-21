@@ -103,4 +103,34 @@ describe('Forest', () => {
     for (let i = 0; i < 200; i++) forest.update(0, 0);
     expect(chunkTrees(forest, 4, 0)).toBeLessThan(full);
   });
+
+  it('reports settled only when the stream has nothing left to do', () => {
+    // Before any update the answer is unknown, so it says false.
+    const fresh = new Forest(new Scene(), hills, { radius: 400 });
+    expect(fresh.settled()).toBe(false);
+    // A world with no ground never plants: settled from the first update on.
+    const bare = new Forest(new Scene(), { active: false, heightAt: () => 100 }, { radius: 400 });
+    expect(bare.settled()).toBe(false);
+    bare.update(0, 0);
+    expect(bare.settled()).toBe(true);
+    expect(bare.stats().trees).toBe(0);
+    // On real ground the stream runs: unsettled while chunks are still pending,
+    // settled once every chunk in radius is planted and no partial can fill.
+    const forest = new Forest(new Scene(), hills, { radius: 400 });
+    forest.update(0, 0);
+    expect(forest.settled()).toBe(false);
+    for (let i = 0; i < 40; i++) forest.update(0, 0);
+    expect(forest.settled()).toBe(true);
+    // A spent budget leaves partial chunks partial forever — that is settled too.
+    const tight = new Forest(new Scene(), hills, { radius: 400, maxTrees: 500 });
+    for (let i = 0; i < 40; i++) tight.update(0, 0);
+    expect(tight.settled()).toBe(true);
+    expect(tight.stats().trees).toBeLessThanOrEqual(500);
+    // New ground arriving under a planted forest means work to do again.
+    forest.invalidate(-100, -100, 100, 100);
+    forest.update(0, 0);
+    expect(forest.settled()).toBe(false);
+    for (let i = 0; i < 40; i++) forest.update(0, 0);
+    expect(forest.settled()).toBe(true);
+  });
 });
