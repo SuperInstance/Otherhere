@@ -5,6 +5,7 @@ import {
   computeEssence,
   forestBiome,
   PLACE_BATTERY,
+  PLACE_BATTERY_SHA,
   placeCensus,
   placeState,
   sha256Hex,
@@ -501,10 +502,12 @@ export class TownDO extends DurableObject<Env> {
       const { essence, census } = this.placeSnapshot();
       const state = placeState(essence, census);
       const stateSha = await sha256Hex(state);
+      const batterySha = await PLACE_BATTERY_SHA;
       const stored = this.placeVector();
       if (
         stored &&
         stored.battery === PLACE_BATTERY &&
+        stored.batterySha === batterySha &&
         stored.model === JEV_MODEL &&
         stored.stateSha === stateSha
       ) {
@@ -513,6 +516,7 @@ export class TownDO extends DurableObject<Env> {
       const r = await askPlaceVectorState(jev, state);
       const fresh: StoredPlaceVector = {
         battery: PLACE_BATTERY,
+        batterySha,
         model: JEV_MODEL,
         served: r.model_served,
         stateSha: r.stateSha,
