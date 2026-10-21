@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { Scene } from 'three/webgpu';
+import { describe, expect, it, vi } from 'vitest';
+import { BufferGeometry, Mesh, Scene } from 'three/webgpu';
 import { DEMO_CELL, demoLot } from '@otherhere/core';
 import { standFeatures, World } from '../src/world';
 import { WAKE_MS } from '../src/material';
@@ -146,6 +146,73 @@ describe('World.reload', () => {
     expect(after[0]).not.toBe(before); // …and it is the new one
     expect(demoGroups()).not.toContain(before); // the stale one is retired
     expect(world.stats()).toMatchObject({ ready: 1, loading: 0, verified: 1 });
+  }, 30_000);
+
+  it('a reload while loading keeps exactly one group, and disposes the superseded loads (review P0 #3)', async () => {
+    const scene = new Scene();
+    // A capsule source we can reload freely: the stand-in for a sketch Cell's
+    // retry firing while a previous retry is still in flight.
+    const capsule = new Map([[DEMO_CELL, { features: demoLot(DEMO_CELL) }]]);
+    const world = new World(scene, DEMO_CELL, { capsule });
+    const settle = async () => {
+      for (let i = 0; i < 1000; i++) {
+        const s = world.stats();
+        if (s.ready === 1 && s.loading === 0) return s;
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      throw new Error('capsule cell never settled');
+    };
+    const disposed = vi.spyOn(BufferGeometry.prototype, 'dispose');
+
+    world.update(0, 0); // load A starts, suspended at its first await
+    world.reload(DEMO_CELL); // load B supersedes A while it flies
+    world.reload(DEMO_CELL); // and C supersedes B: three loads, one Cell
+    await settle();
+
+    // Exactly one Bundle on screen for the Cell…
+    const groups = world.root.children.filter((o) => o.name === DEMO_CELL);
+    expect(groups).toHaveLength(1);
+    // …and one beacon set, not one per aborted load.
+    expect(world.beaconRoot.children).toHaveLength(1);
+    expect(world.stats()).toMatchObject({ ready: 1, loading: 0, verified: 1, errors: 0 });
+    // The superseded loads' geometry went back where it came from: disposals
+    // happened, and none of them was the surviving Bundle's geometry.
+    const kept = new Set(groups[0]!.children.map((m) => (m as Mesh).geometry));
+    expect(disposed.mock.contexts.length).toBeGreaterThan(0);
+    for (const g of disposed.mock.contexts as BufferGeometry[]) expect(kept.has(g)).toBe(false);
+    disposed.mockRestore();
+  }, 30_000);
+
+  it('carries the on-screen Bundle through a reload chain, and retires it when the last one lands', async () => {
+    const scene = new Scene();
+    const capsule = new Map([[DEMO_CELL, { features: demoLot(DEMO_CELL) }]]);
+    const world = new World(scene, DEMO_CELL, { capsule });
+    const settle = async () => {
+      for (let i = 0; i < 1000; i++) {
+        const s = world.stats();
+        if (s.ready === 1 && s.loading === 0) return s;
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      throw new Error('capsule cell never settled');
+    };
+    world.update(0, 0);
+    await settle();
+    const demoGroups = () => world.root.children.filter((o) => o.name === DEMO_CELL);
+    const first = demoGroups()[0]!;
+    const retired = vi.spyOn((first.children[0] as Mesh).geometry, 'dispose');
+
+    // Reload on top of a reload: the second fires while the first is still
+    // loading. The Bundle on screen must ride the whole chain and leave only
+    // when the final load stands in — not be dropped, leaked, mid-chain.
+    world.reload(DEMO_CELL);
+    world.reload(DEMO_CELL);
+    await settle();
+
+    expect(demoGroups()).toHaveLength(1);
+    expect(demoGroups()[0]).not.toBe(first); // the new one stands in…
+    expect(retired).toHaveBeenCalled(); // …and the old one was properly retired
+    expect(world.stats()).toMatchObject({ ready: 1, loading: 0, verified: 1 });
+    retired.mockRestore();
   }, 30_000);
 });
 
