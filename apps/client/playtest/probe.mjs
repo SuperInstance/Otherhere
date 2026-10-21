@@ -124,6 +124,7 @@ const browser = await chromium.launch({
 
 /** A fresh context wired with the probe's recorders; sets the shared `page`. */
 let viewSize = { width: 1280, height: 800 }; // the current context's CSS viewport
+let viewSpec = '1280x800'; // the size actually played (meta evidence names it)
 const newPage = async () => {
   // --phone without an explicit --viewport plays a small touch profile; the
   // default stays the desktop size every earlier round was judged at.
@@ -131,6 +132,7 @@ const newPage = async () => {
   const [w, h] = spec.split('x').map((n) => parseInt(n, 10));
   const size = { width: w || 1280, height: h || 800 };
   viewSize = size;
+  viewSpec = `${size.width}x${size.height}`;
   const ctx = await browser.newContext(
     PHONE
       ? { viewport: size, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }
@@ -745,7 +747,7 @@ try {
     scene: sceneList.length === 1 ? sceneList[0] : sceneList,
     t: PINNED_T || null,
     hash: HASH || null,
-    viewport: { size: VIEWPORT, phone: PHONE },
+    viewport: { size: viewSpec, phone: PHONE },
     log,
   });
   flush = () => writeFileSync(`${OUT}${TAG}-session.json`, JSON.stringify(meta(), null, 2));
