@@ -41,6 +41,8 @@ const TAG = arg('tag', 'probe');
 const SCENE = arg('scene', 'walk');
 const PINNED_T = arg('t', ''); // pinned day-clock hour for the URL (?t=)
 const HASH = arg('hash', ''); // saved pose for the URL (#x,y,z,yaw,pitch)
+const VIEWPORT = arg('viewport', ''); // "<W>x<H>"; --phone defaults it to 390x844
+const PHONE = process.argv.includes('--phone');
 const SEED = process.argv.includes('--seed');
 const OUT =
   process.env.PLAYTEST_OUT ??
@@ -121,8 +123,19 @@ const browser = await chromium.launch({
 });
 
 /** A fresh context wired with the probe's recorders; sets the shared `page`. */
+let viewSize = { width: 1280, height: 800 }; // the current context's CSS viewport
 const newPage = async () => {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  // --phone without an explicit --viewport plays a small touch profile; the
+  // default stays the desktop size every earlier round was judged at.
+  const spec = (VIEWPORT || (PHONE ? '390x844' : '1280x800')).toLowerCase();
+  const [w, h] = spec.split('x').map((n) => parseInt(n, 10));
+  const size = { width: w || 1280, height: h || 800 };
+  viewSize = size;
+  const ctx = await browser.newContext(
+    PHONE
+      ? { viewport: size, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }
+      : { viewport: size },
+  );
   const p = await ctx.newPage();
   page = p;
   attach(p);
@@ -394,7 +407,12 @@ async function sceneWalk() {
   await shot('02-settled');
 
   const canvas = page.locator('canvas');
-  await canvas.click({ position: { x: 640, y: 400 } }); // focus
+  // The look-around deltas below are sized for the desktop stage; on a phone
+  // viewport they are scaled down to stay inside the canvas.
+  const cx = Math.floor(viewSize.width / 2);
+  const cy = Math.floor(viewSize.height / 2);
+  const yaw = Math.floor(Math.min(viewSize.width, viewSize.height) * 0.2);
+  await canvas.click({ position: { x: cx, y: cy } }); // focus
   for (let i = 0; i < 4; i++) {
     await page.keyboard.down(i % 2 ? 'ShiftLeft' : 'KeyW');
     await page.keyboard.down('KeyW');
@@ -402,9 +420,9 @@ async function sceneWalk() {
     await shot(`03-walk-${i + 1}`);
     await page.keyboard.up('KeyW');
     await page.keyboard.up('ShiftLeft');
-    await page.mouse.move(640, 400);
+    await page.mouse.move(cx, cy);
     await page.mouse.down();
-    await page.mouse.move(640 + (i % 2 ? 260 : -260), 400 - i * 60, { steps: 8 });
+    await page.mouse.move(cx + (i % 2 ? yaw : -yaw), cy - Math.floor((yaw * i) / 4), { steps: 8 });
     await page.mouse.up();
     await page.waitForTimeout(400);
   }
@@ -727,6 +745,7 @@ try {
     scene: sceneList.length === 1 ? sceneList[0] : sceneList,
     t: PINNED_T || null,
     hash: HASH || null,
+    viewport: { size: VIEWPORT, phone: PHONE },
     log,
   });
   flush = () => writeFileSync(`${OUT}${TAG}-session.json`, JSON.stringify(meta(), null, 2));
