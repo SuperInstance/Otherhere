@@ -108,13 +108,17 @@ export type Ground = {
 export class World {
   readonly frame: LocalFrame;
   private cells = new Map<string, CellState>();
-  private queue: string[] = [];
+  /** Pending loads, each tagged with the state it was queued for: a reload
+   * replaces the state, and a load that returns for a replaced state must not
+   * write into (or orphan geometry into) the new one. */
+  private queue: { cell: string; state: CellState }[] = [];
   private active = 0;
   private loader = new GLTFLoader();
   private material = confidenceMaterial();
   readonly root = new Group();
-  /** Quest beacons: kept apart from `root` so taps and walk capture never pick them. */
-  private beaconRoot = new Group();
+  /** Quest beacons: kept apart from `root` so taps and walk capture never pick
+   * them; public like `root` so tests can count what leaked. */
+  readonly beaconRoot = new Group();
   private beaconMaterial = (() => {
     const m = new MeshBasicNodeMaterial({ transparent: true, opacity: 0.6, depthWrite: false });
     m.color.set(0xffa21a);
@@ -243,6 +247,9 @@ export class World {
       this.beaconRoot.remove(stale.beacons);
       stale.beacons.traverse((o) => (o as Mesh).geometry?.dispose());
     }
+    // The stale clearings just left the screen; without this the forest keeps
+    // suppressing growth where the old buildings stood (review P0 #3).
+    this.indexClearings();
   }
 
   private drop(s: CellState) {
@@ -268,20 +275,22 @@ export class World {
 
   private want(cell: string) {
     if (this.cells.has(cell)) return;
-    this.cells.set(cell, { state: 'loading' });
-    this.queue.push(cell);
+    const state: CellState = { state: 'loading' };
+    this.cells.set(cell, state);
+    this.queue.push({ cell, state });
     this.pump();
   }
 
   private pump() {
     while (this.active < MAX_PARALLEL && this.queue.length) {
-      const cell = this.queue.shift()!;
+      const job = this.queue.shift()!;
       this.active++;
-      this.load(cell)
+      this.load(job.cell, job.state)
         .catch((err) => {
-          console.error(`cell ${cell}`, err);
-          const s = this.cells.get(cell);
-          if (s) s.state = 'error';
+          console.error(`cell ${job.cell}`, err);
+          // Mark only the state this load was queued for, and only if it is
+          // still current: a superseded load must not error the newer one.
+          if (this.cells.get(job.cell) === job.state) job.state.state = 'error';
         })
         .finally(() => {
           this.active--;
@@ -291,7 +300,7 @@ export class World {
     }
   }
 
-  private async load(cell: string) {
+  private async load(cell: string, mine: CellState) {
     let manifest: BundleManifest;
     let bytes: Uint8Array;
     let ingest: 'ok' | 'failed' | 'loading' = 'ok';
@@ -337,9 +346,10 @@ export class World {
     // THE WAKE-UP MOMENT: a genuinely replaced Bundle (new bytes, not a no-op
     // retry) breathes in from paper. The stale manifest tells real change from
     // a same-hash reload; a first-ever load does not wake (the arrival glide
-    // already covers first impressions).
-    const state0 = this.cells.get(cell);
-    const waking = !!state0?.stale && state0.stale.manifest?.inputsHash !== manifest.inputsHash;
+    // already covers first impressions). `mine` is the state this load was
+    // queued for, so a reload in flight cannot decide the waking of the newer
+    // state's Bundle.
+    const waking = !!mine.stale && mine.stale.manifest?.inputsHash !== manifest.inputsHash;
     const wakeU = waking ? wakeUniform() : undefined;
     const mat = wakeU ? confidenceMaterial(wakeU) : this.material;
     const wakeMeshes: Mesh[] = [];
@@ -372,11 +382,15 @@ export class World {
       p.z -= c.n;
     }
 
-    const state = this.cells.get(cell);
-    if (!state) {
-      if (mat !== this.material) mat.dispose(); // evicted while loading; the wake never flew
+    if (this.cells.get(cell) !== mine) {
+      // Superseded (a reload replaced the state) or evicted while loading:
+      // this Bundle never reaches the screen, so its memory goes back now —
+      // the superseding load owns the Cell.
+      if (mat !== this.material) mat.dispose(); // the wake never flew
+      group.traverse((o) => (o as Mesh).geometry?.dispose());
       return;
     }
+    const state = mine;
     const ranges = featureRanges;
     const beacons = this.beaconsFor(group, ranges, quests);
     beacons.position.copy(group.position);
@@ -593,18 +607,28 @@ export class World {
     const s = this.cells.get(cell);
     this.cells.delete(cell);
     this.want(cell);
-    if (!s?.group) return;
-    // Keep what is on screen while the reload flies: the old Bundle stays
-    // visible until the new one lands, so a sketch Cell's retry (or a capture
-    // sharpening a building) never pops the neighbourhood to empty ground.
     const next = this.cells.get(cell);
-    if (next)
+    if (!next) return;
+    if (s?.group) {
+      // Keep what is on screen while the reload flies: the old Bundle stays
+      // visible until the new one lands, so a sketch Cell's retry (or a capture
+      // sharpening a building) never pops the neighbourhood to empty ground.
       next.stale = {
         group: s.group,
         beacons: s.beacons,
         clearings: s.clearings ?? [],
         manifest: s.manifest,
       };
+      // An interrupted wake keeps breathing on the stale group: without this
+      // its meshes keep the waking material forever, never handed back.
+      if (s.wake) next.wake = s.wake;
+    } else if (s?.stale) {
+      // A reload on top of a still-loading reload: the older Bundle is holding
+      // the screen through that chain. Hand it to the new state, or it is
+      // dropped without being retired or disposed — leaked into the scene
+      // (review P0 #3).
+      next.stale = s.stale;
+    }
   }
 
   /** A good place to stand: the road vertex nearest the given point, if any is loaded. */
