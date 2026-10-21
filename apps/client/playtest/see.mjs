@@ -67,8 +67,7 @@ if (SHOT) {
   if (PINNED_T) parts.push(`t=${encodeURIComponent(PINNED_T)}`);
   if (SEED) parts.push('seed=1');
   await page.goto(`${BASE}/${parts.length ? `?${parts.join('&')}` : ''}`);
-  const stats = () =>
-    page.evaluate(() => window.__otherhere?.stats ?? { ready: 0, loading: 1 });
+  const stats = () => page.evaluate(() => window.__otherhere?.stats ?? { ready: 0, loading: 1 });
   const t0 = Date.now();
   for (;;) {
     const s = await stats();
@@ -168,6 +167,12 @@ if (!res.ok) {
   console.error(`jev HTTP ${res.status}: ${JSON.stringify(j).slice(0, 300)}`);
   process.exit(1);
 }
-const out = { tag: TAG, model: j.model, usage: j.usage, answers: j.answers, at: new Date().toISOString() };
+const out = {
+  tag: TAG,
+  model: j.model,
+  usage: j.usage,
+  answers: j.answers,
+  at: new Date().toISOString(),
+};
 writeFileSync(`${OUT}/${TAG}-see.json`, JSON.stringify(out, null, 2));
 console.log(JSON.stringify(out, null, 2));
