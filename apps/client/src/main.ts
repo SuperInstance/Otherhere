@@ -51,7 +51,7 @@ import { SessionClient } from './net';
 import { describeEvent, MatchView, TEAM_NAMES } from './match';
 import { describeFacts, photoToJpegBase64, questLine, questsDone } from './feature';
 import { learnFromWalk } from './capture';
-import { composeStatus, StatusLine } from './status';
+import { composeStatus, LoadAnnouncer, StatusLine } from './status';
 import { WalkControls } from './walk';
 import { PAPER } from './material';
 import {
@@ -72,6 +72,13 @@ const statusLine = new StatusLine($('status-moment'), $('status'), $('status-cel
   const span = document.createElement('span');
   span.textContent = text;
   return span;
+});
+const announceEl = $('announce');
+const announcer = new LoadAnnouncer((text) => {
+  // Clear first, then say it on a later tick: a live region that repeats the
+  // same words needs a real change between episodes for readers to re-say it.
+  announceEl.replaceChildren();
+  setTimeout(() => (announceEl.textContent = text), 60);
 });
 const form = $<HTMLFormElement>('goto');
 const input = $<HTMLInputElement>('coords');
@@ -374,6 +381,7 @@ if (!originCell) {
 
   const showStatus = () => {
     const s = world.stats();
+    announcer.update(s.loading, s.ready);
     statusLine.update(
       composeStatus({
         backend,

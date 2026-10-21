@@ -121,6 +121,18 @@ input:focus-visible {
 #status-cells:empty {
   display: none;
 }
+/* Visually hidden, still read: the one-line announcements (LoadAnnouncer). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
 #help {
   position: fixed;
   bottom: max(12px, env(safe-area-inset-bottom));
