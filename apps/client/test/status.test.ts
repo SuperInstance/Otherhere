@@ -113,11 +113,45 @@ describe('StatusLine writes one span per line', () => {
     const cells = makeSink();
     const line = new StatusLine(moment.sink, live.sink, cells.sink, (t) => ({ textContent: t }));
     line.boot('Finding you…');
-    expect(moment.writes).toEqual([[]]);
+    // The empty tiers were empty already: writing nothing is the point.
+    expect(moment.writes).toEqual([]);
+    expect(cells.writes).toEqual([]);
     expect(live.writes).toEqual([[{ textContent: 'Finding you…' }]]);
-    expect(cells.writes).toEqual([[]]);
     line.boot('');
     expect(live.writes).toHaveLength(2);
     expect(live.writes[1]).toEqual([]);
+  });
+
+  it('writes a tier only when its lines change (a live region announces every rewrite)', () => {
+    const moment = makeSink();
+    const live = makeSink();
+    const cells = makeSink();
+    const line = new StatusLine(moment.sink, live.sink, cells.sink, (t) => ({ textContent: t }));
+    const tiers: StatusTiers = {
+      moment: ['9:30 · overcast'],
+      live: ['1 cell failed to load. Reload to retry.'],
+      cells: ['WebGPU · 7 cells · 1,525 features'],
+    };
+    line.update(tiers);
+    expect(moment.writes).toHaveLength(1);
+    expect(live.writes).toHaveLength(1);
+    expect(cells.writes).toHaveLength(1);
+
+    // The 500 ms tick recomposes the same world: no tier may be touched.
+    line.update({ moment: [...tiers.moment], live: [...tiers.live], cells: [...tiers.cells] });
+    expect(moment.writes).toHaveLength(1);
+    expect(live.writes).toHaveLength(1);
+    expect(cells.writes).toHaveLength(1);
+
+    // A real change lands in one tier: only that tier is written.
+    line.update({ ...tiers, live: ['2 cells failed to load. Reload to retry.'] });
+    expect(moment.writes).toHaveLength(1);
+    expect(live.writes).toHaveLength(2);
+    expect(cells.writes).toHaveLength(1);
+    expect(live.writes[1]).toEqual([{ textContent: '2 cells failed to load. Reload to retry.' }]);
+
+    // And the same content again, via a fresh array: still silent.
+    line.update({ ...tiers, live: ['2 cells failed to load. Reload to retry.'] });
+    expect(live.writes).toHaveLength(2);
   });
 });

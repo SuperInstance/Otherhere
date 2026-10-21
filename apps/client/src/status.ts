@@ -16,7 +16,12 @@ import type { WorldStats } from './world';
  *   #status-cells   the routine counts — backend, cells, features, hash checks.
  *                   Visible in full; in gift mode and the compact phone panel it
  *                   waits behind More options (a whole tier hides; a line is
- *                   never cut mid-line).
+ *                   never cut mid-line). aria-live="polite": a cell landing is
+ *                   a meaningful change worth announcing.
+ *
+ * The ticking clock lives in the moment tier, which is not a live region, and
+ * every tier is written only when its lines change (see StatusLine) — so a
+ * screen reader hears the place load, then quiet (review P0 #4).
  */
 
 export type StatusTiers = { moment: string[]; live: string[]; cells: string[] };
@@ -90,12 +95,22 @@ export type LineSink = {
   replaceChildren(...nodes: unknown[]): void;
 };
 
+const linesChanged = (a: string[], b: string[]) =>
+  a.length !== b.length || a.some((line, i) => line !== b[i]);
+
 /**
  * Writes the tiers, one `<span>` per line, so a line is a thing tests and
  * accessibility tools can see whole: `toBeVisible()` on a clipped line fails,
  * while `toContainText` cannot tell clipped from shown.
+ *
+ * A tier is written only when its lines actually change: a live region
+ * announces on every DOM mutation, even a rewrite with identical text, so the
+ * 500 ms status tick must never touch an unchanged tier — a screen reader
+ * would re-announce it twice a second (review P0 #4).
  */
 export class StatusLine {
+  private written: StatusTiers = { moment: [], live: [], cells: [] };
+
   constructor(
     private readonly moment: LineSink,
     private readonly live: LineSink,
@@ -109,8 +124,17 @@ export class StatusLine {
   }
 
   update(tiers: StatusTiers): void {
-    this.moment.replaceChildren(...tiers.moment.map((t) => this.span(t)));
-    this.live.replaceChildren(...tiers.live.map((t) => this.span(t)));
-    this.cells.replaceChildren(...tiers.cells.map((t) => this.span(t)));
+    if (linesChanged(this.written.moment, tiers.moment)) {
+      this.written.moment = [...tiers.moment];
+      this.moment.replaceChildren(...tiers.moment.map((t) => this.span(t)));
+    }
+    if (linesChanged(this.written.live, tiers.live)) {
+      this.written.live = [...tiers.live];
+      this.live.replaceChildren(...tiers.live.map((t) => this.span(t)));
+    }
+    if (linesChanged(this.written.cells, tiers.cells)) {
+      this.written.cells = [...tiers.cells];
+      this.cells.replaceChildren(...tiers.cells.map((t) => this.span(t)));
+    }
   }
 }
