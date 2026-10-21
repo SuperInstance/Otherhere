@@ -23,6 +23,22 @@
 const TAU = Math.PI * 2;
 
 /**
+ * The wind's common period, seconds (3 h 6 m 40 s). Every rate below — both
+ * gust waves' phase speeds, the flutter, the shiver, the wobble — is an exact
+ * whole number of cycles per this period, and the strength's breath noise
+ * repeats on it too (its 16 s lattice divides it), so the whole wind field is
+ * exactly periodic: the shader's clock can wrap modulo it with no seam (#50).
+ * Float32 `sin(t*rate)` loses phase precision once `t` reaches hours in an
+ * open tab; the wrap keeps the argument small forever. The rates moved by at
+ * most 0.1% to land on whole cycles — sub-perceptual — and the full field
+ * repeats after three hours, which nobody stands still long enough to watch.
+ */
+export const WIND_PERIOD = 11200;
+
+/** A rate of k whole cycles per the common period. */
+const cycles = (k: number) => (TAU * k) / WIND_PERIOD;
+
+/**
  * The prevailing wind, as the direction gusts travel *toward* — from the
  * south-east, the quarter Sitka's weather arrives from. Unit vector in the walk
  * frame (x east, z south), fixed so every frame of every device agrees.
@@ -30,16 +46,16 @@ const TAU = Math.PI * 2;
 export const WIND_TOWARD: readonly [number, number] = [-Math.SQRT1_2, -Math.SQRT1_2];
 
 /** The long swell of the gust field: metres between crests, metres per second downwind. */
-export const GUST_LONG = { lambda: 130, speed: 9 } as const;
+export const GUST_LONG = { lambda: 130, speed: (775 * 130) / WIND_PERIOD } as const;
 /** A shorter, slower component so the field never reads as one clean sine. */
-export const GUST_SHORT = { lambda: 55, speed: 6 } as const;
-/** How fast a crown swings about its lean (rad/s ≈ 0.64 Hz — a real conifer's period). */
-export const FLUTTER_RATE = 4.0;
+export const GUST_SHORT = { lambda: 55, speed: (1222 * 55) / WIND_PERIOD } as const;
+/** How fast a crown swings about its lean (rad/s; a real conifer's period). */
+export const FLUTTER_RATE = cycles(7130);
 /** A faster, smaller crosswise shiver, so crowns do not swing like pendulums. */
-export const SHIVER_RATE = 6.3;
+export const SHIVER_RATE = cycles(11230);
 /** The lean direction wanders this many radians, this fast (rad/s): gusts never march dead straight. */
 export const WOBBLE_RAD = 0.25;
-export const WOBBLE_RATE = 0.19;
+export const WOBBLE_RATE = cycles(339);
 /** Crown-tip travel at full wind on the whippiest tip, metres. */
 export const SWAY_MAX_M = 1.1;
 
@@ -54,13 +70,16 @@ function hash1(i: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-/** Smooth 1-D value noise: one slow gust cycle every ~16 s of elapsed time. */
+/** Smooth 1-D value noise: one slow gust cycle every ~16 s of elapsed time.
+ * The lattice repeats after WIND_PERIOD/16 cells (700), so the whole strength
+ * is periodic on the wind's common period — the wrap is seamless end to end. */
 function breathNoise(t: number): number {
   const x = t / 16;
   const i = Math.floor(x);
   const f = x - i;
   const s = f * f * (3 - 2 * f);
-  const at = (k: number) => hash1(k * 0x45d9f3b);
+  const cell = (k: number) => ((k % (WIND_PERIOD / 16)) + WIND_PERIOD / 16) % (WIND_PERIOD / 16);
+  const at = (k: number) => hash1(cell(k) * 0x45d9f3b);
   return at(i) * (1 - s) + at(i + 1) * s;
 }
 

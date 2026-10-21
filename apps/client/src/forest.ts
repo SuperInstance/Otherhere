@@ -30,6 +30,7 @@ import {
   GUST_SHORT,
   SHIVER_RATE,
   SWAY_MAX_M,
+  WIND_PERIOD,
   WIND_TOWARD,
   windStrength,
   WOBBLE_RAD,
@@ -576,8 +577,19 @@ export class Forest {
    * deterministic as the sky.
    */
   setWind(elapsed: number, cloud: number, floor = 0): void {
-    windTimeU.value = elapsed;
-    windStrengthU.value = windStrength(elapsed, cloud, floor);
+    // The wind's whole field is exactly periodic on WIND_PERIOD (every rate is
+    // whole cycles per it, and the strength's breath lattice repeats on it), so
+    // the wrap changes nothing the crowns do — and the float32 sine arguments
+    // stay small in a tab left open for days (#50). Positive modulo: the clock
+    // the shader sees is always in [0, WIND_PERIOD), whatever it is fed.
+    const t = ((elapsed % WIND_PERIOD) + WIND_PERIOD) % WIND_PERIOD;
+    windTimeU.value = t;
+    windStrengthU.value = windStrength(t, cloud, floor);
+  }
+
+  /** The wind as the shader currently sees it (the wrapped clock and the strength). */
+  wind(): { time: number; strength: number } {
+    return { time: windTimeU.value, strength: windStrengthU.value };
   }
 
   dispose(): void {
