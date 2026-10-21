@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Scene } from 'three/webgpu';
 import {
   describeWind,
   gustAt,
@@ -8,7 +9,14 @@ import {
   SWAY_MAX_M,
   GUST_LONG,
   GUST_SHORT,
+  WIND_PERIOD,
+  FLUTTER_RATE,
+  SHIVER_RATE,
+  WOBBLE_RATE,
 } from '../src/wind';
+import { Forest } from '../src/forest';
+
+const TAU = Math.PI * 2;
 import { FOREST_BIOMES } from '@otherhere/core';
 
 /** Downwind metres `d` as a ground position along the wind axis. */
@@ -164,5 +172,56 @@ describe('windStrength biome floor (the rainforest breathes under grey sky)', ()
   it('biomes carry the decision (census-informed: only the rainforest floor is set)', () => {
     expect(FOREST_BIOMES.temperate.windFloor).toBe(0);
     expect(FOREST_BIOMES['pacific-rainforest'].windFloor).toBe(0.12);
+  });
+});
+
+describe('the wind clock wraps (#50)', () => {
+  it('the period is a whole number of breath-lattice cells', () => {
+    // The strength's 16 s lattice must divide the period exactly, or the wrap
+    // would land mid-cell and the breath would jump at the seam.
+    expect(Number.isInteger(WIND_PERIOD / 16)).toBe(true);
+  });
+
+  it('every GPU-side rate is whole cycles per the common period', () => {
+    // The wrap is invisible only if every rate the shader differentiates by is
+    // an exact integer number of cycles per WIND_PERIOD; the gust waves count
+    // cycles through speed/lambda. Whole values within float rounding.
+    const rates: [string, number][] = [
+      ['flutter', FLUTTER_RATE],
+      ['shiver', SHIVER_RATE],
+      ['wobble', WOBBLE_RATE],
+      ['gust-long', (TAU * GUST_LONG.speed) / GUST_LONG.lambda],
+      ['gust-short', (TAU * GUST_SHORT.speed) / GUST_SHORT.lambda],
+    ];
+    for (const [name, rate] of rates) {
+      const cyclesPerPeriod = (rate * WIND_PERIOD) / Math.PI / 2;
+      expect(cyclesPerPeriod, name).toBeCloseTo(Math.round(cyclesPerPeriod), 9);
+    }
+  });
+
+  it('the motion spec is periodic: a wrapped clock moves the crowns identically', () => {
+    // swayOffset is the spec of the wind's motion; the shader's wrapped clock
+    // must agree with raw time. Sample across one full period.
+    for (const t of [0, 0.7, 63.25, 400, 1234.5, 1599.9]) {
+      const a = swayOffset(t, 0.2, 310, -420, 0.8);
+      const b = swayOffset(t + WIND_PERIOD, 0.2, 310, -420, 0.8);
+      expect(b[0]).toBeCloseTo(a[0], 9);
+      expect(b[1]).toBeCloseTo(a[1], 9);
+      const g = gustAt(t, 310, -420);
+      expect(gustAt(t + WIND_PERIOD, 310, -420)).toBeCloseTo(g, 9);
+    }
+  });
+
+  it('the forest wraps the whole wind onto the period (the strength included)', () => {
+    const forest = new Forest(new Scene(), { active: false, heightAt: () => 100 }, { radius: 400 });
+    // Six hours in, the clock the shader sees is bounded by the period…
+    forest.setWind(6 * 3600 + 7, 0.2, 0.12);
+    const wrapped = (((6 * 3600 + 7) % WIND_PERIOD) + WIND_PERIOD) % WIND_PERIOD;
+    expect(forest.wind().time).toBeCloseTo(wrapped, 9);
+    expect(forest.wind().time).toBeLessThanOrEqual(WIND_PERIOD);
+    // …and a full period later the crowns see exactly the same wind, whole field.
+    forest.setWind(6 * 3600 + 7 + WIND_PERIOD, 0.2, 0.12);
+    expect(forest.wind().time).toBeCloseTo(wrapped, 9);
+    expect(forest.wind().strength).toBeCloseTo(windStrength(wrapped, 0.2, 0.12), 12);
   });
 });
