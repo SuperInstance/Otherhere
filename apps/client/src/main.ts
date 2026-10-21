@@ -617,7 +617,6 @@ if (!originCell) {
             walkResult.textContent = `Frame ${p.done} of ${p.total} · ${p.sharpened} building${p.sharpened === 1 ? '' : 's'} sharpened`;
           },
         });
-        for (const cell of sharpened) world.reload(cell);
         const notes = [];
         if (result.unreadable)
           notes.push(
@@ -628,10 +627,16 @@ if (!originCell) {
             `${result.noBuilding} frame${result.noBuilding === 1 ? '' : 's'} faced no building`,
           );
         if (result.outsideTrack) notes.push(`${result.outsideTrack} fell outside the GPS track`);
+        if (result.failed)
+          notes.push(
+            `${result.failed} building${result.failed === 1 ? '' : 's'} could not be observed`,
+          );
         walkResult.textContent = `Done: ${result.sharpened} building${result.sharpened === 1 ? '' : 's'} sharpened from ${result.total} frames${notes.length ? ` (${notes.join(', ')})` : ''}.`;
       } catch (err) {
         walkResult.textContent = `Could not use this walk: ${(err as Error).message}`;
       } finally {
+        // What the walk sharpened must appear, even when the import stopped midway.
+        for (const cell of sharpened) world.reload(cell);
         btn.disabled = false;
       }
     });
