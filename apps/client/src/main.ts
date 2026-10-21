@@ -259,6 +259,10 @@ const skyBiome = forestBiome(skyAt.lat, skyAt.lng);
 // fidelity), so its sky never turns either — whoever opens a postcard sees
 // the hour it was saved, pinned in the link. Everything else keeps living.
 const skyFrozen = parseTime(location.search) !== null || !!capsule;
+// The freeze is decided here, at boot, and never toggles: a pinned view is
+// frozen from its first frame, so the scene clock (and with it every wave and
+// drift) starts and stays at 0 — every opening of a pinned link shares the
+// same phase. If the freeze ever becomes dynamic, that guarantee is gone.
 let skyElapsed = 0;
 let skyFast = false;
 let skyNow = { hour: skyStart, elevation: 0, cloud: 0, wind: 0 };
@@ -272,6 +276,10 @@ addEventListener('keyup', (e) => {
 // so a slow renderer still sees the day turn at true speed.
 const updateSky = (rawDt: number) => {
   skyElapsed += skyStep(rawDt, skyFast, skyFrozen);
+  // Everything that moves with time rides the sky's clock — the ocean's waves,
+  // the cloud shadows, the mist banks, the star twinkle — so a pinned ?t= (or a
+  // postcard's hour) holds the whole scene still, not just the sky's colours.
+  atmosphere.setTime(skyElapsed);
   const hour = clockHour(skyStart, skyElapsed);
   const sunDir = sunDirection(skyAt.lat, DAY_OF_YEAR, hour);
   const moonDir = moonDirection(sunDir);
@@ -407,7 +415,7 @@ if (!originCell) {
         stand: terrain.standAt(walk.pose.x, walk.pose.z),
         eye: camera.position.y,
       },
-      forest: forest && forest.stats(),
+      forest: forest && { ...forest.stats(), settled: forest.settled() },
       session: session && {
         code: session.code,
         me: session.me,

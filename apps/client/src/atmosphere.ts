@@ -28,7 +28,6 @@ import {
   sin,
   smoothstep,
   step,
-  time,
   uniform,
   vec3,
 } from 'three/tsl';
@@ -51,6 +50,15 @@ export const lightDirUniform = uniform(new Vector3().copy(SUN_DIRECTION));
 export const cloudUniform = uniform(0.75);
 /** Multiplier for the terrain's mist banks (weather-driven). */
 export const mistUniform = uniform(1);
+/**
+ * The scene's freezable clock, in seconds: everything that visibly moves with
+ * time — the ocean's waves, surf streaks, foam drift, the star twinkle — reads
+ * this instead of the renderer's own `time`, because `?t=` (and a postcard's
+ * pinned hour) can only freeze the sky's elapsed clock. Feed it the same value
+ * the sky accumulates and the whole scene holds still together; a live day
+ * advances it at true speed, so nothing changes for a player.
+ */
+export const sceneTimeU = uniform(0);
 
 /** Horizon haze: the grey-green of the channel on a wet day, and the fog colour. */
 const HORIZON = '#d9dcd6';
@@ -83,6 +91,8 @@ export type Atmosphere = {
   setTerrain(on: boolean): void;
   /** Feed the living sky: sun, moon and palette become uniforms. */
   setSky(view: SkyView): void;
+  /** Feed the freezable scene clock (seconds); the ocean and the stars read it. */
+  setTime(elapsed: number): void;
   dispose(): void;
 };
 
@@ -141,7 +151,7 @@ export function createAtmosphere(scene: Scene, renderer: WebGPURenderer): Atmosp
     .sub(smoothstep(0, 0.09, dot(inCell, inCell)))
     .mul(step(0.82, rnd))
     .mul(
-      sin(time.mul(2).add(rnd.mul(40)))
+      sin(sceneTimeU.mul(2).add(rnd.mul(40)))
         .mul(0.25)
         .add(0.75),
     )
@@ -214,6 +224,9 @@ export function createAtmosphere(scene: Scene, renderer: WebGPURenderer): Atmosp
       // Fog heights are measured from sea level; below it, nothing changes.
       eye = Math.max(0, camera.y);
       apply();
+    },
+    setTime(elapsed) {
+      sceneTimeU.value = elapsed;
     },
     setTerrain(on) {
       terrain = on;

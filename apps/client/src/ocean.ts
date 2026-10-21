@@ -14,11 +14,10 @@ import {
   reflect,
   sin,
   smoothstep,
-  time,
   transformNormalToView,
   vec3,
 } from 'three/tsl';
-import { cloudUniform, lightDirUniform, mistUniform } from './atmosphere';
+import { cloudUniform, lightDirUniform, mistUniform, sceneTimeU } from './atmosphere';
 
 /* ------------------------------------------------------------------ waves */
 
@@ -46,7 +45,7 @@ function waveSlope(w: Wave): { dhx: Node<'float'>; dhz: Node<'float'> } {
   const phase = positionWorld.x
     .mul(k * cx)
     .add(positionWorld.z.mul(k * cz))
-    .sub(time.mul(omega));
+    .sub(sceneTimeU.mul(omega));
   return {
     dhx: float(w.amplitude * k * cx).mul(cos(phase)),
     dhz: float(w.amplitude * k * cz).mul(cos(phase)),
@@ -101,15 +100,15 @@ export function oceanMaterial(): MeshStandardNodeMaterial {
  * smooth band into patches so the shore reads as broken water rather than a stripe.
  */
 export function shoreFoam(height: Node<'float'>, world: Node<'vec3'>): Node<'float'> {
-  const wave = sin(time.mul(0.8).add(world.x.mul(0.05)).add(world.z.mul(0.035))).mul(0.25);
+  const wave = sin(sceneTimeU.mul(0.8).add(world.x.mul(0.05)).add(world.z.mul(0.035))).mul(0.25);
   // A narrow band: low-lying waterfront (a whole downtown can sit 0–2 m up) stays dry.
   const band = float(1).sub(smoothstep(0.05, 0.6, height.sub(wave)));
   const lower = smoothstep(-0.2, 0.1, height);
   // Streaks from three incommensurate, rotated, drifting waves: no visible tiling,
   // unlike a product of two axis-aligned sines (which reads as a checkerboard).
-  const streaks = sin(world.x.mul(0.13).add(world.z.mul(0.07)).add(time.mul(0.5)))
+  const streaks = sin(world.x.mul(0.13).add(world.z.mul(0.07)).add(sceneTimeU.mul(0.5)))
     .add(sin(world.z.mul(0.21).sub(world.x.mul(0.05))).mul(0.7))
-    .add(sin(world.x.add(world.z).mul(0.37).sub(time.mul(0.9))).mul(0.4));
+    .add(sin(world.x.add(world.z).mul(0.37).sub(sceneTimeU.mul(0.9))).mul(0.4));
   const patch = smoothstep(-0.8, 0.8, streaks);
   return band.mul(lower).mul(patch).mul(0.7);
 }
@@ -124,7 +123,7 @@ export function shoreFoam(height: Node<'float'>, world: Node<'vec3'>): Node<'flo
  * sky is one big shadow.
  */
 export function cloudShadow(world: Node<'vec3'>): Node<'float'> {
-  const drift = time.mul(6);
+  const drift = sceneTimeU.mul(6);
   const twoPi = 2 * Math.PI;
   const a = sin(world.x.sub(drift).mul(twoPi / 1800)).mul(
     sin(world.z.add(drift).mul(twoPi / 1800)),
@@ -148,7 +147,7 @@ export function mistBanks(height: Node<'float'>, world: Node<'vec3'>): Node<'flo
   // Drift enters the phase with a positive sign, so peaks migrate toward smaller x (west)
   // and smaller z (which is -north in the local frame, i.e. north-west). With the
   // wavelengths below the magnitude is ≈ 3 m/s.
-  const drift = time.mul(0.025);
+  const drift = sceneTimeU.mul(0.025);
   // Three rotated, drifting sines — summed, never multiplied, so the field reads as
   // streamers rather than axis-aligned bumps or a checkerboard.
   const a = sin(
