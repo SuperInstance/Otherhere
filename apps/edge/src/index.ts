@@ -148,14 +148,16 @@ async function route(req: Request, env: Env, url: URL, path: string): Promise<Re
     });
   }
 
-  // The Town's place vector (ADR-0018): public-safe derived statistics of public
-  // Facts — Town metadata like the Essence, never a Bundle input and never user data.
+  // The Town's place vector (ADR-0018, as amended): public-safe derived statistics
+  // of public Facts — Town metadata like the Essence, never a Bundle input and never
+  // user data. A pure read of what is stored: computing a vector is a paid model
+  // call, owned by POST /api/ops/towns/:town/vector, so this route can never spend.
   m = /^\/api\/towns\/([^/]+)\/vector$/.exec(path);
   if (m) {
     const town = m[1]!;
     if (!isTown(town)) return error(400, 'not an H3 res-6 Town');
-    const vector = await env.TOWN.get(env.TOWN.idFromName(town)).essenceVector();
-    if (!vector) return error(503, 'place vectors are not configured on this deployment');
+    const vector = await env.TOWN.get(env.TOWN.idFromName(town)).placeVector();
+    if (!vector) return error(404, 'no place vector for that Town yet');
     return json({
       town,
       battery: vector.battery,

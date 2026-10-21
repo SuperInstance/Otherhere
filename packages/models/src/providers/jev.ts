@@ -33,17 +33,25 @@ export class JevRejected extends Error {
 
 /** TypeSafe Jev: typed answers to a question pack about some state (ADR-0013). */
 export class JevProvider {
-  readonly id = 'jev';
+  /**
+   * The router's budget key for this provider. `jev` by default (the shared
+   * capture-path cap); a separate key, e.g. `jev-place`, gives a call path its
+   * own daily cap so it cannot starve the default one (or be starved by it).
+   */
+  readonly id: string;
   constructor(
     private router: ModelRouter,
     private opts: {
       apiKey: string;
       model?: string;
+      id?: string;
       fetch?: FetchLike;
       pricing?: Pricing;
       baseUrl?: string;
     },
-  ) {}
+  ) {
+    this.id = this.opts.id ?? 'jev';
+  }
 
   async ask(pack: QuestionPack, state: unknown): Promise<Priced<Answers>> {
     return this.post(

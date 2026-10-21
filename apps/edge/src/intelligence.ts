@@ -1,8 +1,17 @@
-import { isCell, SOURCES, townOf, type Fact, type Feature, type Source } from '@otherhere/core';
+import {
+  isCell,
+  isTown,
+  SOURCES,
+  townOf,
+  type Fact,
+  type Feature,
+  type Source,
+} from '@otherhere/core';
 import { observeBuilding } from '@otherhere/models';
 import type { Env } from './env';
 import { makeModels } from './models';
 import { opsStub } from './ops';
+import type { PlaceVectorCompute } from './town';
 
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
@@ -55,6 +64,39 @@ export async function intelligenceRoutes(
       );
     if (path === '/api/ops/spend')
       return json(await ops.spendToday(new Date().toISOString().slice(0, 10)));
+
+    // POST /api/ops/towns/:town/vector — compute (or refresh) a Town's place
+    // vector (ADR-0018, as amended). The only path that can spend `jev-place`
+    // budget: the public GET serves the stored record and never asks the model.
+    const pv = /^\/api\/ops\/towns\/([^/]+)\/vector$/.exec(path);
+    if (pv && req.method === 'POST') {
+      const townId = pv[1]!;
+      if (!isTown(townId)) return json({ error: 'not an H3 res-6 Town' }, 400);
+      const town = env.TOWN.get(env.TOWN.idFromName(townId)) as unknown as {
+        essenceVector(): Promise<PlaceVectorCompute>;
+      };
+      const r = await town.essenceVector();
+      if (r.ok) {
+        return json({
+          town: townId,
+          battery: r.vector.battery,
+          model_served: r.vector.served,
+          state_sha: r.vector.stateSha,
+          at: r.vector.at,
+          vector: r.vector.vector,
+          asked: r.asked,
+        });
+      }
+      if (r.reason === 'no-features') return json({ error: 'that Town has no Features yet' }, 404);
+      if (r.reason === 'budget')
+        return json(
+          {
+            error: `place-vector budget exhausted for today ($${r.spent.toFixed(4)} of $${r.cap})`,
+          },
+          503,
+        );
+      return json({ error: 'place vectors are not configured on this deployment' }, 503);
+    }
     return json({ error: 'not found' }, 404);
   }
   return null;

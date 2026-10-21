@@ -13,7 +13,7 @@ import type { Env } from './env';
 import { opsLedger, opsStub } from './ops';
 
 /** Daily USD caps per provider. Conservative defaults; override with the MODEL_CAPS_USD var. */
-const DEFAULT_CAPS = { jev: 1, groq: 1, minimax: 1, claude: 2 };
+const DEFAULT_CAPS = { jev: 1, 'jev-place': 1, groq: 1, minimax: 1, claude: 2 };
 
 export type Models = {
   vision: ChatProvider;
@@ -83,7 +83,9 @@ export function makeModels(env: Env): Models | null {
 /**
  * A Jev provider for the place battery (ADR-0018), or null when Jev is not
  * configured. Like `makeModels`, every call goes through one capped router
- * (invariant 9) and the ledger is the OpsDO's.
+ * (invariant 9) and the ledger is the OpsDO's — but under its own `jev-place`
+ * budget key, so place vectors can neither spend the capture path's `jev` cap
+ * nor be crowded out by it.
  */
 export function placeJev(env: Env): JevProvider | null {
   const apiKey = env.MODEL_FAKE === 'true' ? 'fake' : env.TYPESAFE_KEY;
@@ -94,6 +96,7 @@ export function placeJev(env: Env): JevProvider | null {
   };
   return new JevProvider(new ModelRouter({ caps, ledger: opsLedger(env) }), {
     apiKey,
+    id: 'jev-place',
     ...(env.MODEL_FAKE === 'true' ? { fetch: fakeModelFetch } : {}),
   });
 }

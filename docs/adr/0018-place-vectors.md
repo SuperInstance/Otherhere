@@ -39,7 +39,17 @@ The state is a deterministic serialization of the Town's **Essence** (already qu
 
 ## Storage: the Essence's shadow, never a Bundle input
 
-`TownDO.essenceVector()` computes lazily on first request after a write and stores under `meta['essence-vector:1']`, beside `essence:2`, carrying the battery version, the model pin, the served model (the canary) and the state's sha. The two keys move together: `invalidateEssence()` drops both, and the cache is only served when battery, pin and sha all still match, so a battery upgrade or a pin move re-asks exactly once per Town. `GET /api/towns/:town/vector` serves the public-safe vector (derived statistics of Facts; no user data, invariant 5).
+`TownDO` stores the vector under `meta['place-vector:1']`, beside `essence:2`, carrying the battery version, the model pin, the served model (the canary) and the state's sha.
+
+**Amendment (2026-10-21, review P0 #1): the compute is owner-only; the public route is a pure read.** As first built, `GET /api/towns/:town/vector` computed lazily on any cache miss — which put a paid Jev call on a public, unauthenticated endpoint: any of the ~14M valid res-6 ids (empty ocean Towns included) could spend the shared `jev` daily cap that the photo gate and the capture Ladder also draw on, and two concurrent misses both paid. Now:
+
+- `GET /api/towns/:town/vector` only serves what is stored (404 when nothing is); it makes no model call and scans no Facts.
+- `POST /api/ops/towns/:town/vector` (OPS_TOKEN) is the only compute path: it refuses Towns with no Features, shares one in-flight promise per Town, and answers a clean 503 when its budget is out.
+- Place vectors draw from their own router budget key, `jev-place`, with its own cap (default $1/day like the others), so neither path can starve the other.
+- `invalidateEssence()` no longer drops the stored vector on Fact writes. The state hash is the staleness check, at compute time: a write that does not change the state (ADR-0014's bucketing makes this common) must not force a re-ask, and a write that does change it re-asks exactly once. The public read serves the stored record labelled with the sha of the state it describes.
+- The census half of the state is cached (`essence-census:1`, dropped by `invalidateEssence` with the Essence), so repeated computes between writes do not rescan every Fact.
+
+The cache is only re-served when battery, pin and sha all match, so a battery upgrade or a pin move re-asks exactly once per Town. `GET /api/towns/:town/vector` serves the public-safe vector (derived statistics of Facts; no user data, invariant 5).
 
 **Place vectors never enter Bundle inputs.** They are Town metadata, like the Essence's shadow: not in `bundleInputsHash`, not in a generator's params, invisible to the client's content-address checks. Bundle determinism (invariant 2) is untouched by construction — answers are stored data, never executed (invariant 3), and a place vector failing to compute must never fail a Bundle.
 
