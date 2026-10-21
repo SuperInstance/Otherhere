@@ -14,6 +14,7 @@ Software GL in the dev container — an upper bound, not the phone target.
 | Round | Desktop 1280×800 | Phone 390×844 | Notes                                                  |
 | ----- | ---------------- | ------------- | ------------------------------------------------------ |
 | 08    | 22.2 s           | 17.0 s        | before any change; 17 s again after the round's merges |
+| 09    | 11.8 s           | 10.1 s        | after the round's merges; byte-exact reloads restored  |
 
 ## Tests
 
@@ -21,10 +22,12 @@ Software GL in the dev container — an upper bound, not the phone target.
 | ----- | ------ | ---- | ---- | ------ | ----- | ----- | ----------------- |
 | 07    | 90     | 130  | 51   | 36     | 4     | 4     | 12                |
 | 08    | 104    | 130  | 51   | 36     | 4     | 4     | 14                |
+| 09    | 109    | 131  | 52   | 36     | 4     | 4     | 16                |
 
-Round 08 e2e: `gift.spec.ts` and the second `status.spec.ts` case are new; the
-two pixel-determinism specs (#40, #48) fail in the container on clean main and
-pass in CI — the settle race is next.
+Round 09 e2e: the pixel-determinism specs (#40, #48) are green again — the
+scene's one freezable clock plus full display settle gates. The two pixel
+specs cost 5.5–6.4 m each under software GL (a full display settle is ~150 s
+per load at ~1 fps); CI's rendering is far faster.
 
 ## Bundle bytes per wild Cell
 
@@ -38,3 +41,4 @@ pass in CI — the settle race is next.
 | Round | Health                | Home               | Changes live (bundle grep)                                |
 | ----- | --------------------- | ------------------ | --------------------------------------------------------- |
 | 08    | ok, interpreter 0.5.0 | 200 in 0.42–0.49 s | all three round PRs verified in the served asset and HTML |
+| 09    | ok, interpreter 0.5.0 | 200 in 0.05–0.47 s | determinism probe byte-equal across two fresh contexts    |
