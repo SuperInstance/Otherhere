@@ -8,11 +8,22 @@ type Stats = {
   mismatched: number;
   features: number;
   sketch: number;
+  waking: number;
 };
 
 const stats = (page: Page) =>
   page.evaluate(
-    () => (window as unknown as { __otherhere?: { stats: Stats; backend: string } }).__otherhere,
+    () =>
+      (
+        window as unknown as {
+          __otherhere?: {
+            stats: Stats;
+            backend: string;
+            terrain?: { loading: number };
+            forest?: { settled: boolean };
+          };
+        }
+      ).__otherhere,
   );
 
 /** Compare only the rendered world: hide the HUD overlays, whose text can legitimately differ. */
@@ -27,6 +38,17 @@ async function settle(page: Page, cells: number) {
     .poll(async () => (await stats(page))?.stats.ready ?? 0, { timeout: 60_000 })
     .toBeGreaterThanOrEqual(cells);
   await expect.poll(async () => (await stats(page))?.stats.loading, { timeout: 60_000 }).toBe(0);
+  // A cell still waking is still changing what the frame shows.
+  await expect.poll(async () => (await stats(page))?.stats.waking, { timeout: 60_000 }).toBe(0);
+  // The display layers stream after the cells stand: elevation tiles still
+  // decoding re-stand distant buildings, and the forest plants a few chunks a
+  // frame. A shot before they finish is a shot of a half-built world.
+  await expect
+    .poll(async () => (await stats(page))?.terrain?.loading ?? 0, { timeout: 300_000 })
+    .toBe(0);
+  await expect
+    .poll(async () => (await stats(page))?.forest?.settled ?? true, { timeout: 300_000 })
+    .toBe(true);
   await page.waitForTimeout(500);
 }
 
@@ -43,6 +65,9 @@ test('walk a real neighbourhood; reload gives the identical scene', async ({
   page,
   request,
 }, info) => {
+  // Settling the full display (cells, wakes, elevation tiles, forest) takes ~150 s
+  // per load under software GL at ~1 fps — CI's real rendering is far faster.
+  test.setTimeout(600_000);
   // Seed the recorded Zürich block through the dev-only route (no network needed).
   const fixture = readFileSync(
     new URL('../../../packages/core/test/fixtures/overpass-zurich.json', import.meta.url),
@@ -62,6 +87,13 @@ test('walk a real neighbourhood; reload gives the identical scene', async ({
   expect(s!.stats.verified).toBe(s!.stats.ready);
   expect(s!.stats.features).toBeGreaterThan(1000);
   const before = await sceneShot(page, `test-results/zurich-${info.repeatEachIndex}-a.png`);
+
+  // The determinism law itself: a pinned scene holds still. Everything that
+  // visibly moves — the ocean, cloud shadows, mist, stars — rides the sky's
+  // freezable clock, so three seconds later the same load renders byte-exact.
+  await page.waitForTimeout(3000);
+  const still = await sceneShot(page, `test-results/zurich-${info.repeatEachIndex}-a2.png`);
+  expect(still.equals(before)).toBe(true);
 
   await page.reload();
   await settle(page, 7);
