@@ -101,14 +101,24 @@ input:focus-visible {
   font-size: 13px;
   color: #a3402f;
 }
-#status {
+#status-moment,
+#status,
+#status-cells {
   margin: 8px 0 0;
   font-size: 12px;
   line-height: 16px;
   color: var(--ink-soft);
-  white-space: pre-line;
 }
-#status:empty {
+/* One span per line, so each line is a whole visible thing: a clipped line's
+   span has no box, and toBeVisible on it fails (text content cannot tell). */
+#status-moment span,
+#status span,
+#status-cells span {
+  display: block;
+}
+#status-moment:empty,
+#status:empty,
+#status-cells:empty {
   display: none;
 }
 #help {
@@ -158,42 +168,38 @@ input:focus-visible {
   #hud {
     padding: 12px;
   }
-  /* On a phone the panel would cover half the view: show the address box and one
-     status line, and keep the rest a tap away. Context panels (a tapped building,
-     a match) still show. */
+  /* On a phone the panel would cover half the view: show the address box and
+     the status tiers that must never hide (the moment, problems and notices;
+     the routine counts wait behind More options). Context panels (a tapped
+     building, a match) still show — including the match's own buttons. */
   #hud-more {
     display: block;
     margin-top: 8px;
     width: 100%;
   }
-  #hud:not(.expanded) .row.secondary,
+  #hud:not(.expanded) #goto .row.secondary,
   #hud:not(.expanded) #postcard,
-  #hud:not(.expanded) #walk-import {
+  #hud:not(.expanded) #walk-import,
+  #hud:not(.expanded) #status-cells {
     display: none;
-  }
-  #hud:not(.expanded) #status {
-    max-height: 1.5em;
-    overflow: hidden;
   }
 }
 /* A postcard link opens as a gift (playtest r5, lane C): the recipient's first
    view is the moment and its title, not the address box and the technical
-   lines. Everything waits one tap away behind More options — expanding brings
-   the full dashboard back, and saving a postcard back stays visible so the
-   gift can be answered. */
+   lines. The routine counts wait one tap away behind More options; the moment
+   (title, clock, attribution) and the problems and notices stay, whole — a
+   licence line, a MISMATCHED line or an error is never clipped mid-line.
+   Expanding brings the full dashboard back, and saving a postcard back stays
+   visible so the gift can be answered. */
 #hud.gift #hud-more {
   display: block;
   margin-top: 8px;
   width: 100%;
 }
 #hud.gift:not(.expanded) #goto,
-#hud.gift:not(.expanded) .row.secondary,
-#hud.gift:not(.expanded) #walk-import {
+#hud.gift:not(.expanded) #walk-import,
+#hud.gift:not(.expanded) #status-cells {
   display: none;
-}
-#hud.gift:not(.expanded) #status {
-  max-height: 3em;
-  overflow: hidden;
 }
 #match {
   margin-top: 12px;
