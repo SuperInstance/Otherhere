@@ -30,7 +30,12 @@ import {
   type OverpassResponse,
   type ResolvedAttrs,
 } from '@otherhere/core';
-import { askPlaceVectorState, JEV_MODEL } from '@otherhere/models';
+import {
+  askPlaceVectorState,
+  BudgetExceeded,
+  JEV_MODEL,
+  type JevProvider,
+} from '@otherhere/models';
 import type { Env } from './env';
 import { jobsStub } from './jobs';
 import { placeJev } from './models';
@@ -49,12 +54,25 @@ const RETRY_AFTER_MS = 60_000;
 const gens = generatorSet();
 
 /**
+ * One place-vector compute attempt's outcome (ADR-0018, as amended): the
+ * vector, or the reason it was not computed. A tagged result, not a thrown
+ * error, so the reason survives the Durable Object RPC boundary intact.
+ */
+export type PlaceVectorCompute =
+  | { ok: true; vector: StoredPlaceVector; asked: boolean }
+  | { ok: false; reason: 'no-features' | 'not-configured' }
+  | { ok: false; reason: 'budget'; spent: number; cap: number };
+
+/**
  * One Town (an H3 res-6 cell, ADR-0002): its Facts, Features, and the
  * Cell → Bundle pointers. Bundles themselves live in R2.
  */
 export class TownDO extends DurableObject<Env> {
   private sql: SqlStorage;
   private inflight = new Map<string, Promise<BlockStatus>>();
+  /** Single-flight for the place-vector compute: Durable Object input gates do
+   * not hold across an outgoing model fetch, so concurrent computes share this. */
+  private vectorFlight: Promise<PlaceVectorCompute> | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -187,10 +205,12 @@ export class TownDO extends DurableObject<Env> {
   }
 
   /**
-   * Drop every cached version of the Essence and the place vector: the next read
-   * recomputes both from the Facts. The one place that knows the cache keys, so a
-   * renamed key (`essence:2`, `essence-vector:1`) cannot leave a writer
-   * invalidating the old name.
+   * Drop the cached Essence and the cached census: the next read recomputes
+   * them from the Facts. The one place that knows the cache keys, so a renamed
+   * key (`essence:2`, `essence-census:1`) cannot leave a writer invalidating the
+   * old name. The stored place vector is deliberately NOT dropped: it survives
+   * Fact writes and the compute path decides staleness by state hash (ADR-0018
+   * as amended — a write that does not change the state must not force a re-ask).
    */
   private invalidateEssence(): void {
     this.sql.exec("DELETE FROM meta WHERE key LIKE 'essence%'");
@@ -386,9 +406,17 @@ export class TownDO extends DurableObject<Env> {
    * The census half of a place state (ADR-0018): every Feature and every Fact,
    * counted. Like `essence()`, a pure read of the Facts; the state's Essence half
    * is the cached `essence()` itself, so the battery is asked over exactly the
-   * statistics the Town serves.
+   * statistics the Town serves. The census is cached under `essence-census:1`, so
+   * repeated computes between writes (retries, pin moves) do not rescan every
+   * Fact; `invalidateEssence()` drops it whenever the Facts change.
    */
   private placeSnapshot(): { essence: Essence; census: PlaceCensus } {
+    const cached = this.sql
+      .exec<{ value: string }>("SELECT value FROM meta WHERE key = 'essence-census:1'")
+      .toArray()[0];
+    if (cached) {
+      return { essence: this.essence(), census: JSON.parse(cached.value) as PlaceCensus };
+    }
     const kinds = this.sql
       .exec<{ id: string; kind: Feature['kind'] }>('SELECT id, kind FROM features')
       .toArray();
@@ -413,56 +441,96 @@ export class TownDO extends DurableObject<Env> {
         version: r.version,
       }));
     const resolved = resolveFacts(facts);
-    return {
-      essence: this.essence(),
-      census: placeCensus(
-        kinds.map((r) => ({ kind: r.kind, attrs: resolved.get(r.id) ?? {} })),
-        facts,
-      ),
-    };
+    const census = placeCensus(
+      kinds.map((r) => ({ kind: r.kind, attrs: resolved.get(r.id) ?? {} })),
+      facts,
+    );
+    this.sql.exec(
+      "INSERT OR REPLACE INTO meta (key, value) VALUES ('essence-census:1', ?)",
+      JSON.stringify(census),
+    );
+    return { essence: this.essence(), census };
   }
 
   /**
-   * The Town's place vector (ADR-0018): the sealed place battery's calibrated
-   * answers over its deterministic state, stored in `meta` beside the Essence and
-   * dropped by the same invalidation. Lazy and stale-checked: the cache is served
-   * only when the battery version, the model pin and the state's sha all match, so
-   * a battery upgrade or a pin move re-asks exactly once per Town. Null when no
-   * Jev is configured. The vector is Town metadata, never a Bundle input.
+   * The stored place vector (ADR-0018), or null when this Town has none yet.
+   * A pure read of `meta`: no model call, no Fact scan, no Jev configuration
+   * needed. This is the only method the public `GET /api/towns/:town/vector`
+   * reaches, so unauthenticated traffic can never spend model budget. The
+   * record carries the sha of the state it describes; readers who care compare
+   * against that, not against "now".
    */
-  async essenceVector(): Promise<StoredPlaceVector | null> {
-    const jev = placeJev(this.env);
-    if (!jev) return null;
-    const { essence, census } = this.placeSnapshot();
-    const state = placeState(essence, census);
-    const stateSha = await sha256Hex(state);
+  placeVector(): StoredPlaceVector | null {
     const row = this.sql
-      .exec<{ value: string }>("SELECT value FROM meta WHERE key = 'essence-vector:1'")
+      .exec<{ value: string }>("SELECT value FROM meta WHERE key = 'place-vector:1'")
       .toArray()[0];
-    if (row) {
-      const cached = StoredPlaceVector.safeParse(JSON.parse(row.value));
-      if (
-        cached.success &&
-        cached.data.battery === PLACE_BATTERY &&
-        cached.data.model === JEV_MODEL &&
-        cached.data.stateSha === stateSha
-      )
-        return cached.data;
+    if (!row) return null;
+    const parsed = StoredPlaceVector.safeParse(JSON.parse(row.value));
+    return parsed.success ? parsed.data : null;
+  }
+
+  /**
+   * Compute (or refresh) the Town's place vector (ADR-0018, as amended): the
+   * sealed place battery's calibrated answers over its deterministic state.
+   * Owner-only — reached through `POST /api/ops/towns/:town/vector` — because a
+   * compute on a cache miss is a paid call, and paid calls must never be
+   * reachable from unauthenticated traffic (invariant 9). Refuses Towns with no
+   * Features, shares one in-flight promise per Town (a second concurrent caller
+   * waits for the first's answer instead of paying again), and re-asks only when
+   * the battery version, the model pin or the state's sha changed. The stored
+   * vector survives Fact writes; the state hash decides whether it is stale.
+   * The vector is Town metadata, never a Bundle input.
+   */
+  async essenceVector(): Promise<PlaceVectorCompute> {
+    const jev = placeJev(this.env);
+    if (!jev) return { ok: false, reason: 'not-configured' };
+    const featureCount = this.sql
+      .exec<{ n: number }>('SELECT COUNT(*) AS n FROM features')
+      .toArray()[0];
+    if (!featureCount?.n) return { ok: false, reason: 'no-features' };
+    if (!this.vectorFlight) {
+      this.vectorFlight = this.computeVector(jev).finally(() => {
+        this.vectorFlight = null;
+      });
     }
-    const r = await askPlaceVectorState(jev, state);
-    const stored: StoredPlaceVector = {
-      battery: PLACE_BATTERY,
-      model: JEV_MODEL,
-      served: r.model_served,
-      stateSha: r.stateSha,
-      vector: r.vector,
-      at: new Date().toISOString(),
-    };
-    this.sql.exec(
-      "INSERT OR REPLACE INTO meta (key, value) VALUES ('essence-vector:1', ?)",
-      JSON.stringify(stored),
-    );
-    return stored;
+    return this.vectorFlight;
+  }
+
+  private async computeVector(jev: JevProvider): Promise<PlaceVectorCompute> {
+    try {
+      const { essence, census } = this.placeSnapshot();
+      const state = placeState(essence, census);
+      const stateSha = await sha256Hex(state);
+      const stored = this.placeVector();
+      if (
+        stored &&
+        stored.battery === PLACE_BATTERY &&
+        stored.model === JEV_MODEL &&
+        stored.stateSha === stateSha
+      ) {
+        return { ok: true, vector: stored, asked: false };
+      }
+      const r = await askPlaceVectorState(jev, state);
+      const fresh: StoredPlaceVector = {
+        battery: PLACE_BATTERY,
+        model: JEV_MODEL,
+        served: r.model_served,
+        stateSha: r.stateSha,
+        vector: r.vector,
+        at: new Date().toISOString(),
+      };
+      this.sql.exec(
+        "INSERT OR REPLACE INTO meta (key, value) VALUES ('place-vector:1', ?)",
+        JSON.stringify(fresh),
+      );
+      // The pre-amendment key; one read of it is enough to retire it for good.
+      this.sql.exec("DELETE FROM meta WHERE key = 'essence-vector:1'");
+      return { ok: true, vector: fresh, asked: true };
+    } catch (err) {
+      if (err instanceof BudgetExceeded)
+        return { ok: false, reason: 'budget', spent: err.spent, cap: err.cap };
+      throw err;
+    }
   }
 
   /** Every Feature anchored in a Cell and every Fact about them, for a Capsule snapshot. */
