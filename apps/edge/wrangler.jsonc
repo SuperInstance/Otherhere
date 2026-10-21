@@ -8,6 +8,9 @@
   // The workers.dev address stays on as a fallback.
   "routes": [{ "pattern": "otherhere.superinstance.dev", "custom_domain": true }],
   "workers_dev": true,
+  // The hourly drift canary (drift.ts): one paid call from the cron, capped at
+  // a nickel a day under the jev-canary budget key.
+  "triggers": { "crons": ["17 * * * *"] },
   // The client is served as static assets; the Worker only handles /api/*.
   "assets": {
     "directory": "../client/dist",
