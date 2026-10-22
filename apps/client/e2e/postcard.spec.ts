@@ -124,16 +124,20 @@ test('save a postcard, open it by link, and see the same place', async ({
   await hideHud(friend);
   const shared = await friend.screenshot({ path: 'test-results/postcard-shared.png' });
   // The postcard starts where it was saved and is built from the same Facts, so it
-  // looks the same. Two independent browser contexts may round the fog gradient
-  // one ulp apart, so the cross-context compare allows a measured sliver and no
-  // more; same-context reloads stay byte-exact (the walk spec). Measured, every
-  // differing pixel exactly 1/255 with alpha exact: 496 of 1,024,000 on CI's
-  // chromium (the environment that gates merges — this is the bound), 466 twice
-  // in the dev container's SwiftShader, 172 on CI before the scene-clock fix.
-  // Tightening the bound below the environment's own measurement fails the spec;
-  // a chromium build change can move it, and the error message carries the new
-  // measurement for re-pinning.
-  await expectIdentical(shared, live, 1, 496);
+  // looks the same — byte-exact, like a same-context reload (the walk spec). This
+  // was not always so: the pair used to differ in 172, then 496 after the
+  // scene-clock change, every differing pixel exactly 1/255. The cause (found
+  // review P1 #5): the recipient's sky was computed from the capsule's centre —
+  // the walker's unprojected position rounded to 1e-6 degrees — while the saver's
+  // sky used the place they typed, a few 1e-4 degrees of latitude apart. That
+  // moved the sun just enough to relight the forest's crown edges one
+  // quantization step apart (the differing pixels were all crowns; the sky band
+  // was clean). The centre now carries the saver's own sky latitude verbatim,
+  // and the pair is byte-exact. Cross-context rendering itself is not a source:
+  // the same pinned URL in two fresh contexts renders byte-exact (bisected
+  // while finding this). If this bound ever fails, something new entered one
+  // side's pipeline — find it, don't widen the number.
+  await expectIdentical(shared, live, 0, 0);
   await friendCtx.close();
 });
 
