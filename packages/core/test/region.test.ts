@@ -152,6 +152,20 @@ describe('regionOf (the built-region box)', () => {
     ] as const)
       expect(regionOf(lat, lng)).toBeUndefined();
   });
+
+  it('over-reaches the border on purpose: Stewart, Atlin, Carcross, Teslin', () => {
+    // The box is coarse, not the border (its comment says so, and this pins
+    // it): the east and north edges take in four Canadian towns along with
+    // the panhandle. If the box is ever tightened, this test and the comment
+    // move together — a lookup-table edit also moves every content address.
+    for (const [lat, lng] of [
+      [55.9368, -129.9845], // Stewart, BC
+      [59.5745, -133.7075], // Atlin, BC
+      [60.1633, -134.3639], // Carcross, Yukon
+      [60.1703, -132.7453], // Teslin, Yukon
+    ] as const)
+      expect(regionOf(lat, lng)).toBe('southeast-alaska');
+  });
 });
 
 describe('the regional prior as Essence params', () => {
@@ -170,7 +184,7 @@ describe('the regional prior as Essence params', () => {
     expect(p['@essence.region.roofcolour.1']).toBe('#7a2e2a');
   });
 
-  it("carries the pre-region literals in a region's absence, so unregioned towns render exactly as before", () => {
+  it("carries the pre-region pitch and roof-colour literals in a region's absence", () => {
     const p = essenceParams(undefined);
     expect(p['@essence.region.present']).toBe(0);
     expect(p['@essence.region.roof.gable']).toBe(0);

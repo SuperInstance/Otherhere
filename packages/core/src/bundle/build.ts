@@ -91,13 +91,13 @@ export async function bundleInputsHash(input: BuildInput): Promise<string> {
 }
 
 /**
- * Fill an Essence's absent `region` from the Cell's coordinates, the same way
- * the forest mix falls back to the biome of the centre: an Essence straight
- * from storage predates regions, but its Town sits where it always sat, so the
- * derived region is the same value a fresh computation would write — and it
- * lands in the content address, so the region a Bundle was built under is
- * always part of its hash (and the region table itself is hashed as data
- * too, via LOOKUP_TABLES).
+ * Fill an Essence's absent `region` from the CELL's centre — not the Town's,
+ * which is what the TownDO uses when it stores one (town.ts derives from the
+ * town centre). For an old Essence straight from storage, a Cell whose centre
+ * sits near a region-box edge can therefore derive a different region than
+ * its Town would store today; whichever value the Essence ends up carrying
+ * lands in the content address (and the region table itself is hashed as
+ * data too, via LOOKUP_TABLES).
  */
 function withDerivedRegion(input: BuildInput): Essence | undefined {
   if (!input.essence || input.essence.region) return input.essence;
