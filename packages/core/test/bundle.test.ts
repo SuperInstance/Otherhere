@@ -139,7 +139,11 @@ describe('buildBundle (invariants 1 and 2)', () => {
             ...f,
             attrs: {
               ...f.attrs,
-              footprint: { value: (f.attrs.footprint!.value as number[][]).slice(0, -1), confidence: 0.7, source: 'osm' as const },
+              footprint: {
+                value: (f.attrs.footprint!.value as number[][]).slice(0, -1),
+                confidence: 0.7,
+                source: 'osm' as const,
+              },
             },
           }
         : f,

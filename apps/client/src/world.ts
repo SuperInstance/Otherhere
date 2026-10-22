@@ -23,12 +23,12 @@ import {
   localFrame,
   questsFor,
   sha256Hex,
+  pointInRing,
   type Quest,
   type CapsuleCellInput,
   type BundleManifest,
   type LocalFrame,
 } from '@otherhere/core';
-import { MAX_GROUND, MIN_GROUND } from './forest';
 import { confidenceMaterial, wakeUniform, WAKE_MS, type WakeUniform } from './material';
 import type { MeshStandardNodeMaterial } from 'three/webgpu';
 
@@ -65,6 +65,10 @@ type CellState = {
   flat?: Float32Array;
   /** Where nothing may grow: discs around buildings and along roads, world frame. */
   clearings?: Disc[];
+  /** What grows where: the display forest reads these rings (ADR-0017, amended). */
+  zones?: LandcoverZone[];
+  /** The Town's spruce share of its conifers, for the display forest's silhouettes. */
+  spruceP?: number;
   /** World-space footprint, for matching new ground to Cells. */
   box?: { minX: number; minZ: number; maxX: number; maxZ: number };
 };
@@ -91,6 +95,61 @@ const MAX_PARALLEL = 3;
 type Disc = { x: number; z: number; r: number; built?: boolean };
 /** Clearings are bucketed on this grid (m), so a point query looks at a handful of discs. */
 const CLEAR_BUCKET = 32;
+
+/** A landcover ring the display forest plants by, in the world frame's (e, n)
+ *  axes — e is world x, n is -world z, the convention every Bundle mesh is placed
+ *  with (ADR-0017, amended: the rings ride in the Bundle extras instead of
+ *  growing imagined trees). */
+export type LandcoverZone = {
+  cover: 'forest' | 'scrub' | 'meadow';
+  ring: { e: number; n: number }[];
+  minE: number;
+  maxE: number;
+  minN: number;
+  maxN: number;
+};
+
+/** The shape of `extras.otherhere.forest` as the GLB carries it. */
+type ForestExtras = {
+  mix?: Record<string, number>;
+  zones?: { id: string; cover: 'forest' | 'scrub' | 'meadow'; ring: number[] }[];
+};
+
+/** Parse the forest extras into world coordinates. `c` is the Cell centre in
+ *  the world frame, so a ring point (e, n) lands at (c.e + e, c.n + n) in the
+ *  world's own (e, n) axes. Pure, and unit-tested. */
+export function zonesFor(
+  forest: ForestExtras | undefined,
+  c: { e: number; n: number },
+): { zones: LandcoverZone[]; spruceP: number | undefined } {
+  const zones: LandcoverZone[] = [];
+  for (const z of forest?.zones ?? []) {
+    if (!Array.isArray(z.ring) || z.ring.length < 6 || z.ring.length % 2 !== 0) continue;
+    const ring: { e: number; n: number }[] = [];
+    let minE = Infinity,
+      maxE = -Infinity,
+      minN = Infinity,
+      maxN = -Infinity;
+    for (let i = 0; i < z.ring.length; i += 2) {
+      const e = c.e + z.ring[i]!;
+      const n = c.n + z.ring[i + 1]!;
+      ring.push({ e, n });
+      minE = Math.min(minE, e);
+      maxE = Math.max(maxE, e);
+      minN = Math.min(minN, n);
+      maxN = Math.max(maxN, n);
+    }
+    zones.push({ cover: z.cover, ring, minE, maxE, minN, maxN });
+  }
+  // The conifer share the display forest's two silhouettes split: spruce draws
+  // itself, hemlock and cedar share the softer silhouette. A Town with no
+  // conifers in its mix (a temperate broadleaf town) leaves the choice open.
+  const mix = forest?.mix;
+  const conifers = (mix?.spruce ?? 0) + (mix?.hemlock ?? 0) + (mix?.cedar ?? 0);
+  const spruceP =
+    mix && conifers > 0 ? Math.min(1, Math.max(0, (mix.spruce ?? 0) / conifers)) : undefined;
+  return { zones, spruceP };
+}
 
 /** What the World needs from the terrain layer to stand Bundles on real ground. */
 export type Ground = {
@@ -370,12 +429,11 @@ export class World {
     });
     const c = this.frame.project(cellCenter(cell));
     group.position.set(c.e, 0, -c.n);
-    const featureRanges =
-      (
-        gltf.userData as {
-          otherhere?: { features?: { id: string; first: number; count: number }[] };
-        }
-      ).otherhere?.features ?? [];
+    const extras = (
+      gltf.userData as { otherhere?: { features?: { id: string; first: number; count: number }[] } }
+    ).otherhere;
+    const featureRanges = extras?.features ?? [];
+    const forest = zonesFor((extras as { forest?: ForestExtras } | undefined)?.forest, c);
     const footing = this.ground ? await this.standOnGround(group, featureRanges) : undefined;
     for (const p of roadPoints) {
       p.x += c.e;
@@ -407,6 +465,8 @@ export class World {
       ...footing,
     });
     state.clearings = clearingsFor(group, ranges);
+    state.zones = forest.zones;
+    state.spruceP = forest.spruceP;
     this.indexClearings();
     this.root.add(group);
     this.beaconRoot.add(beacons);
@@ -654,6 +714,33 @@ export class World {
     return !s || (s.state !== 'loading' && s.ingest !== 'loading');
   }
 
+  /**
+   * The landcover under (x, z), from the loaded Cell's Bundle extras: what the
+   * display forest plants by (ADR-0017, amended). Null where the loaded world
+   * says nothing — open ground, or a Cell not yet loaded — and outside every
+   * loaded Cell, where the biome's wild rules decide instead.
+   */
+  landcoverAt(x: number, z: number): 'forest' | 'scrub' | 'meadow' | null {
+    const zones = this.cells.get(this.cellAtWorld(x, z))?.zones;
+    if (!zones) return null;
+    const p = { e: x, n: -z };
+    for (const zn of zones) {
+      // The bbox rejects most of the lattice before the ring is ever walked.
+      if (p.e < zn.minE || p.e > zn.maxE || p.n < zn.minN || p.n > zn.maxN) continue;
+      if (pointInRing(p, zn.ring)) return zn.cover;
+    }
+    return null;
+  }
+
+  /**
+   * The spruce share of the conifers the Town's mix names, for the display
+   * forest's silhouettes. Undefined where the Cell is not loaded or its Town
+   * has no conifers to name: the forest keeps its own default split.
+   */
+  forestSpruceP(x: number, z: number): number | undefined {
+    return this.cells.get(this.cellAtWorld(x, z))?.spruceP;
+  }
+
   isReady(cell: string): boolean {
     return this.cells.get(cell)?.state === 'ready';
   }
@@ -707,13 +794,9 @@ type Positions = {
  * lowest ground under it, so floors stay level; flat things (roads, paths) drape
  * per vertex.
  *
- * Imagined trees (`gen:` ids, ADR-0017) are site-checked first: the build that
- * imagined them has no elevation, so it plants stands in the sea (61 % of the
- * trees in the two wild Cells across Sitka's bay sit below the beach line). The
- * display layer, which owns the terrain, applies the forest's own beach and
- * timber lines here, so an imagined stand ends at the coast. Collapsed features
- * join the ground hexagon below the world, where nothing picks them; a resnap on
- * finer ground stands them again and re-decides.
+ * Every feature here is observed (the imagined forest left the Bundle in
+ * ADR-0017's amendment, and observations always stood ungated); the display
+ * forest applies its own beach and timber lines where it plants.
  */
 export function standFeatures(
   pos: Positions,
@@ -733,10 +816,6 @@ export function standFeatures(
       hi = Math.max(hi, pos.getY(i));
       floor = Math.min(floor, groundAt(i));
     }
-    if (imaginedRejected(r, floor)) {
-      for (let i = r.first; i < r.first + r.count; i++) pos.setXYZ(i, 0, -1000, 0);
-      continue;
-    }
     if (hi - lo > 1.5) {
       // Sink a little so the downhill side has no visible gap under it.
       for (let i = r.first; i < r.first + r.count; i++) pos.setY(i, pos.getY(i) + floor - 0.3);
@@ -745,16 +824,6 @@ export function standFeatures(
         pos.setY(i, pos.getY(i) + groundAt(i) + 0.15);
     }
   }
-}
-
-/**
- * An imagined tree (`gen:` id) must not stand on this ground: below the beach
- * line or above the timber line, the same site rules the display forest plants
- * by. Observed trees are never gated — an OSM tree at sea level is someone's
- * observation, and observations win over the site model.
- */
-function imaginedRejected(range: { id: string }, groundM: number): boolean {
-  return range.id.startsWith('gen:') && (groundM < MIN_GROUND || groundM > MAX_GROUND);
 }
 
 /**

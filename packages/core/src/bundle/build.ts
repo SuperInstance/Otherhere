@@ -142,15 +142,26 @@ export function forestExtras(
     const cover = f.attrs.landcover;
     const fp = f.attrs.footprint;
     if (!cover || !fp || !Array.isArray(fp.value) || fp.value.length < 3) continue;
+    // The Fact schema constrains landcover to these three; the resolved attr
+    // arrives untyped, so the guard is the schema restated where it is read.
+    if (cover.value !== 'forest' && cover.value !== 'scrub' && cover.value !== 'meadow') continue;
     const ring = cleanRing(
       (fp.value as LngLat[]).map((p) => frame.project({ lat: p[1], lng: p[0] })),
     );
     if (ring.length < 3) continue;
-    zones.push({
-      id: f.id,
-      cover: cover.value,
-      ring: ring.flatMap((p) => [Math.round(p.e * 100) / 100, Math.round(p.n * 100) / 100]),
-    });
+    // Rounded to centimetres, then deduplicated: a polygon smaller than a
+    // coin can round to fewer than three distinct points, and a degenerate
+    // ring is dropped rather than shipped as a zone nothing can be inside.
+    const flat: number[] = [];
+    for (const p of ring) {
+      const e = Math.round(p.e * 100) / 100;
+      const n = Math.round(p.n * 100) / 100;
+      const last = flat.length - 2;
+      if (last >= 0 && flat[last] === e && flat[last + 1] === n) continue;
+      flat.push(e, n);
+    }
+    if (flat.length < 6) continue;
+    zones.push({ id: f.id, cover: cover.value, ring: flat });
   }
   zones.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   // The mix over `FOREST_SPECIES` order, whatever order the Essence's own object

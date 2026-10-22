@@ -31,10 +31,14 @@ per load at ~1 fps); CI's rendering is far faster.
 
 ## Bundle bytes per wild Cell
 
-| Round           | Value   | Notes                                           |
-| --------------- | ------- | ----------------------------------------------- |
-| pre-forest-move | 1.57 MB | measured in `2026-10-19-forest-architecture.md` |
-| target          | < 50 KB | the forest move, Arc 0                          |
+| Round           | Value   | Notes                                                          |
+| --------------- | ------- | -------------------------------------------------------------- |
+| pre-forest-move | 1.57 MB | measured in `2026-10-19-forest-architecture.md`                |
+| 10              | 1,836 B | the forest move (ADR-0017 amended): 0 Features, 6 vertices     |
+
+A Cell with six observed trees measures 51,684 B — the observations are the
+whole payload now. The landcover rings and species mix ride in the GLB extras
+(covered by the inputs hash); the trees themselves are instanced client-side.
 
 ## Deploy
 

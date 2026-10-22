@@ -36,7 +36,7 @@ async function getBundle(cell: string) {
   const info = (await (await SELF.fetch(`https://x/api/cells/${cell}`)).json()) as {
     status: string;
     cached: boolean;
-    manifest: { inputsHash: string; outputHash: string; featureCount: number };
+    manifest: { inputsHash: string; outputHash: string; featureCount: number; bytes: number };
   };
   const res = await SELF.fetch(`https://x/api/bundles/${info.manifest.inputsHash}.glb`);
   return { info, res };
