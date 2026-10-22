@@ -18,6 +18,8 @@ export class OpsDO extends DurableObject<Env> {
       CREATE TABLE IF NOT EXISTS decisions (id TEXT PRIMARY KEY, at TEXT NOT NULL, subject TEXT NOT NULL, rung TEXT NOT NULL, outcome TEXT NOT NULL, cost_usd REAL NOT NULL, confidence REAL NOT NULL, body TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS decisions_by_at ON decisions(at);
       CREATE TABLE IF NOT EXISTS judge_events (rowid INTEGER PRIMARY KEY, kind TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS drift (rowid INTEGER PRIMARY KEY, at TEXT NOT NULL, body TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS drift_by_at ON drift(at);
     `);
   }
 
@@ -93,6 +95,26 @@ export class OpsDO extends DurableObject<Env> {
     return this.sql
       .exec<{ n: number }>('SELECT COUNT(*) AS n FROM judge_events WHERE kind = ?', kind)
       .toArray()[0]!.n;
+  }
+
+  /** One drift-canary reading (see drift.ts). */
+  async recordDrift(r: unknown): Promise<void> {
+    this.sql.exec(
+      'INSERT INTO drift (at, body) VALUES (?, ?)',
+      String((r as { at: string }).at),
+      JSON.stringify(r),
+    );
+  }
+
+  /** The most recent canary readings, newest first. */
+  async driftLog(limit: number): Promise<unknown[]> {
+    return this.sql
+      .exec<{ body: string }>(
+        'SELECT body FROM drift ORDER BY at DESC, rowid DESC LIMIT ?',
+        Math.max(1, Math.min(500, limit)),
+      )
+      .toArray()
+      .map((r) => JSON.parse(r.body));
   }
 }
 

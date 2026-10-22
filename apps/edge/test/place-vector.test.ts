@@ -167,6 +167,34 @@ describe('place vectors (ADR-0018, amended: compute behind OPS_TOKEN)', () => {
     expect(await placeSpend()).toBe(spentAfterFirst);
   });
 
+  it('a stored vector whose battery seal is stale re-asks (#49)', async () => {
+    await seed();
+    await resetCaches();
+    const first = await compute();
+    expect(first.body.asked).toBe(true);
+    const spentAfterFirst = await placeSpend();
+
+    // Simulate the battery file having changed since the vector was stored:
+    // same battery name, same model pin, same state — a different seal.
+    const inside = runInDurableObject as unknown as (
+      stub: unknown,
+      fn: (instance: unknown, state: DurableObjectState) => void,
+    ) => Promise<void>;
+    await inside(town(), (_, state) => {
+      state.storage.sql
+        .exec(
+          'UPDATE meta SET value = replace(value, \'"batterySha":"\', \'"batterySha":"0\') ' +
+            "WHERE key = 'place-vector:1'",
+        )
+        .toArray();
+    });
+
+    const resealed = await compute();
+    expect(resealed.body.asked).toBe(true);
+    expect(resealed.body.state_sha).toBe(first.body.state_sha); // the state did not change
+    expect(await placeSpend()).toBeGreaterThan(spentAfterFirst); // the battery did
+  });
+
   it('two concurrent computes make one model call (single-flight)', async () => {
     await seed();
     await resetCaches();

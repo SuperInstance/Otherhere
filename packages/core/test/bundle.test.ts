@@ -4,6 +4,9 @@ import { demoLot, DEMO_CELL } from '../src/demo/lot';
 import { readGlbJson } from '../src/glb/write';
 import { BUILTIN_GENERATORS } from '../src/generators';
 import { BundleManifest } from '../src/schema/bundle';
+import { FOREST_SPECIES } from '../src/forest/species';
+import { cellAt } from '../src/geo/h3';
+import { computeEssence } from '../src/essence/compute';
 import GOLDEN from '../src/demo/golden.json';
 
 describe('built-in generators', () => {
@@ -74,11 +77,90 @@ describe('buildBundle (invariants 1 and 2)', () => {
     ]);
     expect(json.extras.otherhere.cell).toBe(DEMO_CELL);
     expect(json.extras.otherhere.features.map((f) => f.id)).toContain('osm:w200');
-    // The lot's drawable Features, plus the trees its landcover patches imagine
-    // (ADR-0017): the demo wood west of the road and the scrub patch east of it.
+    // Only the drawable Features are drawn now: the imagined forest left the
+    // build (ADR-0017, amended 2026-10-22), so no `gen:` ranges ever appear.
     const drawn = demoLot().filter((f) => f.kind !== 'landcover').length;
-    const imagined = json.extras.otherhere.features.filter((f) => f.id.startsWith('gen:')).length;
-    expect(imagined).toBeGreaterThan(0);
-    expect(manifest.featureCount).toBe(drawn + imagined);
+    expect(json.extras.otherhere.features.some((f) => f.id.startsWith('gen:'))).toBe(false);
+    expect(manifest.featureCount).toBe(drawn);
+  });
+
+  it('carries the forest as data: landcover rings and the species mix', async () => {
+    // The display forest reads the extras the way it used to read imagined
+    // trees (ADR-0017, amended): zones in the Cell's local frame, the mix over
+    // every species, both covered by the inputs hash.
+    const { glb } = await buildBundle({ cell: DEMO_CELL, features: demoLot() });
+    const json = readGlbJson(glb) as {
+      extras: {
+        otherhere: {
+          forest: {
+            mix: Record<string, number>;
+            zones: { id: string; cover: string; ring: number[] }[];
+          };
+        };
+      };
+    };
+    const { mix, zones } = json.extras.otherhere.forest;
+    // The demo lot's wood and scrub patch, as rings — the same polygons the
+    // imagined forest used to grow from, and the meadows that stay open.
+    expect(zones.map((z) => [z.id, z.cover]).sort()).toEqual([
+      ['osm:w400', 'forest'],
+      ['osm:w401', 'scrub'],
+    ]);
+    for (const z of zones) {
+      expect(z.ring.length).toBeGreaterThanOrEqual(6); // a flat e/n pair list
+      expect(z.ring.length % 2).toBe(0);
+    }
+    // The demo Cell is temperate with no Essence: the biome's mix, over every
+    // species the vocabulary knows. (The GLB's JSON chunk is canonical, so the
+    // keys arrive sorted; the build itself is order-independent either way.)
+    expect([...Object.keys(mix)].sort()).toEqual([...FOREST_SPECIES].sort());
+    expect(mix.broadleaf).toBe(1);
+    expect(mix.hemlock).toBe(0);
+  });
+
+  it("keeps a wild Cell's Bundle a sketch, not a scan of every stem", async () => {
+    // The forest advice's headline number: a wild rainforest Cell with no
+    // Facts built ~1.57 MB of imagined trees. Now it is ground and extras —
+    // kilobytes the display forest turns into instanced trees client-side.
+    const SITKA = cellAt(57.0537, -135.33);
+    const { glb, manifest } = await buildBundle({ cell: SITKA, features: [] });
+    expect(manifest.featureCount).toBe(0);
+    expect(glb.byteLength).toBeLessThan(50_000);
+  });
+
+  it('covers the forest extras in the content address', async () => {
+    // A changed ring, a changed cover and a changed Town mix must all move the
+    // inputs hash, or old Cells would keep serving a stale forest.
+    const lot = demoLot();
+    const base = await bundleInputsHash({ cell: DEMO_CELL, features: lot });
+    const moved = lot.map((f) =>
+      f.id === 'osm:w400'
+        ? {
+            ...f,
+            attrs: {
+              ...f.attrs,
+              footprint: {
+                value: (f.attrs.footprint!.value as number[][]).slice(0, -1),
+                confidence: 0.7,
+                source: 'osm' as const,
+              },
+            },
+          }
+        : f,
+    );
+    expect(await bundleInputsHash({ cell: DEMO_CELL, features: moved })).not.toBe(base);
+    // A Town that has found its own voice changes the forest the extras carry.
+    const spoken = computeEssence('t', [
+      ...Array.from({ length: 8 }, () => ({
+        kind: 'tree' as const,
+        attrs: { species: { value: 'spruce', confidence: 0.9, source: 'osm' as const } },
+      })),
+    ]);
+    const essenced = await bundleInputsHash({
+      cell: DEMO_CELL,
+      features: lot,
+      essence: spoken,
+    });
+    expect(essenced).not.toBe(base);
   });
 });

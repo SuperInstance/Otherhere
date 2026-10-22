@@ -4,7 +4,9 @@ import {
   bundleInputsHash,
   computeEssence,
   forestBiome,
+  regionOf,
   PLACE_BATTERY,
+  PLACE_BATTERY_SHA,
   placeCensus,
   placeState,
   sha256Hex,
@@ -386,14 +388,15 @@ export class TownDO extends DurableObject<Env> {
         version: r.version,
       }));
     const resolved = resolveFacts(facts);
-    // The Town's place in the world decides its fallback forest character
-    // (ADR-0017): a TownDO's name is its res-6 Cell.
+    // The Town's place in the world decides its fallback forest character and
+    // its imagined buildings' regional prior (ADR-0014): a TownDO's name is its
+    // res-6 Cell.
     const name = this.ctx.id.name ?? 'town';
     const centre = townCenter(name) ?? { lat: 0, lng: 0 };
     const e = computeEssence(
       name,
       [...kinds].map(([id, kind]) => ({ kind, attrs: resolved.get(id) ?? {} })),
-      { biome: forestBiome(centre.lat, centre.lng) },
+      { biome: forestBiome(centre.lat, centre.lng), region: regionOf(centre.lat, centre.lng) },
     );
     this.sql.exec(
       "INSERT OR REPLACE INTO meta (key, value) VALUES ('essence:2', ?)",
@@ -501,10 +504,12 @@ export class TownDO extends DurableObject<Env> {
       const { essence, census } = this.placeSnapshot();
       const state = placeState(essence, census);
       const stateSha = await sha256Hex(state);
+      const batterySha = await PLACE_BATTERY_SHA;
       const stored = this.placeVector();
       if (
         stored &&
         stored.battery === PLACE_BATTERY &&
+        stored.batterySha === batterySha &&
         stored.model === JEV_MODEL &&
         stored.stateSha === stateSha
       ) {
@@ -513,6 +518,7 @@ export class TownDO extends DurableObject<Env> {
       const r = await askPlaceVectorState(jev, state);
       const fresh: StoredPlaceVector = {
         battery: PLACE_BATTERY,
+        batterySha,
         model: JEV_MODEL,
         served: r.model_served,
         stateSha: r.stateSha,

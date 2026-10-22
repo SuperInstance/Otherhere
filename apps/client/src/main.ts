@@ -44,6 +44,7 @@ import {
   sunPosition,
 } from './sky';
 import { Forest } from './forest';
+import { ForestDemo } from './forest-demo';
 import { World } from './world';
 import { windStrength } from './wind';
 import { Terrain, type TerrainMode } from './terrain';
@@ -51,7 +52,7 @@ import { SessionClient } from './net';
 import { describeEvent, MatchView, TEAM_NAMES } from './match';
 import { describeFacts, photoToJpegBase64, questLine, questsDone } from './feature';
 import { learnFromWalk } from './capture';
-import { composeStatus, StatusLine } from './status';
+import { composeStatus, LoadAnnouncer, StatusLine } from './status';
 import { WalkControls } from './walk';
 import { PAPER } from './material';
 import {
@@ -72,6 +73,13 @@ const statusLine = new StatusLine($('status-moment'), $('status'), $('status-cel
   const span = document.createElement('span');
   span.textContent = text;
   return span;
+});
+const announceEl = $('announce');
+const announcer = new LoadAnnouncer((text) => {
+  // Clear first, then say it on a later tick: a live region that repeats the
+  // same words needs a real change between episodes for readers to re-say it.
+  announceEl.replaceChildren();
+  setTimeout(() => (announceEl.textContent = text), 60);
 });
 const form = $<HTMLFormElement>('goto');
 const input = $<HTMLInputElement>('coords');
@@ -221,6 +229,9 @@ if (start && 'capsule' in start) {
 
 // --- World -----------------------------------------------------------------------
 const isDemo = !!start && 'demo' in start;
+// The forest test stand (#66): a client-only demo world, so it routes before
+// the place defaulting below (a bare ?demo=forest has no start otherwise).
+const forestDemoMode = !isDemo && new URLSearchParams(location.search).get('demo') === 'forest';
 const place =
   start && 'lat' in start
     ? start
@@ -252,6 +263,10 @@ const skyBiome = forestBiome(skyAt.lat, skyAt.lng);
 // fidelity), so its sky never turns either — whoever opens a postcard sees
 // the hour it was saved, pinned in the link. Everything else keeps living.
 const skyFrozen = parseTime(location.search) !== null || !!capsule;
+// The freeze is decided here, at boot, and never toggles: a pinned view is
+// frozen from its first frame, so the scene clock (and with it every wave and
+// drift) starts and stays at 0 — every opening of a pinned link shares the
+// same phase. If the freeze ever becomes dynamic, that guarantee is gone.
 let skyElapsed = 0;
 let skyFast = false;
 let skyNow = { hour: skyStart, elevation: 0, cloud: 0, wind: 0 };
@@ -265,6 +280,10 @@ addEventListener('keyup', (e) => {
 // so a slow renderer still sees the day turn at true speed.
 const updateSky = (rawDt: number) => {
   skyElapsed += skyStep(rawDt, skyFast, skyFrozen);
+  // Everything that moves with time rides the sky's clock — the ocean's waves,
+  // the cloud shadows, the mist banks, the star twinkle — so a pinned ?t= (or a
+  // postcard's hour) holds the whole scene still, not just the sky's colours.
+  atmosphere.setTime(skyElapsed);
   const hour = clockHour(skyStart, skyElapsed);
   const sunDir = sunDirection(skyAt.lat, DAY_OF_YEAR, hour);
   const moonDir = moonDirection(sunDir);
@@ -286,7 +305,34 @@ const updateSky = (rawDt: number) => {
   skyNow = { hour, elevation, cloud, wind: windStrength(skyElapsed, cloud) };
 };
 
-if (!originCell) {
+if (forestDemoMode) {
+  // The crown-motion instrument (#66): the whole world is in the module — a
+  // witness tree, fixed cameras, and a per-frame readback recorded with the
+  // wind state each frame rendered with. `?t=` pins it like anywhere else.
+  const demo = new ForestDemo({
+    species: ((): 'spruce' | 'hemlock' => {
+      const s = new URLSearchParams(location.search).get('species');
+      return s === 'hemlock' ? 'hemlock' : 'spruce';
+    })(),
+    grove: Number(new URLSearchParams(location.search).get('grove')) || 1.5,
+    frozen: parseTime(location.search) !== null,
+  });
+  statusLine.boot('Forest test stand — one known crown, the wind, and the readback.');
+  let lastDemo = performance.now();
+  let lastHandle = 0;
+  renderer.setAnimationLoop((now) => {
+    const rawDt = (now - lastDemo) / 1000;
+    lastDemo = now;
+    demo.frame(renderer, rawDt);
+    renderer.render(demo.scene, demo.viewCamera);
+    if (now - lastHandle > 500) {
+      lastHandle = now;
+      (window as unknown as { __otherhere?: unknown }).__otherhere = {
+        forestDemo: demo.readout(),
+      };
+    }
+  });
+} else if (!originCell) {
   statusLine.boot(`${backend} · Enter coordinates to walk a place.`);
   renderer.setAnimationLoop(() => {
     updateSky(1 / 60);
@@ -318,11 +364,19 @@ if (!originCell) {
           // scattered woods. Either way, town centres thin out around their buildings.
           // Nothing grows where the town is not known yet: those chunks replant when
           // their Cell's Bundle arrives (world.onBuilt), instead of trees popping out.
+          // Landcover from the Bundle's extras decides where it is forest, scrub or
+          // open meadow (ADR-0017, amended) — and where nothing is said, the biome.
           if (!world.settled(x, z)) return 0;
+          const cover = world.landcoverAt(x, z);
+          if (cover === 'meadow') return 0;
           const p = world.frame.unproject({ e: x, n: -z });
           const wild = FOREST_BIOMES[forestBiome(p.lat, p.lng)].wild;
-          return (wild ? 1 : 0.05) / (1 + world.builtUp(x, z) / 3);
+          const base = cover === 'forest' ? 1 : cover === 'scrub' ? 0.35 : wild ? 1 : 0.05;
+          return base / (1 + world.builtUp(x, z) / 3);
         },
+        // The Town's own conifer mix, when its Bundle has spoken (Essence first,
+        // biome character as fallback — both sealed into the extras by the build).
+        mix: (x, z) => world.forestSpruceP(x, z),
         // Phones and tablets get a smaller, sparser forest: same seeds, fewer chunks.
         ...(matchMedia('(pointer: coarse)').matches ? { radius: 900, maxTrees: 9000 } : {}),
       })
@@ -374,6 +428,7 @@ if (!originCell) {
 
   const showStatus = () => {
     const s = world.stats();
+    announcer.update(s.loading, s.ready);
     statusLine.update(
       composeStatus({
         backend,
@@ -399,7 +454,7 @@ if (!originCell) {
         stand: terrain.standAt(walk.pose.x, walk.pose.z),
         eye: camera.position.y,
       },
-      forest: forest && forest.stats(),
+      forest: forest && { ...forest.stats(), settled: forest.settled(), wind: forest.wind() },
       session: session && {
         code: session.code,
         me: session.me,
@@ -609,7 +664,6 @@ if (!originCell) {
             walkResult.textContent = `Frame ${p.done} of ${p.total} · ${p.sharpened} building${p.sharpened === 1 ? '' : 's'} sharpened`;
           },
         });
-        for (const cell of sharpened) world.reload(cell);
         const notes = [];
         if (result.unreadable)
           notes.push(
@@ -620,10 +674,16 @@ if (!originCell) {
             `${result.noBuilding} frame${result.noBuilding === 1 ? '' : 's'} faced no building`,
           );
         if (result.outsideTrack) notes.push(`${result.outsideTrack} fell outside the GPS track`);
+        if (result.failed)
+          notes.push(
+            `${result.failed} building${result.failed === 1 ? '' : 's'} could not be observed`,
+          );
         walkResult.textContent = `Done: ${result.sharpened} building${result.sharpened === 1 ? '' : 's'} sharpened from ${result.total} frames${notes.length ? ` (${notes.join(', ')})` : ''}.`;
       } catch (err) {
         walkResult.textContent = `Could not use this walk: ${(err as Error).message}`;
       } finally {
+        // What the walk sharpened must appear, even when the import stopped midway.
+        for (const cell of sharpened) world.reload(cell);
         btn.disabled = false;
       }
     });

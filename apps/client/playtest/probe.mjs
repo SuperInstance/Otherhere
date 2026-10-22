@@ -42,6 +42,13 @@ const SCENE = arg('scene', 'walk');
 const PINNED_T = arg('t', ''); // pinned day-clock hour for the URL (?t=)
 const HASH = arg('hash', ''); // saved pose for the URL (#x,y,z,yaw,pitch)
 const VIEWPORT = arg('viewport', ''); // "<W>x<H>"; --phone defaults it to 390x844
+// A malformed --viewport must fail loudly (#61): every earlier round was judged
+// at a known size, and a silent 1280x800 fallback would name evidence for a
+// viewport it never played.
+if (VIEWPORT && !/^\d{3,5}x\d{3,5}$/.test(VIEWPORT.toLowerCase())) {
+  console.error(`--viewport must look like 1280x800, not ${JSON.stringify(VIEWPORT)}`);
+  process.exit(2);
+}
 const PHONE = process.argv.includes('--phone');
 const SEED = process.argv.includes('--seed');
 const OUT =
@@ -712,15 +719,119 @@ async function sceneSketch() {
   note('cell-asks', { count: cellAsks.length, urls: cellAsks.slice(0, 60) });
 }
 
+/**
+ * THE CROWN-MOTION READBACK (#66, Arc 1's first probe law): the forest test
+ * stand on whatever --base is given, graded the same way the e2e grades it.
+ * The scene runs the law (a lone witness crown measured against swayOffset's
+ * prediction for the handle-reported wind) and then records a grove for the
+ * eye — the wind visibly crossing crowns, which a diff of two shots shows.
+ */
+async function sceneCrown() {
+  const read = () =>
+    page
+      .evaluate(() => {
+        const d = window.__otherhere?.forestDemo;
+        return d
+          ? {
+              witness: d.witness,
+              cloud: d.cloud,
+              ready: d.ready,
+              trees: d.trees,
+              dropped: d.dropped,
+              bottomUp: d.bottomUp,
+              wind: d.wind,
+              frames: d.frames.map((f) => ({ ...f })),
+            }
+          : null;
+      })
+      .catch(() => null);
+
+  // 1. The law, on the isolated witness.
+  await page.goto(`${BASE}/?demo=forest&species=spruce`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 60000,
+  });
+  note('goto', { url: `${BASE}/?demo=forest&species=spruce` });
+  let d = null;
+  for (let wait = 0; wait < 120; wait++) {
+    d = await read();
+    if (d && d.ready && d.frames.length >= 30) break;
+    await page.waitForTimeout(1000);
+  }
+  if (!d || !d.ready || d.frames.length < 30)
+    throw new Error(
+      `the forest demo never recorded 30 frames (ready=${d?.ready}, frames=${d?.frames?.length})`,
+    );
+
+  const preds = await page.evaluate(
+    (ts) => ts.map((t) => window.__otherhere.forestDemo.predictTip(t)),
+    d.frames.map((f) => f.t),
+  );
+  // The e2e's pairing: a fixed 0.5 s baseline, whatever the frame rate.
+  const pairs = [];
+  let j = 0;
+  for (let i = 0; i < d.frames.length; i++) {
+    if (j < i + 1) j = i + 1;
+    while (j < d.frames.length && d.frames[j].t - d.frames[i].t < 0.5) j++;
+    if (j >= d.frames.length) break;
+    const a = d.frames[i];
+    const b = d.frames[j];
+    const pa = preds[i];
+    const pb = preds[j];
+    const pred = Math.hypot(pb.u - pa.u, pb.v - pa.v);
+    if (pred < 1.5) continue;
+    const meas = Math.hypot(b.u - a.u, b.v - a.v);
+    pairs.push({
+      i,
+      pred,
+      meas,
+      err: Math.abs(meas - pred),
+      over: Math.abs(meas - pred) > 1.2 + 0.25 * pred,
+    });
+  }
+  const maxErr = pairs.reduce((m, p) => Math.max(m, p.err), 0);
+  const over = pairs.filter((p) => p.over);
+  note('crown-law', {
+    witness: d.witness,
+    trees: d.trees,
+    dropped: d.dropped,
+    bottomUp: d.bottomUp,
+    frames: d.frames.length,
+    clockSpan: Number((d.frames.at(-1).t - d.frames[0].t).toFixed(2)),
+    pairs: pairs.length,
+    pairsOutsideBand: over.length,
+    maxErrPx: Number(maxErr.toFixed(2)),
+    worst: over.slice(0, 3).map((p) => ({
+      i: p.i,
+      pred: Number(p.pred.toFixed(2)),
+      meas: Number(p.meas.toFixed(2)),
+    })),
+    law: over.length === 0 ? 'holds' : 'BROKEN',
+  });
+  await shot('40-crown-law-stand');
+
+  // 2. The eye: a grove, two moments apart — the sway reads even in stills.
+  await page.goto(`${BASE}/?demo=forest&species=spruce&grove=35`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 60000,
+  });
+  note('goto', { url: `${BASE}/?demo=forest&species=spruce&grove=35` });
+  await page.waitForTimeout(15000);
+  await shot('41-crown-grove-a');
+  await page.waitForTimeout(4000);
+  await shot('42-crown-grove-b');
+}
+
 const SCENES = {
   walk: sceneWalk,
   day: sceneDay,
   determinism: sceneDeterminism,
   postcard: scenePostcard,
   sketch: sceneSketch,
+  crown: sceneCrown,
 };
 if (!SCENES[SCENE]) {
-  console.error(`unknown --scene ${SCENE} (walk|day|determinism|postcard|sketch)`);
+  console.error(`unknown --scene ${SCENE} (walk|day|determinism|postcard|sketch|crown)`);
   process.exit(2);
 }
 

@@ -1,5 +1,7 @@
 # The forest is imagined per Cell from landcover, taxonomy, and the Town's Essence
 
+_Amended 2026-10-22: the drawing moved. The data model below stands — species as a Fact, landcover as an input Fact, the mix as Essence — but the trees are drawn by the client's display forest, not grown inside `buildBundle`. See the amendment at the end._
+
 Around Sitka the big stable trees are roughly **70 % western hemlock, 25 % Sitka spruce, 5 % yellow cedar**, with alder on disturbed ground and salmonberry in clearings and roadsides. A single generic tree prop cannot say any of that, and a hand-placed one cannot be true to a place we have never seen. So the forest is _derived_, like every other Bundle content:
 
 - **Species is a Fact** (`species`: `hemlock` | `spruce` | `cedar` | `alder` | `salmonberry` | `broadleaf`). Where OSM tags a taxon (`taxon`, `species`, `genus`) we recognise, that wins with high confidence. A capture or an edit can name one later and outrank it (invariant 4).
@@ -20,3 +22,17 @@ Around Sitka the big stable trees are roughly **70 % western hemlock, 25 % Sitka
 - Landcover polygons anchor at their centroid (ADR-0003), so a wood spanning several Cells is grown only in its anchored Cell; its neighbours fall back to the wild fill. Clipping polygons per Cell is the later, honest fix.
 - The interpreter version moved to 0.5.0 (imagined Features join the build) and the golden hashes with it.
 - Later: species mixes sharpened from captures (a photo of a stand updates the Town's `Essence.forest`), satellite canopy cover as a `satellite_inference` Fact, and per-neighbourhood essence instead of per-Town.
+
+## Amendment (2026-10-22): the display forest draws the imagined trees
+
+The original design grew up to 220 imagined trees per Cell inside `buildBundle`. Measured on a wild hillside north of Sitka, that Cell's Bundle was **1.57 MB** (167 Features, 33,865 vertices) where the same Cell before the forest was under 1 KB — trees the client loads, hashes, parses and stores in R2 for every Cell anyone walks past, placed by a build that cannot know where the ground is (61 % of the imagined trees across Sitka's bay stood below the beach line, collapsed client-side after download). The display forest (`apps/client/src/forest.ts`) already drew a streamed, instanced forest on real terrain for a few hundred triangles a chunk. Two forests, two species models, meeting at the edge of the loaded Cells.
+
+**The decision**: the imagined forest is drawn by the display forest, from the same data model this ADR established. Nothing else changes — species and landcover stay Facts (invariant 1 is untouched: nothing imagined is stored), the mix stays Essence, observations still win.
+
+- **Bundles keep observed trees only** (`natural=tree` nodes, drawn by `prop.tree`). `imagineForest` is deleted; with it die its known defects: list-position thinning that moved every tree when one candidate arrived, `Math.hypot` in a hashed comparison, the two disagreeing biome defaults, one meadow suppressing a whole Cell's wild fill, and the hexagon edge band drawn in shrubs. A per-point landcover query in the client fixes the meadow bug by construction: a meadow clears only its own ring.
+- **The landcover rings and the species mix ride in the GLB extras** (`extras.otherhere.forest`): zones as local-frame rings rounded to centimetres, the mix over the full species vocabulary, Essence-first with the biome character as fallback. Both derive from inputs the content address already covers (`features`, `essence`), so a changed ring or mix moves `inputsHash` by construction — no `FOREST_VERSION` is needed. The extras are data, not drawing: landcover still has no generator.
+- **The display forest reads them**: `World.landcoverAt(x, z)` answers forest/scrub/meadow from the loaded Cell's rings; the density callback plants full forest inside `forest` rings, thinner scrub (0.35, conifers standing in for alder until their silhouette exists), nothing in meadows, and the biome's wild rules elsewhere. `World.forestSpruceP` gives the Town's spruce share of its conifers, so one mix shapes the whole forest — the "one forest, one look" the review asked for.
+- **`INTERPRETER_VERSION` moved to 0.6.0** so every Cell rebuilds without its imagined trees. The wild Cell measures **1,836 bytes** (0 Features, 6 vertices: ground and extras) where it measured 1.57 MB.
+- **The paper world (no terrain) is honestly treeless**: where there is no ground there is no display forest, so the flat e2e/demo world shows buildings and roads without trees. The terrain is the ground truth of where a tree can stand (ADR-0016); paper is a sketch of knowledge, not of trees.
+
+Still open, deliberately: landcover polygons anchor at their centroid Cell, so a wood spanning Cells is planted only in its anchored Cell (unchanged from the original design); alder and salmonberry have no display silhouette yet, so scrub zones plant short conifers; per-Neighbourhood Essence and satellite canopy cover remain future work as before.

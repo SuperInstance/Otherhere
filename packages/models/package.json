@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
     "smoke": "tsx scripts/smoke.ts",
-    "place-vector": "tsx scripts/place-vector.ts"
+    "place-vector": "tsx scripts/place-vector.ts",
+    "place-retrieval": "tsx scripts/place-retrieval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

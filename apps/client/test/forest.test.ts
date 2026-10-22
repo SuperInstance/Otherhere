@@ -103,4 +103,61 @@ describe('Forest', () => {
     for (let i = 0; i < 200; i++) forest.update(0, 0);
     expect(chunkTrees(forest, 4, 0)).toBeLessThan(full);
   });
+
+  it('reports settled only when the stream has nothing left to do', () => {
+    // Before any update the answer is unknown, so it says false.
+    const fresh = new Forest(new Scene(), hills, { radius: 400 });
+    expect(fresh.settled()).toBe(false);
+    // A world with no ground never plants: settled from the first update on.
+    const bare = new Forest(new Scene(), { active: false, heightAt: () => 100 }, { radius: 400 });
+    expect(bare.settled()).toBe(false);
+    bare.update(0, 0);
+    expect(bare.settled()).toBe(true);
+    expect(bare.stats().trees).toBe(0);
+    // On real ground the stream runs: unsettled while chunks are still pending,
+    // settled once every chunk in radius is planted and no partial can fill.
+    const forest = new Forest(new Scene(), hills, { radius: 400 });
+    forest.update(0, 0);
+    expect(forest.settled()).toBe(false);
+    for (let i = 0; i < 40; i++) forest.update(0, 0);
+    expect(forest.settled()).toBe(true);
+    // A spent budget leaves partial chunks partial forever — that is settled too.
+    const tight = new Forest(new Scene(), hills, { radius: 400, maxTrees: 500 });
+    for (let i = 0; i < 40; i++) tight.update(0, 0);
+    expect(tight.settled()).toBe(true);
+    expect(tight.stats().trees).toBeLessThanOrEqual(500);
+    // New ground arriving under a planted forest means work to do again.
+    forest.invalidate(-100, -100, 100, 100);
+    forest.update(0, 0);
+    expect(forest.settled()).toBe(false);
+    for (let i = 0; i < 40; i++) forest.update(0, 0);
+    expect(forest.settled()).toBe(true);
+  });
+
+  it('reports the nearest planted tree, species and all (#66)', () => {
+    const forest = new Forest(new Scene(), hills, { radius: 400 });
+    for (let i = 0; i < 40; i++) forest.update(0, 0);
+    const w = forest.nearest(0, 0);
+    expect(w).not.toBeNull();
+    // It is a real planted instance: standing on the hills, house-sized.
+    expect(w!.y).toBeGreaterThan(0);
+    expect(w!.height).toBeGreaterThanOrEqual(15);
+    expect(w!.height).toBeLessThanOrEqual(42);
+    expect(w!.width).toBeGreaterThan(2);
+    // No query point in the planted radius reads a tree from further out.
+    for (const q of [
+      [0, 0],
+      [300, -220],
+    ] as const) {
+      const [qx, qz] = q;
+      const n = forest.nearest(qx, qz);
+      expect(n).not.toBeNull();
+      expect(Math.hypot(n!.x - qx, n!.z - qz)).toBeLessThanOrEqual(500);
+    }
+  });
+
+  it('nearest reads null before anything plants', () => {
+    const forest = new Forest(new Scene(), { active: false, heightAt: () => 100 }, { radius: 400 });
+    expect(forest.nearest(0, 0)).toBeNull();
+  });
 });

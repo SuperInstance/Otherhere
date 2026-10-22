@@ -30,6 +30,7 @@ import {
   GUST_SHORT,
   SHIVER_RATE,
   SWAY_MAX_M,
+  WIND_PERIOD,
   WIND_TOWARD,
   windStrength,
   WOBBLE_RAD,
@@ -93,6 +94,10 @@ function strideBoundary(stride: number): number {
 /** Spruce reads bluish, hemlock warmer — the only thing telling the species apart at distance. */
 const SPRUCE_TINT = new Color('#2c4a32');
 const HEMLOCK_TINT = new Color('#36503a');
+
+/** The spruce share when no Town has spoken: the display forest's own split,
+ *  used before any Bundle arrives and in broadleaf towns with no conifers. */
+const DEFAULT_SPRUCE_P = 0.6;
 
 /* --------------------------------------------------------------------- wind */
 
@@ -246,6 +251,32 @@ function buildConiferGeometry(spruce: boolean): BufferGeometry {
   return g;
 }
 
+/** The unit-space apex of a species' crown: where its topmost vertex sits. */
+export function crownApex(spruce: boolean): { x: number; y: number; z: number } {
+  return { x: spruce ? 0 : 0.03, y: 1, z: 0 };
+}
+
+/**
+ * The flex baked at the crown's apex vertex — the traveller the crown-motion
+ * readback predicts (#66). Read from the geometry itself, so the prediction and
+ * the shader can never disagree about what the tip is willing to do.
+ */
+export function crownTipFlex(spruce: boolean): number {
+  const g = buildConiferGeometry(spruce);
+  const pos = g.getAttribute('position');
+  const flex = g.getAttribute('flex');
+  let best = 0;
+  let bestY = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    if (pos.getY(i) > bestY) {
+      bestY = pos.getY(i);
+      best = flex.getX(i);
+    }
+  }
+  g.dispose();
+  return best;
+}
+
 /* ------------------------------------------------------------------ material */
 
 const TAU = Math.PI * 2;
@@ -336,6 +367,18 @@ export type ForestGround = {
   heightAt(x: number, z: number): number;
 };
 
+/** A planted tree, as `Forest.nearest` reports it to instruments (#66). */
+export type PlantedTree = {
+  /** Trunk base, world metres (x east, z south). */
+  readonly x: number;
+  readonly z: number;
+  readonly y: number;
+  readonly height: number;
+  readonly width: number;
+  readonly yaw: number;
+  readonly spruce: boolean;
+};
+
 /** A planted candidate; positions are world space, sizes metres. */
 type Tree = {
   readonly x: number;
@@ -357,6 +400,8 @@ type SpeciesMesh = {
   readonly mesh: InstancedMesh;
   readonly trees: readonly Tree[];
   readonly tint: Color;
+  /** Which geometry this species instances — what `nearest` reports. */
+  readonly spruce: boolean;
   placed: number;
 };
 
@@ -415,6 +460,7 @@ export class Forest {
   private readonly ground: ForestGround;
   private readonly occupied: ((x: number, z: number) => boolean) | undefined;
   private readonly density: ((x: number, z: number) => number) | undefined;
+  private readonly mix: ((x: number, z: number) => number | undefined) | undefined;
   private readonly radius: number;
   private readonly maxTrees: number;
   private readonly spruceGeometry: BufferGeometry;
@@ -426,6 +472,8 @@ export class Forest {
   /** Fresh chunks still to plant inside the radius, by detail band (see `bandOf`). */
   private pending: [number, number, number] = [0, 0, 0];
   private trees = 0;
+  /** Whether `update` has run at least once (before that, settled() is unknown). */
+  private polled = false;
 
   constructor(
     scene: Scene,
@@ -434,6 +482,9 @@ export class Forest {
       occupied?: (x: number, z: number) => boolean;
       /** 0–1: how wooded this kind of place is (biome, built-up ground). Default 1. */
       density?: (x: number, z: number) => number;
+      /** The Town's spruce share of its conifers (the Bundle extras' mix),
+       *  asked once per chunk at its centre; undefined keeps the default split. */
+      mix?: (x: number, z: number) => number | undefined;
       radius?: number;
       maxTrees?: number;
     },
@@ -441,6 +492,7 @@ export class Forest {
     this.ground = ground;
     this.occupied = opts?.occupied;
     this.density = opts?.density;
+    this.mix = opts?.mix;
     this.radius = opts?.radius ?? 1400;
     this.maxTrees = opts?.maxTrees ?? 26000;
     this.spruceGeometry = buildConiferGeometry(true);
@@ -483,6 +535,7 @@ export class Forest {
    * where the budget runs out.
    */
   update(x: number, z: number): void {
+    this.polled = true;
     if (!this.ground.active) return; // no terrain heights yet: plant nothing
 
     const dropDist = this.radius * 1.25;
@@ -545,6 +598,25 @@ export class Forest {
   }
 
   /**
+   * True when the streaming pass has nothing left to do from here: every chunk
+   * in radius is planted and no partial chunk can still take trees (a spent
+   * budget leaves partials partial forever — that is its stable end state). A
+   * world with no ground yet never plants, so it counts as settled; the flag
+   * flips the moment ground arrives and planting begins. Before the first
+   * `update` the answer is unknown, so it says false.
+   */
+  settled(): boolean {
+    if (!this.polled) return false;
+    if (!this.ground.active) return true;
+    if (this.pending[0] + this.pending[1] + this.pending[2] > 0) return false;
+    // A capped forest is settled regardless of partials: with the budget spent
+    // they can never take another tree, so this is their stable end state.
+    if (this.trees >= this.maxTrees) return true;
+    for (const chunk of this.chunks.values()) if (chunk.partial) return false;
+    return true;
+  }
+
+  /**
    * Feed the wind: the sky's elapsed clock seconds, the cloud cover it
    * reports, and the biome's wind floor (the biome-band decision: the pacific
    * rainforest keeps a breath under grey sky; temperate overcast is exactly
@@ -554,8 +626,53 @@ export class Forest {
    * deterministic as the sky.
    */
   setWind(elapsed: number, cloud: number, floor = 0): void {
-    windTimeU.value = elapsed;
-    windStrengthU.value = windStrength(elapsed, cloud, floor);
+    // The wind's whole field is exactly periodic on WIND_PERIOD (every rate is
+    // whole cycles per it, and the strength's breath lattice repeats on it), so
+    // the wrap changes nothing the crowns do — and the float32 sine arguments
+    // stay small in a tab left open for days (#50). Positive modulo: the clock
+    // the shader sees is always in [0, WIND_PERIOD), whatever it is fed.
+    const t = ((elapsed % WIND_PERIOD) + WIND_PERIOD) % WIND_PERIOD;
+    windTimeU.value = t;
+    windStrengthU.value = windStrength(t, cloud, floor);
+  }
+
+  /** The wind as the shader currently sees it (the wrapped clock and the strength). */
+  wind(): { time: number; strength: number } {
+    return { time: windTimeU.value, strength: windStrengthU.value };
+  }
+
+  /**
+   * The nearest planted tree to a point, for instruments that want a known
+   * crown to watch (#66): where it stands, how big it is, and which geometry
+   * (species) it instances. Null while nothing is planted. Only trees that
+   * have actually taken an instance slot are considered — a chunk still
+   * completing has candidates that are not in the world yet.
+   */
+  nearest(x: number, z: number): PlantedTree | null {
+    let best: PlantedTree | null = null;
+    let bestD = Infinity;
+    for (const chunk of this.chunks.values()) {
+      for (const sp of chunk.species) {
+        // Only the placed prefix is live in the instance buffer.
+        for (let i = 0; i < sp.placed; i++) {
+          const t = sp.trees[i]!;
+          const d = (t.x - x) ** 2 + (t.z - z) ** 2;
+          if (d < bestD) {
+            bestD = d;
+            best = {
+              x: t.x,
+              z: t.z,
+              y: t.y,
+              height: t.height,
+              width: t.width,
+              yaw: t.yaw,
+              spruce: sp.spruce,
+            };
+          }
+        }
+      }
+    }
+    return best;
   }
 
   dispose(): void {
@@ -596,10 +713,12 @@ export class Forest {
     this.replantStride.delete(chunkKey(ix, iz));
     const chunk: Chunk = { ix, iz, species: [], trees: 0, partial: false, stride };
     if (spruce.length > 0) {
-      chunk.species.push(this.makeSpecies(ix, iz, this.spruceGeometry, spruce, SPRUCE_TINT));
+      chunk.species.push(this.makeSpecies(ix, iz, this.spruceGeometry, spruce, SPRUCE_TINT, true));
     }
     if (hemlock.length > 0) {
-      chunk.species.push(this.makeSpecies(ix, iz, this.hemlockGeometry, hemlock, HEMLOCK_TINT));
+      chunk.species.push(
+        this.makeSpecies(ix, iz, this.hemlockGeometry, hemlock, HEMLOCK_TINT, false),
+      );
     }
     this.chunks.set(chunkKey(ix, iz), chunk);
     this.fill(chunk);
@@ -611,6 +730,7 @@ export class Forest {
     geometry: BufferGeometry,
     trees: readonly Tree[],
     tint: Color,
+    spruce: boolean,
   ): SpeciesMesh {
     const mesh = new InstancedMesh(geometry, this.material, trees.length);
     // Named by chunk, so a walk or a test can find one chunk's instances in the scene.
@@ -618,7 +738,7 @@ export class Forest {
     mesh.count = 0;
     mesh.visible = false;
     this.root.add(mesh);
-    return { mesh, trees, tint, placed: 0 };
+    return { mesh, trees, tint, spruce, placed: 0 };
   }
 
   /** Writes as many of a chunk's trees as the budget allows; the rest wait for later. */
@@ -681,6 +801,9 @@ export class Forest {
     const minX = ix * CHUNK;
     const minZ = iz * CHUNK;
     const occupied = this.occupied;
+    // One mix per chunk, asked at its centre: the Town's conifer character (the
+    // Bundle extras' mix) or the default split where no Town has spoken.
+    const spruceP = this.mix?.(minX + CHUNK / 2, minZ + CHUNK / 2) ?? DEFAULT_SPRUCE_P;
 
     for (let gz = 0; gz < COLS; gz++) {
       for (let gx = 0; gx < COLS; gx++) {
@@ -715,7 +838,7 @@ export class Forest {
         if (occupied !== undefined && occupied(x, z)) continue;
         if (valueNoise(x, z) < 0.12) continue; // a clearing the loggers left
 
-        const isSpruce = rSpecies < 0.6;
+        const isSpruce = rSpecies < spruceP;
         const stretch = isSpruce ? 18 + rHeight * 24 : 15 + rHeight * 17;
         // Above 450 m the growing season runs out and the same species stands shorter.
         const stunted = Math.min(Math.max((h - 450) / 270, 0), 1);

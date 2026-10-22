@@ -23,13 +23,18 @@
           />
           <button type="submit">Walk here</button>
         </div>
-        <p class="hint" id="coords-error" role="alert" hidden></p>
         <div class="row secondary">
           <button type="button" id="locate">Use my location</button>
           <button type="button" id="demo">Show generator demo</button>
-          <button type="button" id="host" hidden>Start a match here</button>
         </div>
       </form>
+      <!-- An error and the invitation to play are never clipped by the compact
+           phone panel or gift mode: they live outside the #goto form those
+           modes hide (round 08, review item 2 of rounds 06-07). -->
+      <p class="hint" id="coords-error" role="alert" hidden></p>
+      <div class="row secondary" id="host-row">
+        <button type="button" id="host" hidden>Start a match here</button>
+      </div>
       <form id="postcard" hidden autocomplete="off" aria-label="Save a postcard">
         <details>
           <summary>Save a postcard</summary>
@@ -86,7 +91,12 @@
       </section>
       <p id="status-moment"></p>
       <p id="status" aria-live="polite"></p>
-      <p id="status-cells" aria-live="polite"></p>
+      <p id="status-cells"></p>
+      <!-- The one announcement a listener gets that the place stood up: visually
+           hidden, polite, and written once per quiet load (LoadAnnouncer). The
+           routine counts in #status-cells are not a live region — they change on
+           every cell landing (round 08, review of rounds 06-07, item 3). -->
+      <p id="announce" class="sr-only" aria-live="polite"></p>
       <button type="button" id="hud-more" aria-expanded="false" aria-controls="hud">
         More options
       </button>

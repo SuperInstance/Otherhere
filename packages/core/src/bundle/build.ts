@@ -4,16 +4,32 @@ import { cellBoundary, cellCenter } from '../geo/h3';
 import { localFrame } from '../geo/frame';
 import type { ResolvedAttrs } from '../facts/resolve';
 import type { FeatureKind } from '../schema/feature';
+import type { LngLat } from '../schema/fact';
 import type { BundleManifest } from '../schema/bundle';
 import type { Essence } from '../schema/world';
 import { generatorSet, type GeneratorSet } from '../generators';
 import { INTERPRETER_VERSION, runGenerator } from '../geometry/interpret';
 import { MeshBuilder } from '../geometry/mesh';
 import { cleanRing } from '../geometry/polygon';
-import { imagineForest } from '../forest/imagine';
+import { biomeMix, forestBiome, FOREST_SPECIES, type Species } from '../forest/species';
+import { regionOf } from '../essence/region';
 import { writeGlb } from '../glb/write';
 
 export type BundleFeature = { id: string; kind: FeatureKind; attrs: ResolvedAttrs };
+
+/** A landcover ring the display forest reads: local-frame metres, flat
+ *  `[e0, n0, e1, n1, …]`, rounded to centimetres so the JSON stays compact. */
+export type ForestZone = {
+  id: string;
+  cover: 'forest' | 'scrub' | 'meadow';
+  ring: number[];
+};
+
+/** What a Bundle tells the display forest (ADR-0017, amended 2026-10-22):
+ *  the landcover rings and the Town's species mix, as data — never as trees.
+ *  Everything here derives from the Features and the Essence, both in the
+ *  content address, so the extras are covered by the inputs hash. */
+export type ForestExtras = { mix: Record<Species, number>; zones: ForestZone[] };
 
 export type BuildInput = {
   cell: string;
@@ -44,9 +60,25 @@ export async function bundleInputsHash(input: BuildInput): Promise<string> {
       interpreter: INTERPRETER_VERSION,
       generators: await gens.refs(),
       features: [...input.features].sort(byId),
-      essence: input.essence,
+      essence: withDerivedRegion(input),
     }),
   );
+}
+
+/**
+ * Fill an Essence's absent `region` from the Cell's coordinates, the same way
+ * the forest mix falls back to the biome of the centre: an Essence straight
+ * from storage predates regions, but its Town sits where it always sat, so the
+ * derived region is the same value a fresh computation would write — and it
+ * lands in the content address, so the region a Bundle was built under is
+ * always part of its hash (the region table itself is interpreter code, whose
+ * version is in the address too).
+ */
+function withDerivedRegion(input: BuildInput): Essence | undefined {
+  if (!input.essence || input.essence.region) return input.essence;
+  const centre = cellCenter(input.cell);
+  const region = regionOf(centre.lat, centre.lng);
+  return region ? { ...input.essence, region } : input.essence;
 }
 
 export async function buildBundle(input: BuildInput): Promise<BuiltBundle> {
@@ -63,26 +95,27 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle> {
     [0, 1, 0],
   );
 
-  // The imagined forest grows from the Facts (ADR-0017); it is derived, never
-  // stored, and the inputs hash covers everything it depends on.
-  const features = [
-    ...input.features,
-    ...imagineForest(input.cell, input.features, input.essence),
-  ].sort(byId);
+  // Landcover is an input, not a drawing (ADR-0017): the imagined trees it
+  // used to grow here are the display forest's job now, so the rings and the
+  // Town's mix ride along as extras instead of as a thousand Features.
+  const forest = forestExtras(input, frame);
 
   const ranges: { id: string; first: number; count: number }[] = [];
-  for (const f of features) {
+  // Sorted, so the vertex order — and so the bytes — never depend on the order
+  // the Facts arrived in (invariant 2).
+  const essence = withDerivedRegion(input);
+  for (const f of [...input.features].sort(byId)) {
     const gen = gens.forKind(f.kind);
     if (!gen) continue;
     const first = mesh.vertexCount;
-    const stats = runGenerator(gen, f, frame, mesh, input.essence);
+    const stats = runGenerator(gen, f, frame, mesh, essence);
     if (stats && mesh.vertexCount > first)
       ranges.push({ id: f.id, first, count: mesh.vertexCount - first });
   }
 
   const inputsHash = await bundleInputsHash({ ...input, generators: gens });
   const data = mesh.build();
-  const glb = writeGlbFor(input.cell, data, inputsHash, origin, ranges);
+  const glb = writeGlbFor(input.cell, data, inputsHash, origin, ranges, forest);
   return {
     glb,
     manifest: {
@@ -104,10 +137,64 @@ function writeGlbFor(
   inputsHash: string,
   origin: { lat: number; lng: number },
   ranges: { id: string; first: number; count: number }[],
+  forest: ForestExtras,
 ): Uint8Array {
   return writeGlb(data, {
     name: cell,
     generator: `otherhere-core/${INTERPRETER_VERSION}`,
-    extras: { otherhere: { cell, inputsHash, origin, features: ranges } },
+    extras: { otherhere: { cell, inputsHash, origin, features: ranges, forest } },
   });
+}
+
+/** Collect the landcover rings and the species mix for the display forest.
+ *  Pure and deterministic: the mix is built over `FOREST_SPECIES` order (an
+ *  Essence straight from storage may carry any key order), and ring points
+ *  are rounded to centimetres — coarser than any OSM polygon deserves. */
+export function forestExtras(
+  input: BuildInput,
+  frame: ReturnType<typeof localFrame>,
+): ForestExtras {
+  const zones: ForestZone[] = [];
+  for (const f of input.features) {
+    if (f.kind !== 'landcover') continue;
+    const cover = f.attrs.landcover;
+    const fp = f.attrs.footprint;
+    if (!cover || !fp || !Array.isArray(fp.value) || fp.value.length < 3) continue;
+    // The Fact schema constrains landcover to these three; the resolved attr
+    // arrives untyped, so the guard is the schema restated where it is read.
+    if (cover.value !== 'forest' && cover.value !== 'scrub' && cover.value !== 'meadow') continue;
+    const ring = cleanRing(
+      (fp.value as LngLat[]).map((p) => frame.project({ lat: p[1], lng: p[0] })),
+    );
+    if (ring.length < 3) continue;
+    // Rounded to centimetres, then deduplicated: a polygon smaller than a
+    // coin can round to fewer than three distinct points, and a degenerate
+    // ring is dropped rather than shipped as a zone nothing can be inside.
+    const flat: number[] = [];
+    for (const p of ring) {
+      const e = Math.round(p.e * 100) / 100;
+      const n = Math.round(p.n * 100) / 100;
+      const last = flat.length - 2;
+      if (last >= 0 && flat[last] === e && flat[last + 1] === n) continue;
+      flat.push(e, n);
+    }
+    if (flat.length < 6) continue;
+    zones.push({ id: f.id, cover: cover.value, ring: flat });
+  }
+  zones.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  // The mix over `FOREST_SPECIES` order, whatever order the Essence's own object
+  // carries: an Essence straight from storage may list its keys in any order.
+  const source = input.essence?.forest;
+  const from = source && Object.keys(source).length ? source : biomeMixOf(input);
+  const mix = Object.fromEntries(FOREST_SPECIES.map((s) => [s, from[s] ?? 0])) as Record<
+    Species,
+    number
+  >;
+  return { mix, zones };
+}
+
+/** The Town's own mix when it has one, else the biome's character. */
+function biomeMixOf(input: BuildInput): Record<string, number> {
+  const centre = cellCenter(input.cell);
+  return biomeMix(input.essence?.biome ?? forestBiome(centre.lat, centre.lng));
 }

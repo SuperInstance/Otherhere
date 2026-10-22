@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CellId } from './cell';
 import { FeatureId } from './feature';
+import { REGION_CODES } from '../essence/region';
 
 /** Fog-of-war memory rings, sharpest first. */
 export const FogRing = z.enum(['focus', 'recent', 'remembered']);
@@ -15,6 +16,9 @@ export const Essence = z.strictObject({
   sampleCount: z.number().int().min(0),
   /** The Town's biome (a `ForestBiome` code); shapes the default forest mix. */
   biome: z.enum(['temperate', 'pacific-rainforest']).optional(),
+  /** The Town's built region (a `RegionCode`); shapes imagined buildings where
+   *  no Fact and no Town sample speaks (ADR-0014, the building half of biome). */
+  region: z.enum(REGION_CODES).optional(),
   /** Imagined tree species shares, quantized to 0.05 (empty = not enough samples). */
   forest: z.record(z.string(), z.number().min(0)).optional(),
 });
