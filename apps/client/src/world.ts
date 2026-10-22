@@ -699,6 +699,10 @@ export class World {
       // dropped without being retired or disposed — leaked into the scene
       // (review P0 #3).
       next.stale = s.stale;
+      // The wake the first reload parked on that loading state rides the chain
+      // too. Dropped here, no state owns it: advanceWakes stops tracking it and
+      // nothing ever disposes its material (review P0 #1).
+      if (s.wake) next.wake = s.wake;
     }
   }
 
@@ -778,8 +782,11 @@ export class World {
         if (c.ingest === 'failed') s.sketch++;
         if (c.verified) s.verified++;
         else s.mismatched++;
-        if (c.wake) s.waking++;
       }
+      // A wake can also be riding a loading state (an interrupted reload
+      // carried it there); it is still breathing on the stale Bundle on
+      // screen, so it still counts (review P0 #1).
+      if (c.wake) s.waking++;
     }
     return s;
   }
