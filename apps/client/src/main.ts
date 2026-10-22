@@ -44,6 +44,7 @@ import {
   sunPosition,
 } from './sky';
 import { Forest } from './forest';
+import { ForestDemo } from './forest-demo';
 import { World } from './world';
 import { windStrength } from './wind';
 import { Terrain, type TerrainMode } from './terrain';
@@ -228,6 +229,9 @@ if (start && 'capsule' in start) {
 
 // --- World -----------------------------------------------------------------------
 const isDemo = !!start && 'demo' in start;
+// The forest test stand (#66): a client-only demo world, so it routes before
+// the place defaulting below (a bare ?demo=forest has no start otherwise).
+const forestDemoMode = !isDemo && new URLSearchParams(location.search).get('demo') === 'forest';
 const place =
   start && 'lat' in start
     ? start
@@ -301,7 +305,34 @@ const updateSky = (rawDt: number) => {
   skyNow = { hour, elevation, cloud, wind: windStrength(skyElapsed, cloud) };
 };
 
-if (!originCell) {
+if (forestDemoMode) {
+  // The crown-motion instrument (#66): the whole world is in the module — a
+  // witness tree, fixed cameras, and a per-frame readback recorded with the
+  // wind state each frame rendered with. `?t=` pins it like anywhere else.
+  const demo = new ForestDemo({
+    species: ((): 'spruce' | 'hemlock' => {
+      const s = new URLSearchParams(location.search).get('species');
+      return s === 'hemlock' ? 'hemlock' : 'spruce';
+    })(),
+    grove: Number(new URLSearchParams(location.search).get('grove')) || 1.5,
+    frozen: parseTime(location.search) !== null,
+  });
+  statusLine.boot('Forest test stand — one known crown, the wind, and the readback.');
+  let lastDemo = performance.now();
+  let lastHandle = 0;
+  renderer.setAnimationLoop((now) => {
+    const rawDt = (now - lastDemo) / 1000;
+    lastDemo = now;
+    demo.frame(renderer, rawDt);
+    renderer.render(demo.scene, demo.viewCamera);
+    if (now - lastHandle > 500) {
+      lastHandle = now;
+      (window as unknown as { __otherhere?: unknown }).__otherhere = {
+        forestDemo: demo.readout(),
+      };
+    }
+  });
+} else if (!originCell) {
   statusLine.boot(`${backend} · Enter coordinates to walk a place.`);
   renderer.setAnimationLoop(() => {
     updateSky(1 / 60);

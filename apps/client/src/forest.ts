@@ -251,6 +251,32 @@ function buildConiferGeometry(spruce: boolean): BufferGeometry {
   return g;
 }
 
+/** The unit-space apex of a species' crown: where its topmost vertex sits. */
+export function crownApex(spruce: boolean): { x: number; y: number; z: number } {
+  return { x: spruce ? 0 : 0.03, y: 1, z: 0 };
+}
+
+/**
+ * The flex baked at the crown's apex vertex — the traveller the crown-motion
+ * readback predicts (#66). Read from the geometry itself, so the prediction and
+ * the shader can never disagree about what the tip is willing to do.
+ */
+export function crownTipFlex(spruce: boolean): number {
+  const g = buildConiferGeometry(spruce);
+  const pos = g.getAttribute('position');
+  const flex = g.getAttribute('flex');
+  let best = 0;
+  let bestY = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    if (pos.getY(i) > bestY) {
+      bestY = pos.getY(i);
+      best = flex.getX(i);
+    }
+  }
+  g.dispose();
+  return best;
+}
+
 /* ------------------------------------------------------------------ material */
 
 const TAU = Math.PI * 2;
@@ -341,6 +367,18 @@ export type ForestGround = {
   heightAt(x: number, z: number): number;
 };
 
+/** A planted tree, as `Forest.nearest` reports it to instruments (#66). */
+export type PlantedTree = {
+  /** Trunk base, world metres (x east, z south). */
+  readonly x: number;
+  readonly z: number;
+  readonly y: number;
+  readonly height: number;
+  readonly width: number;
+  readonly yaw: number;
+  readonly spruce: boolean;
+};
+
 /** A planted candidate; positions are world space, sizes metres. */
 type Tree = {
   readonly x: number;
@@ -362,6 +400,8 @@ type SpeciesMesh = {
   readonly mesh: InstancedMesh;
   readonly trees: readonly Tree[];
   readonly tint: Color;
+  /** Which geometry this species instances — what `nearest` reports. */
+  readonly spruce: boolean;
   placed: number;
 };
 
@@ -601,6 +641,40 @@ export class Forest {
     return { time: windTimeU.value, strength: windStrengthU.value };
   }
 
+  /**
+   * The nearest planted tree to a point, for instruments that want a known
+   * crown to watch (#66): where it stands, how big it is, and which geometry
+   * (species) it instances. Null while nothing is planted. Only trees that
+   * have actually taken an instance slot are considered — a chunk still
+   * completing has candidates that are not in the world yet.
+   */
+  nearest(x: number, z: number): PlantedTree | null {
+    let best: PlantedTree | null = null;
+    let bestD = Infinity;
+    for (const chunk of this.chunks.values()) {
+      for (const sp of chunk.species) {
+        // Only the placed prefix is live in the instance buffer.
+        for (let i = 0; i < sp.placed; i++) {
+          const t = sp.trees[i]!;
+          const d = (t.x - x) ** 2 + (t.z - z) ** 2;
+          if (d < bestD) {
+            bestD = d;
+            best = {
+              x: t.x,
+              z: t.z,
+              y: t.y,
+              height: t.height,
+              width: t.width,
+              yaw: t.yaw,
+              spruce: sp.spruce,
+            };
+          }
+        }
+      }
+    }
+    return best;
+  }
+
   dispose(): void {
     for (const chunk of [...this.chunks.values()]) this.drop(chunk);
     this.chunks.clear();
@@ -639,10 +713,12 @@ export class Forest {
     this.replantStride.delete(chunkKey(ix, iz));
     const chunk: Chunk = { ix, iz, species: [], trees: 0, partial: false, stride };
     if (spruce.length > 0) {
-      chunk.species.push(this.makeSpecies(ix, iz, this.spruceGeometry, spruce, SPRUCE_TINT));
+      chunk.species.push(this.makeSpecies(ix, iz, this.spruceGeometry, spruce, SPRUCE_TINT, true));
     }
     if (hemlock.length > 0) {
-      chunk.species.push(this.makeSpecies(ix, iz, this.hemlockGeometry, hemlock, HEMLOCK_TINT));
+      chunk.species.push(
+        this.makeSpecies(ix, iz, this.hemlockGeometry, hemlock, HEMLOCK_TINT, false),
+      );
     }
     this.chunks.set(chunkKey(ix, iz), chunk);
     this.fill(chunk);
@@ -654,6 +730,7 @@ export class Forest {
     geometry: BufferGeometry,
     trees: readonly Tree[],
     tint: Color,
+    spruce: boolean,
   ): SpeciesMesh {
     const mesh = new InstancedMesh(geometry, this.material, trees.length);
     // Named by chunk, so a walk or a test can find one chunk's instances in the scene.
@@ -661,7 +738,7 @@ export class Forest {
     mesh.count = 0;
     mesh.visible = false;
     this.root.add(mesh);
-    return { mesh, trees, tint, placed: 0 };
+    return { mesh, trees, tint, spruce, placed: 0 };
   }
 
   /** Writes as many of a chunk's trees as the budget allows; the rest wait for later. */
