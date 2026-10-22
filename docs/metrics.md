@@ -25,6 +25,7 @@ Software GL in the dev container — an upper bound, not the phone target.
 | 09    | 109    | 131  | 52   | 36     | 4     | 4     | 16                |
 | 10    | 110    | 123  | 55   | 36     | 4     | 4     | 17                |
 | 11    | 113    | 123  | 56   | 36     | 4     | 4     | 17                |
+| 13    | 127    | 133  | 56   | 36     | 4     | 4     | 20                |
 
 Round 09 e2e: the pixel-determinism specs (#40, #48) are green again — the
 scene's one freezable clock plus full display settle gates. The two pixel
@@ -44,8 +45,9 @@ whole payload now. The landcover rings and species mix ride in the GLB extras
 
 ## Deploy
 
-| Round | Health                | Home               | Changes live (bundle grep)                                |
-| ----- | --------------------- | ------------------ | --------------------------------------------------------- |
-| 08    | ok, interpreter 0.5.0 | 200 in 0.42–0.49 s | all three round PRs verified in the served asset and HTML |
-| 09    | ok, interpreter 0.5.0 | 200 in 0.05–0.47 s | determinism probe byte-equal across two fresh contexts    |
-| 10    | ok, interpreter 0.6.0 | 200 in 0.39 s      | wild Cell GLB parsed live: 0 gen: ranges, mix in extras   |
+| Round | Health                | Home               | Changes live (bundle grep)                                          |
+| ----- | --------------------- | ------------------ | ------------------------------------------------------------------- |
+| 08    | ok, interpreter 0.5.0 | 200 in 0.42–0.49 s | all three round PRs verified in the served asset and HTML           |
+| 09    | ok, interpreter 0.5.0 | 200 in 0.05–0.47 s | determinism probe byte-equal across two fresh contexts              |
+| 10    | ok, interpreter 0.6.0 | 200 in 0.39 s      | wild Cell GLB parsed live: 0 gen: ranges, mix in extras             |
+| 13    | ok, interpreter 0.6.0 | 200 in 0.34 s      | crown law holds on deployed bytes; Sitka rebuilt (7 % of roof band) |
