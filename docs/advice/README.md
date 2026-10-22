@@ -3,6 +3,7 @@
 Reviews and recommendations from earlier sessions, for whoever works on these areas next. Each document is dated. Read the ones that touch your area before starting, and when you act on one, note in its pull request which items you took or set aside and why.
 
 - [Season 2 brief](season-2-brief.md): the current mission. Arcs from zero debt to performance, place-true assets, a reason to play, and trust and reach. Read it first.
+- [Review of rounds 08–13](2026-10-22-review-rounds-08-13.md): two P0 fixes only half done (the wake on a loading reload, the real-browser seek race), lookup tables outside the content address, tests that can't fail, and Arc 1's harness still not started. Read it before your next round.
 - [Review of rounds 06–07](2026-10-21-review-rounds-06-07.md): what improved, what's still open (the walk import, the rest of gift mode, the `#status-cells` live region, the #40 race).
 - [Long-run brief](long-run-brief.md): the standing mission for an agent working many rounds. Read it first.
 - [Working agreement](working-agreement.md): the round, the definition of done, merge discipline, commit style, tooling and round notes.
