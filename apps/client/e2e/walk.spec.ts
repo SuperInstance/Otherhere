@@ -133,6 +133,19 @@ test('a live day turns the wind: the forest clock advances (#50)', async ({ page
   // And the wrap bounds it, whatever the tab's age: the clock never passes
   // one full wind period.
   expect(t2!).toBeLessThanOrEqual(11200);
+  // Every sine term the shader evaluates reads its own wrapped phase in
+  // [0, TAU): no argument grows with the clock, late in the period or ever
+  // (review P1 #6 — this is the check the old `t2 <= 11200` could not make).
+  const phases = await page.evaluate(
+    () =>
+      (window as unknown as { __otherhere?: { forest?: { wind: { phases?: object } } } })
+        .__otherhere?.forest?.wind.phases,
+  );
+  expect(Object.keys(phases ?? {}).length).toBe(5);
+  for (const p of Object.values(phases!)) {
+    expect(p).toBeGreaterThanOrEqual(0);
+    expect(p).toBeLessThan(Math.PI * 2);
+  }
 });
 
 test('starts in downtown Sitka when no place is given', async ({ page }) => {

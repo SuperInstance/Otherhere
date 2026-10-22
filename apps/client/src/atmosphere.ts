@@ -32,6 +32,7 @@ import {
   vec3,
 } from 'three/tsl';
 import type { SkyPalette } from './sky';
+import { wrapPhase } from './wind';
 
 /** The one fixed sun of the old world: mid-afternoon, west and south (kept as the
  *  initial value of the living sun, so a consumer that never turns the day still
@@ -59,6 +60,37 @@ export const mistUniform = uniform(1);
  * advances it at true speed, so nothing changes for a player.
  */
 export const sceneTimeU = uniform(0);
+
+// The scene's per-term sine phases, wrapped mod TAU in float64 when the clock
+// is fed (review P1 #6): sceneTimeU itself was never wrapped, so after hours
+// of a live day the direct sines — the star twinkle, the surf, the ocean's
+// waves — read arguments past 1e5 rad, where float32 steps blur seconds of
+// phase. Each direct sine now reads its own wrapped phase instead. The
+// drift-style users (cloud shadows, mist banks) keep sceneTimeU: their
+// arguments are positions in metres over wavelengths of hundreds of metres,
+// and stay exact for weeks of open tab.
+const twinklePhaseU = uniform(0);
+type ScenePhase = { name: string; uniform: ReturnType<typeof uniform>; rate: number };
+const scenePhases: ScenePhase[] = [{ name: 'twinkle', uniform: twinklePhaseU, rate: 2 }];
+
+/** Register one more wrapped scene phase (the ocean's waves, foam and streaks
+ *  do this at module load). `rate` is the term's radians per second. */
+export const registerScenePhase = (name: string, u: ReturnType<typeof uniform>, rate: number) => {
+  scenePhases.push({ name, uniform: u, rate });
+};
+
+/** Every wrapped scene phase with its rate, for instruments and tests. */
+export const scenePhaseState = (): { name: string; phase: number; rate: number }[] =>
+  // `uniform.value` types as unknown in this three version (UniformNode's
+  // generics do not carry the value type); the runtime number is real.
+  scenePhases.map(({ name, uniform, rate }) => ({ name, phase: uniform.value as number, rate }));
+
+/** Feed the freezable scene clock: the raw seconds for the drift-style users,
+ *  and every registered sine's phase wrapped mod TAU (float64, review P1 #6). */
+export const feedSceneClock = (elapsed: number): void => {
+  sceneTimeU.value = elapsed;
+  for (const { uniform, rate } of scenePhases) uniform.value = wrapPhase(elapsed, rate);
+};
 
 /** Horizon haze: the grey-green of the channel on a wet day, and the fog colour. */
 const HORIZON = '#d9dcd6';
@@ -151,7 +183,7 @@ export function createAtmosphere(scene: Scene, renderer: WebGPURenderer): Atmosp
     .sub(smoothstep(0, 0.09, dot(inCell, inCell)))
     .mul(step(0.82, rnd))
     .mul(
-      sin(sceneTimeU.mul(2).add(rnd.mul(40)))
+      sin(twinklePhaseU.add(rnd.mul(40)))
         .mul(0.25)
         .add(0.75),
     )
@@ -226,7 +258,7 @@ export function createAtmosphere(scene: Scene, renderer: WebGPURenderer): Atmosp
       apply();
     },
     setTime(elapsed) {
-      sceneTimeU.value = elapsed;
+      feedSceneClock(elapsed);
     },
     setTerrain(on) {
       terrain = on;

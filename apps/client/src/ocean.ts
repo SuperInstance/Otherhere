@@ -17,7 +17,14 @@ import {
   transformNormalToView,
   vec3,
 } from 'three/tsl';
-import { cloudUniform, lightDirUniform, mistUniform, sceneTimeU } from './atmosphere';
+import {
+  cloudUniform,
+  lightDirUniform,
+  mistUniform,
+  registerScenePhase,
+  sceneTimeU,
+} from './atmosphere';
+import { uniform } from 'three/tsl';
 
 /* ------------------------------------------------------------------ waves */
 
@@ -37,20 +44,37 @@ const WAVES: readonly Wave[] = [
 ];
 
 /** Analytic gradient of one wave component, so the normal can be built from it. */
-function waveSlope(w: Wave): { dhx: Node<'float'>; dhz: Node<'float'> } {
+function waveSlope(w: Wave, phaseU: Node<'float'>): { dhx: Node<'float'>; dhz: Node<'float'> } {
   const k = (2 * Math.PI) / w.lambda;
-  const omega = Math.sqrt(9.81 * k);
   const cx = Math.cos(w.angle);
   const cz = Math.sin(w.angle);
   const phase = positionWorld.x
     .mul(k * cx)
     .add(positionWorld.z.mul(k * cz))
-    .sub(sceneTimeU.mul(omega));
+    .sub(phaseU);
   return {
     dhx: float(w.amplitude * k * cx).mul(cos(phase)),
     dhz: float(w.amplitude * k * cz).mul(cos(phase)),
   };
 }
+
+// The ocean's wrapped sine phases (review P1 #6): each direct sine reads a
+// phase wrapped mod TAU in float64 when the clock is fed, never the raw
+// seconds. The omegas follow the deep-water relation and are irrational, so
+// no single wrap period could serve them all — per-term phases are the only
+// exact answer. sceneTimeU stays only for the drift-style uses below, whose
+// arguments are positions in metres over wavelengths of hundreds of metres.
+const wavePhaseUs = WAVES.map((w) => {
+  const u = uniform(0);
+  registerScenePhase(`wave-${w.lambda}m`, u, Math.sqrt(9.81 * ((2 * Math.PI) / w.lambda)));
+  return u;
+});
+const foamPhaseU = uniform(0);
+registerScenePhase('foam', foamPhaseU, 0.8);
+const streak1PhaseU = uniform(0);
+registerScenePhase('streak-1', streak1PhaseU, 0.5);
+const streak2PhaseU = uniform(0);
+registerScenePhase('streak-2', streak2PhaseU, 0.9);
 
 /* ------------------------------------------------------------------ ocean */
 
@@ -66,8 +90,8 @@ function waveSlope(w: Wave): { dhx: Node<'float'>; dhz: Node<'float'> } {
 export function oceanMaterial(): MeshStandardNodeMaterial {
   let dhx: Node<'float'> = float(0);
   let dhz: Node<'float'> = float(0);
-  for (const w of WAVES) {
-    const s = waveSlope(w);
+  for (let i = 0; i < WAVES.length; i++) {
+    const s = waveSlope(WAVES[i]!, wavePhaseUs[i]!);
     dhx = dhx.add(s.dhx);
     dhz = dhz.add(s.dhz);
   }
@@ -100,15 +124,15 @@ export function oceanMaterial(): MeshStandardNodeMaterial {
  * smooth band into patches so the shore reads as broken water rather than a stripe.
  */
 export function shoreFoam(height: Node<'float'>, world: Node<'vec3'>): Node<'float'> {
-  const wave = sin(sceneTimeU.mul(0.8).add(world.x.mul(0.05)).add(world.z.mul(0.035))).mul(0.25);
+  const wave = sin(foamPhaseU.add(world.x.mul(0.05)).add(world.z.mul(0.035))).mul(0.25);
   // A narrow band: low-lying waterfront (a whole downtown can sit 0–2 m up) stays dry.
   const band = float(1).sub(smoothstep(0.05, 0.6, height.sub(wave)));
   const lower = smoothstep(-0.2, 0.1, height);
   // Streaks from three incommensurate, rotated, drifting waves: no visible tiling,
   // unlike a product of two axis-aligned sines (which reads as a checkerboard).
-  const streaks = sin(world.x.mul(0.13).add(world.z.mul(0.07)).add(sceneTimeU.mul(0.5)))
+  const streaks = sin(world.x.mul(0.13).add(world.z.mul(0.07)).add(streak1PhaseU))
     .add(sin(world.z.mul(0.21).sub(world.x.mul(0.05))).mul(0.7))
-    .add(sin(world.x.add(world.z).mul(0.37).sub(sceneTimeU.mul(0.9))).mul(0.4));
+    .add(sin(world.x.add(world.z).mul(0.37).sub(streak2PhaseU)).mul(0.4));
   const patch = smoothstep(-0.8, 0.8, streaks);
   return band.mul(lower).mul(patch).mul(0.7);
 }
