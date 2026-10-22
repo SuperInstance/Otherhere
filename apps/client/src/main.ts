@@ -511,7 +511,13 @@ if (forestDemoMode) {
           `A walk at ${here.lat.toFixed(4)}, ${here.lng.toFixed(4)}`,
         scope: $<HTMLSelectElement>('pc-scope').value,
         cells,
-        center: { lat: Number(here.lat.toFixed(6)), lng: Number(here.lng.toFixed(6)) },
+        // The centre the recipient's sky is computed from (their `place`, and so
+        // their sun): it must be the saver's own `skyAt`, verbatim — not the
+        // walker's unprojected position rounded to 1e-6 degrees. A few 1e-4
+        // degrees of latitude between the two skies moved the sun enough to
+        // relight the crowns one quantization step apart (review P1 #5: the
+        // postcard pair's 172-to-496 differing pixels, every one a crown edge).
+        center: { lat: skyAt.lat, lng: skyAt.lng },
         pose,
       }),
     });
