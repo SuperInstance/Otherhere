@@ -193,11 +193,16 @@ describe('the imagined forest at the edge (ADR-0017)', () => {
     expect(snap.essence.biome).toBe('pacific-rainforest');
     expect(snap.essence.forest).toEqual({ hemlock: 0.65, spruce: 0.35 });
 
-    // Six observed trees, and the imagination filling the rainforest Cell around
-    // them; the same stand twice (invariant 2, through the R2 cache).
+    // Six observed trees, drawn by the generator; the wild stand around them
+    // is the display forest's job now (ADR-0017, amended 2026-10-22), so the
+    // Bundle carries the Town's mix as extras instead of a thousand Features.
+    // The same bundle twice (invariant 2, through the R2 cache).
     const { info } = await getBundle(cell);
     expect(info.status).toBe('ok');
-    expect(info.manifest.featureCount).toBeGreaterThan(20);
+    expect(info.manifest.featureCount).toBe(6);
+    // Measured 51,684: the six observed trees are the whole payload now. The
+    // same Cell before the forest move built ~1.6 MB with its imagined stand.
+    expect(info.manifest.bytes).toBeLessThan(60_000);
     const again = await getBundle(cell);
     expect(again.info.manifest).toEqual(info.manifest);
     expect(again.info.cached).toBe(true);
