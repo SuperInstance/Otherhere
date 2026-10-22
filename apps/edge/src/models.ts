@@ -134,6 +134,15 @@ export function canaryJev(env: Env): JevProvider | null {
 /** Canned provider responses for tests and offline development (MODEL_FAKE=true). */
 const fakeModelFetch: FetchLike = async (url, init) => {
   if (url.includes('/chat/completions')) {
+    // Failure injection for the observe route's error mapping (#59): the
+    // marker rides in the test photo's base64, and only the vision call
+    // reads it — the gate goes through /v1/systemone and stays healthy.
+    const body = String(init.body);
+    if (body.includes('UNAVAILABLE99'))
+      return new Response('upstream rate limit for account 4242 (internal detail)', {
+        status: 429,
+      });
+    if (body.includes('NETWORK99')) throw new TypeError('fetch failed: ECONNREFUSED 10.0.0.9:443');
     return Response.json({
       model: 'fake-vision',
       choices: [

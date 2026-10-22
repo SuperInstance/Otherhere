@@ -7,7 +7,7 @@ import {
   type Feature,
   type Source,
 } from '@otherhere/core';
-import { observeBuilding } from '@otherhere/models';
+import { observeBuilding, BudgetExceeded, ProviderUnavailable } from '@otherhere/models';
 import type { Env } from './env';
 import { makeModels } from './models';
 import { opsStub } from './ops';
@@ -146,10 +146,18 @@ async function observe(req: Request, env: Env, featureId: string): Promise<Respo
       models,
     );
   } catch (err) {
-    return json(
-      { error: `Could not analyse the photo: ${String((err as Error).message).slice(0, 200)}` },
-      502,
-    );
+    // The class decides the status; the operator reads the detail in the tail.
+    // The player's body stays safe: an upstream message can carry account and
+    // endpoint detail, and it is not ours to show (#59).
+    console.error(`observe ${featureId}`, err);
+    if (err instanceof BudgetExceeded)
+      return json(
+        { error: `photo budget exhausted for today ($${err.spent.toFixed(4)} of $${err.cap})` },
+        503,
+      );
+    if (err instanceof ProviderUnavailable)
+      return json({ error: 'the photo analyst is unavailable right now; try again shortly' }, 503);
+    return json({ error: 'could not analyse the photo' }, 502);
   }
   // The visibility gate is a decision like any other: log it with its cost and answer.
   const gate = result.gate;
