@@ -2,19 +2,41 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseGpx } from '@otherhere/core';
 import { learnFromFrames, postObservation, seek, type WalkProgress } from '../src/capture';
 
-/** The slice of HTMLVideoElement that `seek` touches, as a plain object. */
+/**
+ * The slice of HTMLVideoElement that `seek` touches, as a plain object —
+ * behaving the way Chrome and Firefox do: assigning `currentTime` moves the
+ * reported position to the new target at once, and the element is officially
+ * `seeking` from that assignment until the frame is ready (review P0 #2).
+ */
 function fakeVideo(duration = 24) {
   const v = {
     duration,
-    currentTime: 0,
+    seeking: false,
     onseeked: null as (() => void) | null,
     onerror: null as (() => void) | null,
   };
+  let position = 0;
+  Object.defineProperty(v, 'currentTime', {
+    get: () => position,
+    set: (t: number) => {
+      position = t;
+      v.seeking = true;
+    },
+  });
   return {
-    v,
-    /** The browser lands a seek: the position moves, then `seeked` fires. */
+    v: v as typeof v & { currentTime: number },
+    /** The browser lands a seek: the position settles, seeking drops, `seeked` fires. */
     land(t: number) {
-      v.currentTime = t;
+      position = t;
+      v.seeking = false;
+      v.onseeked?.();
+    },
+    /**
+     * An older, timed-out seek completes late while a newer seek is in flight:
+     * the `seeked` event fires, but the element is still officially seeking
+     * (and `currentTime` has read the new target since it was assigned).
+     */
+    lateSeeked() {
       v.onseeked?.();
     },
   };
@@ -78,8 +100,13 @@ describe('seek', () => {
     await expect(b).resolves.toBe(false);
   });
 
-  it('does not settle the next seek with a late landing from a timed-out seek', async () => {
-    const { v, land } = fakeVideo();
+  it('does not settle the next seek with a late seeked from a timed-out seek (review P0 #2)', async () => {
+    // The real-browser race: a seek times out and the walk moves on; the next
+    // seek is assigned, so `currentTime` already reads its target; the old
+    // seek's `seeked` fires while the new one is still in flight. Position
+    // alone cannot tell that event from the new seek's own landing — the
+    // position guard passes in Chrome and Firefox. `seeking` is what tells.
+    const { v, land, lateSeeked } = fakeVideo();
     const a = seek(v as unknown as HTMLVideoElement, 5, 1000);
     await vi.advanceTimersByTimeAsync(1000); // the seek to 5 s gives up...
     await expect(a).resolves.toBe(false); // ...but the browser is still seeking there
@@ -88,7 +115,9 @@ describe('seek', () => {
       settled = true;
       return ok;
     });
-    land(5); // the timed-out seek lands late, still at 5 s
+    expect(v.currentTime).toBe(10); // the browser moved it on assignment
+    expect(v.seeking).toBe(true); // and is still seeking
+    lateSeeked(); // the timed-out seek fires its event into the new handler
     await vi.advanceTimersByTimeAsync(5);
     expect(settled).toBe(false); // it must not resolve the seek to 10 s
     land(10); // the second seek really lands
