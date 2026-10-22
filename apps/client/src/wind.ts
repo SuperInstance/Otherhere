@@ -59,6 +59,15 @@ export const WOBBLE_RATE = cycles(339);
 /** Crown-tip travel at full wind on the whippiest tip, metres. */
 export const SWAY_MAX_M = 1.1;
 
+/**
+ * The wrapped time phase for one rate, computed in float64 on the CPU
+ * (review P1 #6): `(t * rate) mod TAU`, always in [0, TAU). The shader's
+ * sines then never see an argument larger than TAU however long the clock
+ * runs — an unwrapped clock fed the shiver term arguments near 7e4 rad at
+ * the period's end, where float32 steps are ~0.008 rad.
+ */
+export const wrapPhase = (t: number, rate: number): number => (((t * rate) % TAU) + TAU) % TAU;
+
 function smoothstep(a: number, b: number, x: number): number {
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);

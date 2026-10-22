@@ -33,6 +33,7 @@ import {
   WIND_PERIOD,
   WIND_TOWARD,
   windStrength,
+  wrapPhase,
   WOBBLE_RAD,
   WOBBLE_RATE,
 } from './wind';
@@ -107,8 +108,21 @@ const DEFAULT_SPRUCE_P = 0.6;
  * renderer's own `time`, so a pinned `?t=` (or a postcard link) freezes the
  * crowns with the sky it froze — the pixel-identity doctrine holds for motion too.
  */
-const windTimeU = uniform(0);
 const windStrengthU = uniform(0);
+// The five time phases the wind's sines see, wrapped mod TAU in float64 on the
+// CPU each frame (review P1 #6). A single unwrapped clock fed the shiver term
+// arguments near 7e4 rad at the period's end, where float32 steps are
+// ~0.008 rad: the period-boundary wrap limited the jitter to the hours before
+// it, never removed it. Per-term phases keep every sine's argument under TAU
+// forever, and the crown instrument's CPU mirror (swayOffset, float64) is
+// unchanged — sin(x) and sin(x mod TAU) agree exactly there.
+const swellPhaseU = uniform(0);
+const chopPhaseU = uniform(0);
+const flutterPhaseU = uniform(0);
+const shiverPhaseU = uniform(0);
+const wobblePhaseU = uniform(0);
+/** The wrapped clock the last setWind fed (float64, the value the phases derive from). */
+let windClock = 0;
 
 /** Sway is pointless past this range, where a tree is a couple of pixels. */
 const SWAY_FADE_M = 1400;
@@ -309,15 +323,11 @@ function coniferMaterial(): MeshStandardNodeMaterial {
   // --- wind: mirrors swayOffset(elapsed, cloud, x, z, flex) from wind.ts ---
   const flex = attribute('flex', 'float');
   const downwind = positionLocal.x.mul(WIND_TOWARD[0]).add(positionLocal.z.mul(WIND_TOWARD[1]));
-  const swell = sin(
-    downwind
-      .mul(TAU / GUST_LONG.lambda)
-      .sub(windTimeU.mul((TAU * GUST_LONG.speed) / GUST_LONG.lambda)),
-  );
+  const swell = sin(downwind.mul(TAU / GUST_LONG.lambda).sub(swellPhaseU));
   const chop = sin(
     downwind
       .mul(TAU / GUST_SHORT.lambda)
-      .sub(windTimeU.mul((TAU * GUST_SHORT.speed) / GUST_SHORT.lambda))
+      .sub(chopPhaseU)
       .add(2.1),
   );
   const gust = float(0.35).add(float(0.65).mul(float(0.5).add(swell.mul(0.3)).add(chop.mul(0.2))));
@@ -326,9 +336,9 @@ function coniferMaterial(): MeshStandardNodeMaterial {
   const phase = sin(positionLocal.x.mul(0.041).add(positionLocal.z.mul(0.029)))
     .mul(1.6)
     .add(sin(positionLocal.x.mul(0.023).sub(positionLocal.z.mul(0.047)).add(1.3)).mul(1.2));
-  const flutter = sin(windTimeU.mul(FLUTTER_RATE).add(phase));
-  const shiver = sin(windTimeU.mul(SHIVER_RATE).add(phase.mul(1.7)));
-  const wobble = sin(windTimeU.mul(WOBBLE_RATE).add(downwind.mul(0.006))).mul(WOBBLE_RAD);
+  const flutter = sin(flutterPhaseU.add(phase));
+  const shiver = sin(shiverPhaseU.add(phase.mul(1.7)));
+  const wobble = sin(wobblePhaseU.add(downwind.mul(0.006))).mul(WOBBLE_RAD);
 
   // The bend fades with range, where it is sub-pixel; the shimmer below does not —
   // at distance the shimmer is the wind, and it costs the same maths either way.
@@ -628,17 +638,39 @@ export class Forest {
   setWind(elapsed: number, cloud: number, floor = 0): void {
     // The wind's whole field is exactly periodic on WIND_PERIOD (every rate is
     // whole cycles per it, and the strength's breath lattice repeats on it), so
-    // the wrap changes nothing the crowns do — and the float32 sine arguments
-    // stay small in a tab left open for days (#50). Positive modulo: the clock
-    // the shader sees is always in [0, WIND_PERIOD), whatever it is fed.
+    // the wrap changes nothing the crowns do (#50). Positive modulo: the clock
+    // is always in [0, WIND_PERIOD), whatever it is fed. Each sine term then
+    // reads its own phase, wrapped mod TAU here in float64 — the shader never
+    // multiplies the clock by a rate at all (review P1 #6).
     const t = ((elapsed % WIND_PERIOD) + WIND_PERIOD) % WIND_PERIOD;
-    windTimeU.value = t;
+    windClock = t;
+    swellPhaseU.value = wrapPhase(t, (TAU * GUST_LONG.speed) / GUST_LONG.lambda);
+    chopPhaseU.value = wrapPhase(t, (TAU * GUST_SHORT.speed) / GUST_SHORT.lambda);
+    flutterPhaseU.value = wrapPhase(t, FLUTTER_RATE);
+    shiverPhaseU.value = wrapPhase(t, SHIVER_RATE);
+    wobblePhaseU.value = wrapPhase(t, WOBBLE_RATE);
     windStrengthU.value = windStrength(t, cloud, floor);
   }
 
-  /** The wind as the shader currently sees it (the wrapped clock and the strength). */
-  wind(): { time: number; strength: number } {
-    return { time: windTimeU.value, strength: windStrengthU.value };
+  /** The wind as the shader currently sees it: the wrapped clock, the
+   *  strength, and each sine term's wrapped time phase (the instrument's
+   *  evidence that no argument grows with the clock — review P1 #6). */
+  wind(): {
+    time: number;
+    strength: number;
+    phases: { swell: number; chop: number; flutter: number; shiver: number; wobble: number };
+  } {
+    return {
+      time: ((windClock % WIND_PERIOD) + WIND_PERIOD) % WIND_PERIOD,
+      strength: windStrengthU.value,
+      phases: {
+        swell: swellPhaseU.value,
+        chop: chopPhaseU.value,
+        flutter: flutterPhaseU.value,
+        shiver: shiverPhaseU.value,
+        wobble: wobblePhaseU.value,
+      },
+    };
   }
 
   /**

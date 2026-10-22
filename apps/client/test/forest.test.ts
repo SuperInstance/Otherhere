@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { Scene, type InstancedMesh, Matrix4 } from 'three/webgpu';
 import { Forest } from '../src/forest';
+import {
+  FLUTTER_RATE,
+  GUST_LONG,
+  GUST_SHORT,
+  SHIVER_RATE,
+  WIND_PERIOD,
+  WOBBLE_RATE,
+  wrapPhase,
+} from '../src/wind';
 
 /** Rolling hills from 0 to 400 m: plenty of plantable ground, some beach and sea. */
 const hills = {
@@ -159,5 +168,48 @@ describe('Forest', () => {
   it('nearest reads null before anything plants', () => {
     const forest = new Forest(new Scene(), { active: false, heightAt: () => 100 }, { radius: 400 });
     expect(forest.nearest(0, 0)).toBeNull();
+  });
+});
+
+describe('the wind the shader sees (review P1 #6)', () => {
+  const TAU = Math.PI * 2;
+  const rates = {
+    swell: (TAU * GUST_LONG.speed) / GUST_LONG.lambda,
+    chop: (TAU * GUST_SHORT.speed) / GUST_SHORT.lambda,
+    flutter: FLUTTER_RATE,
+    shiver: SHIVER_RATE,
+    wobble: WOBBLE_RATE,
+  };
+  const bare = () =>
+    new Forest(new Scene(), { active: false, heightAt: () => 100 }, { radius: 400 });
+
+  it('wraps every sine time phase wherever the clock is in its period', () => {
+    // The period's end is where an unwrapped clock hurt most: the shiver
+    // term's argument reached ~7e4 rad there, where float32 steps are
+    // ~0.008 rad — the wrap at the period boundary limited the damage to the
+    // last hours before it, never removed it.
+    const forest = bare();
+    forest.setWind(WIND_PERIOD - 0.1, 0.1, 0.12);
+    const w = forest.wind();
+    // The clock the phases derive from is the one the instrument reports
+    // (the positive modulo itself can move an out-of-range feed by an ulp).
+    const t = w.time;
+    for (const [name, rate] of Object.entries(rates)) {
+      const p = (w.phases as Record<string, number>)[name];
+      expect(p, `${name} defined`).toBeDefined();
+      expect(p, `${name} in [0, TAU)`).toBeGreaterThanOrEqual(0);
+      expect(p, `${name} in [0, TAU)`).toBeLessThan(TAU);
+      // exactly the float64 phase the term's sine means at this clock
+      expect(p, `${name} is wrapPhase(t, rate)`).toBe(wrapPhase(t, rate));
+    }
+  });
+
+  it('holds the period law exactly, per term: one full period later, every phase is identical', () => {
+    const forest = bare();
+    forest.setWind(WIND_PERIOD * 3 + 4321, 0.1, 0.12);
+    const late = { ...(forest.wind().phases as Record<string, number>) };
+    forest.setWind(4321, 0.1, 0.12);
+    for (const [name, p] of Object.entries(forest.wind().phases as Record<string, number>))
+      expect(p, name).toBe(late[name]);
   });
 });
