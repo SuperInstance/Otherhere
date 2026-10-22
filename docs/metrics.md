@@ -24,6 +24,7 @@ Software GL in the dev container — an upper bound, not the phone target.
 | 08    | 104    | 130  | 51   | 36     | 4     | 4     | 14                |
 | 09    | 109    | 131  | 52   | 36     | 4     | 4     | 16                |
 | 10    | 110    | 123  | 55   | 36     | 4     | 4     | 17                |
+| 11    | 113    | 123  | 56   | 36     | 4     | 4     | 17                |
 
 Round 09 e2e: the pixel-determinism specs (#40, #48) are green again — the
 scene's one freezable clock plus full display settle gates. The two pixel
