@@ -42,6 +42,13 @@ const SCENE = arg('scene', 'walk');
 const PINNED_T = arg('t', ''); // pinned day-clock hour for the URL (?t=)
 const HASH = arg('hash', ''); // saved pose for the URL (#x,y,z,yaw,pitch)
 const VIEWPORT = arg('viewport', ''); // "<W>x<H>"; --phone defaults it to 390x844
+// A malformed --viewport must fail loudly (#61): every earlier round was judged
+// at a known size, and a silent 1280x800 fallback would name evidence for a
+// viewport it never played.
+if (VIEWPORT && !/^\d{3,5}x\d{3,5}$/.test(VIEWPORT.toLowerCase())) {
+  console.error(`--viewport must look like 1280x800, not ${JSON.stringify(VIEWPORT)}`);
+  process.exit(2);
+}
 const PHONE = process.argv.includes('--phone');
 const SEED = process.argv.includes('--seed');
 const OUT =
