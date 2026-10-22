@@ -3,6 +3,9 @@ import { expect, test, type Page } from '@playwright/test';
 // against is computed by the same module the shader mirrors — the point of
 // #66 is that the render and the spec cannot quietly drift apart.
 import { swayOffset, windStrength } from '../src/wind';
+// The law itself, pure and unit-tested: the spec wires the instrument's
+// readings and the spec's predictions into it and asserts its verdict.
+import { gradeCrown, MIN_QUALIFYING } from '../src/crown-law';
 
 type Demo = {
   witness: {
@@ -71,12 +74,12 @@ async function predictions(page: Page, d: Demo): Promise<{ u: number; v: number 
 }
 
 /**
- * THE CROWN-MOTION LAW (#66): the crown moves by what `swayOffset` says for
- * the wind state the handle reports. For every consecutive recorded pair, the
- * measured apex displacement must match the spec's predicted displacement
- * within a pixel-noise band. Pairs the spec predicts as sub-pixel are skipped
- * (a mask cannot resolve them); a run with too few qualifying pairs fails —
- * which is exactly what a broken wind feed or a zeroed shader term looks like.
+ * THE CROWN-MOTION LAW (#66, #85): the crown moves by what `swayOffset` says
+ * for the wind state the handle reports — in distance, in direction and in
+ * amplitude. The grading lives in `src/crown-law.ts` (pure, unit-tested
+ * against sign-flipped, frozen and half-amplitude corruptions); this wrapper
+ * holds the instrument's own health checks and asserts the law's verdict on
+ * the real shader's readings.
  */
 function gradeCrownMotion(d: Demo, pred: { u: number; v: number }[]) {
   // The instrument must have calibrated its row order and found the crown.
@@ -90,48 +93,18 @@ function gradeCrownMotion(d: Demo, pred: { u: number; v: number }[]) {
     expect(Math.abs(f.strength - windStrength(f.t, d.cloud))).toBeLessThan(1e-9);
   }
 
-  const qualifying: { i: number; pred: number; meas: number; err: number }[] = [];
-  // Pair readings by elapsed time, not adjacency: a fixed 0.5 s baseline gives
-  // the same displacement to grade whatever the frame rate (SwiftShader's 6 fps
-  // and CI's 60 differ a dozen-fold), and keeps the pixel noise absolutely
-  // bounded while the signal stays several pixels.
-  let j = 0;
-  for (let i = 0; i < d.frames.length; i++) {
-    if (j < i + 1) j = i + 1;
-    while (j < d.frames.length && d.frames[j]!.t - d.frames[i]!.t < 0.5) j++;
-    if (j >= d.frames.length) break;
-    const a = d.frames[i]!;
-    const b = d.frames[j]!;
-    const pa = pred[i]!;
-    const pb = pred[j]!;
-    const p = Math.hypot(pb.u - pa.u, pb.v - pa.v);
-    if (p < 1.5) continue; // sub-pixel: not a fair fight for a pixel mask
-    const meas = Math.hypot(b.u - a.u, b.v - a.v);
-    qualifying.push({ i, pred: p, meas, err: Math.abs(meas - p) });
-  }
-  expect(
-    qualifying.length,
-    `only ${qualifying.length} qualifying pairs in ${d.frames.length} frames — the crown barely moved`,
-  ).toBeGreaterThanOrEqual(6);
-  for (const q of qualifying) {
-    // A pixel mask resolves the apex to about a pixel, and the hemlock's
-    // whipped leader (flex 1.18 at the tip) aliases harder than the spruce's
-    // stiff tiers: measured across three runs — local spruce 1.26 px at
-    // ~2 px, production spruce 0.52 px, CI hemlock 1.50 px at 2.41 px — the
-    // band is a pixel of mask noise plus a quarter of the motion.
-    expect(
-      q.err,
-      `frame ${q.i}: measured ${q.meas.toFixed(2)} px vs predicted ${q.pred.toFixed(2)} px`,
-    ).toBeLessThanOrEqual(1.2 + 0.25 * q.pred);
-  }
-  return qualifying;
+  const verdict = gradeCrown(d.frames, pred);
+  expect(verdict.pairs.length).toBeGreaterThanOrEqual(MIN_QUALIFYING);
+  // Every rejection, verbatim: the law's own words name the failure.
+  expect(verdict.rejections, verdict.rejections.join('\n')).toEqual([]);
+  return verdict;
 }
 
 test('the spruce crown moves by what the wind spec says (#66)', async ({ page }) => {
   test.setTimeout(240_000);
   await page.goto('/?demo=forest&species=spruce');
   const d = await recorded(page, 30);
-  const qualifying = gradeCrownMotion(d, await predictions(page, d));
+  const verdict = gradeCrownMotion(d, await predictions(page, d));
   // The page's own prediction agrees with the test's import of the spec: the
   // instrument and the grader read the same module, on purpose.
   const t = d.frames[Math.floor(d.frames.length / 2)]!.t;
@@ -164,7 +137,7 @@ test('the spruce crown moves by what the wind spec says (#66)', async ({ page })
   expect(Math.abs(pageTip!.v - (own as { v: number }).v)).toBeLessThanOrEqual(1e-6);
   // Evidence for humans: the stand, mid-run.
   await page.screenshot({ path: 'test-results/crown-spruce.png' });
-  expect(qualifying.length).toBeGreaterThan(0);
+  expect(verdict.pairs.length).toBeGreaterThan(0);
 });
 
 test('the hemlock crown moves by what the wind spec says (#66)', async ({ page }) => {
