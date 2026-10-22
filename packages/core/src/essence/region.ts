@@ -1,0 +1,59 @@
+/**
+ * A Town's built region (ADR-0014's coordinate-derived priors, the building
+ * half of what `biome` is to the forest): the character a place's imagined
+ * buildings take where no Fact and no Town sample speaks. The roadmap's
+ * Southeast Alaska table — steep gables and sheds, metal roofs, painted wood
+ * siding — so an unseen shed in Sitka stops coming out as a flat white box.
+ *
+ * Like the biome, the region is decided by a coarse box over the Town's
+ * coordinates (satellite inference is a later rung), it is quantized by being
+ * a fixed table, and it reaches generators only through `@essence.region.*`
+ * params with imagined confidence — the "soft until sure" wash still applies
+ * to everything it colours.
+ */
+
+/** The regions a Town can sit in. One entry today; the table grows one row at a time. */
+export const REGION_CODES = ['southeast-alaska'] as const;
+export type RegionCode = (typeof REGION_CODES)[number];
+
+/** What a region says about imagined buildings. Fixed tables, quantized by construction. */
+export type RegionPrior = {
+  /** Roof-shape weights, used only where no Fact and no Town sample speaks. */
+  roofWeights: { flat: number; gable: number; hip: number; shed: number };
+  /** Roof pitch as a share of the footprint's width: steep, here. */
+  pitch: { min: number; max: number };
+  /** Pitched-roof colours, metal-led. */
+  roofColours: readonly string[];
+  /** Wall colours where the Town has no palette: painted wood siding. */
+  wallColours: readonly string[];
+};
+
+/** Southeast Alaska: the Alexander Archipelago and the panhandle coast. */
+export const REGION_PRIORS: Record<RegionCode, RegionPrior> = {
+  'southeast-alaska': {
+    roofWeights: { flat: 1, gable: 5, hip: 1, shed: 2 },
+    pitch: { min: 0.38, max: 0.55 },
+    roofColours: ['#5b5f66', '#7a2e2a', '#8c4a3c', '#4f545b'],
+    wallColours: ['#8a4640', '#6d7b8a', '#d9d0bd', '#4f6350', '#8d908c'],
+  },
+};
+
+/**
+ * The generic pitch and pitched-roof colours a town with no region keeps: the
+ * values `building.basic` carried as literals before regions existed, exposed
+ * through the same param slots so the generator needs no branch for them and a
+ * town without a region renders exactly as it always did.
+ */
+export const GENERIC_PRIOR: Pick<RegionPrior, 'pitch' | 'roofColours'> = {
+  pitch: { min: 0.28, max: 0.42 },
+  roofColours: ['#8c4a3c', '#5b5f66', '#7a6a58', '#a0573f'],
+};
+
+/** A Town's region from its coordinates: a coarse box, like `forestBiome`. */
+export function regionOf(lat: number, lng: number): RegionCode | undefined {
+  // The panhandle: Ketchikan (55.0, -131.6) to Yakutat (59.5, -139.7), west to
+  // the outer coast, east to the Alaska–BC line. Coarse on purpose: a box is
+  // honest about what it knows, and nobody's border runs that straight.
+  if (lat >= 54.5 && lat <= 60.4 && lng >= -140.2 && lng <= -129.6) return 'southeast-alaska';
+  return undefined;
+}

@@ -12,6 +12,7 @@ import { INTERPRETER_VERSION, runGenerator } from '../geometry/interpret';
 import { MeshBuilder } from '../geometry/mesh';
 import { cleanRing } from '../geometry/polygon';
 import { biomeMix, forestBiome, FOREST_SPECIES, type Species } from '../forest/species';
+import { regionOf } from '../essence/region';
 import { writeGlb } from '../glb/write';
 
 export type BundleFeature = { id: string; kind: FeatureKind; attrs: ResolvedAttrs };
@@ -59,9 +60,25 @@ export async function bundleInputsHash(input: BuildInput): Promise<string> {
       interpreter: INTERPRETER_VERSION,
       generators: await gens.refs(),
       features: [...input.features].sort(byId),
-      essence: input.essence,
+      essence: withDerivedRegion(input),
     }),
   );
+}
+
+/**
+ * Fill an Essence's absent `region` from the Cell's coordinates, the same way
+ * the forest mix falls back to the biome of the centre: an Essence straight
+ * from storage predates regions, but its Town sits where it always sat, so the
+ * derived region is the same value a fresh computation would write — and it
+ * lands in the content address, so the region a Bundle was built under is
+ * always part of its hash (the region table itself is interpreter code, whose
+ * version is in the address too).
+ */
+function withDerivedRegion(input: BuildInput): Essence | undefined {
+  if (!input.essence || input.essence.region) return input.essence;
+  const centre = cellCenter(input.cell);
+  const region = regionOf(centre.lat, centre.lng);
+  return region ? { ...input.essence, region } : input.essence;
 }
 
 export async function buildBundle(input: BuildInput): Promise<BuiltBundle> {
@@ -86,11 +103,12 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle> {
   const ranges: { id: string; first: number; count: number }[] = [];
   // Sorted, so the vertex order — and so the bytes — never depend on the order
   // the Facts arrived in (invariant 2).
+  const essence = withDerivedRegion(input);
   for (const f of [...input.features].sort(byId)) {
     const gen = gens.forKind(f.kind);
     if (!gen) continue;
     const first = mesh.vertexCount;
-    const stats = runGenerator(gen, f, frame, mesh, input.essence);
+    const stats = runGenerator(gen, f, frame, mesh, essence);
     if (stats && mesh.vertexCount > first)
       ranges.push({ id: f.id, first, count: mesh.vertexCount - first });
   }

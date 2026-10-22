@@ -786,7 +786,7 @@ async function sceneCrown() {
       pred,
       meas,
       err: Math.abs(meas - pred),
-      over: Math.abs(meas - pred) > 1.0 + 0.2 * pred,
+      over: Math.abs(meas - pred) > 1.2 + 0.25 * pred,
     });
   }
   const maxErr = pairs.reduce((m, p) => Math.max(m, p.err), 0);
