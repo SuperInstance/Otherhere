@@ -343,6 +343,10 @@ export class World {
   private pump() {
     while (this.active < MAX_PARALLEL && this.queue.length) {
       const job = this.queue.shift()!;
+      // A reload (or an eviction) replaced this job's state while it waited in
+      // the queue: the load would fetch and build, then throw its Bundle away
+      // at the state check. Skip it here — the newer job owns the Cell (#60).
+      if (this.cells.get(job.cell) !== job.state) continue;
       this.active++;
       this.load(job.cell, job.state)
         .catch((err) => {
@@ -471,6 +475,13 @@ export class World {
     this.root.add(group);
     this.beaconRoot.add(beacons);
     if (wakeU) {
+      // A wake carried here by an interrupted reload (#60): its material must
+      // go back now, or the new wake overwrites the reference without
+      // disposing it — a shader program leaked per double reload.
+      if (state.wake) {
+        state.wake.mat.dispose();
+        state.wake = undefined;
+      }
       state.wake = { mat, u: wakeU, t0: performance.now(), meshes: wakeMeshes };
       this.onChange();
     }

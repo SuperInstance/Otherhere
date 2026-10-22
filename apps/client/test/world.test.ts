@@ -1,8 +1,48 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BufferGeometry, Mesh, Scene } from 'three/webgpu';
-import { DEMO_CELL, demoLot } from '@otherhere/core';
+import { BufferGeometry, Mesh, MeshStandardNodeMaterial, Scene } from 'three/webgpu';
+import { DEMO_CELL, demoLot, cellAt, cellCenter, localFrame } from '@otherhere/core';
 import { standFeatures, World, zonesFor } from '../src/world';
 import { WAKE_MS } from '../src/material';
+
+// Count the capsule builds the World starts, so a test can prove a superseded
+// queued load never fetches (#60). The mock spreads the real module; only
+// buildBundle is wrapped, and its behaviour is unchanged.
+vi.mock('@otherhere/core', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@otherhere/core')>();
+  const g = globalThis as { __bundleBuilds?: string[] };
+  g.__bundleBuilds ??= [];
+  return {
+    ...mod,
+    buildBundle: (input: Parameters<typeof mod.buildBundle>[0]) => {
+      g.__bundleBuilds!.push(input.cell);
+      return mod.buildBundle(input);
+    },
+  };
+});
+
+/** A one-house lot at (e, n): nothing else on the Cell, so a clearing test
+ *  can move the house and ask what still suppresses growth. */
+function oneHouseLot(cell: string, e: number, n: number) {
+  const f = localFrame(cellCenter(cell));
+  const ll = (x: number, y: number): [number, number] => {
+    const p = f.unproject({ e: x, n: y });
+    return [Math.round(p.lng * 1e7) / 1e7, Math.round(p.lat * 1e7) / 1e7];
+  };
+  return [
+    {
+      id: 'osm:w100',
+      kind: 'building' as const,
+      attrs: {
+        footprint: {
+          value: [ll(e, n), ll(e + 11, n), ll(e + 11, n + 9), ll(e, n + 9)],
+          confidence: 0.7,
+          source: 'osm' as const,
+        },
+        building: { value: 'house', confidence: 0.9, source: 'osm' as const },
+      },
+    },
+  ];
+}
 
 /** A position attribute shaped like three's, backed by a plain array. */
 class Positions {
@@ -306,5 +346,104 @@ describe('the forest as Bundle data (ADR-0017, amended)', () => {
     expect(world.landcoverAt(100_000, 100_000)).toBeNull();
     // The demo Town is temperate broadleaf with no conifers to name.
     expect(world.forestSpruceP(0, 0)).toBeUndefined();
+  }, 30_000);
+});
+
+describe('reload hygiene (#60)', () => {
+  const settle = async (world: World, ready: number) => {
+    for (let i = 0; i < 1000; i++) {
+      const s = world.stats();
+      if (s.ready === ready && s.loading === 0) return s;
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    throw new Error(`world never settled at ${ready}`);
+  };
+
+  it('disposes the interrupted wake before a new one takes the Cell', async () => {
+    const capsule = new Map([[DEMO_CELL, { features: demoLot(DEMO_CELL) }]]);
+    const world = new World(new Scene(), DEMO_CELL, { capsule });
+    world.update(0, 0);
+    await settle(world, 1); // the first load never wakes
+
+    // A real change lands and wakes; the Cell is ready with the wake in flight.
+    const lot2 = demoLot(DEMO_CELL);
+    (lot2[1]!.attrs.height as { value: number }).value = 12;
+    capsule.set(DEMO_CELL, { features: lot2 });
+    world.reload(DEMO_CELL);
+    await settle(world, 1);
+    expect(world.stats().waking).toBe(1);
+
+    // A second change interrupts that wake: its material must be disposed when
+    // the new Bundle's own wake takes the Cell, not overwritten into a leak.
+    const disposed = vi.spyOn(MeshStandardNodeMaterial.prototype, 'dispose');
+    const lot3 = demoLot(DEMO_CELL);
+    (lot3[1]!.attrs.height as { value: number }).value = 16;
+    capsule.set(DEMO_CELL, { features: lot3 });
+    world.reload(DEMO_CELL);
+    await settle(world, 1);
+    expect(disposed).toHaveBeenCalledTimes(1); // the interrupted wake, at landing
+
+    // The successor's own wake breathes out and hands its material back too.
+    for (let t = 0; t < WAKE_MS + 400; t += 50) {
+      world.update(0, 0);
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    world.update(0, 0);
+    expect(world.stats().waking).toBe(0);
+    expect(disposed).toHaveBeenCalledTimes(2);
+    disposed.mockRestore();
+  }, 30_000);
+
+  it('never fetches a queued load its own reload has superseded', async () => {
+    // Three Cells fill every load slot, so a reload of one queues behind them;
+    // a second reload supersedes the first's queued job while it still waits.
+    // (Far enough apart to be three distinct res-9 Cells, not one.)
+    const a = DEMO_CELL;
+    const b = cellAt(47.3799, 8.5417);
+    const c = cellAt(47.3739, 8.5417);
+    const capsule = new Map([
+      [a, { features: demoLot(a) }],
+      [b, { features: demoLot(b) }],
+      [c, { features: demoLot(c) }],
+    ]);
+    const world = new World(new Scene(), a, { capsule });
+    const builds = (globalThis as { __bundleBuilds?: string[] }).__bundleBuilds!;
+    builds.length = 0;
+    world.update(0, 0); // three loads in flight, every slot taken
+
+    // Both reloads fire while the slots are full, so their jobs queue behind:
+    // the first's job is still waiting when the second supersedes it.
+    const lot2 = demoLot(a);
+    (lot2[1]!.attrs.height as { value: number }).value = 12;
+    capsule.set(a, { features: lot2 });
+    world.reload(a); // queued behind the three in flight
+    const lot3 = demoLot(a);
+    (lot3[1]!.attrs.height as { value: number }).value = 16;
+    capsule.set(a, { features: lot3 });
+    world.reload(a); // supersedes the queued job above
+    await settle(world, 3);
+
+    // Cell a built exactly twice: its first load, and the newest reload's. The
+    // middle job never fetched — the skip at the pump is the whole fix.
+    expect(builds.filter((cell) => cell === a)).toHaveLength(2);
+    expect(world.stats()).toMatchObject({ ready: 3, loading: 0, errors: 0 });
+  }, 30_000);
+
+  it('re-indexes the clearings after a retire: a moved house stops suppressing its old ground', async () => {
+    // The house starts at (0, 0): its clearing disc keeps the forest out of
+    // the ground it covers. The reload moves it 40 m away; once the stale
+    // Bundle retires, only the new clearing is in the index.
+    const capsule = new Map([[DEMO_CELL, { features: oneHouseLot(DEMO_CELL, 0, 0) }]]);
+    const world = new World(new Scene(), DEMO_CELL, { capsule });
+    world.update(0, 0);
+    await settle(world, 1);
+    // w100 at (0,0)-(11,9): the disc's centre, in world z = -n.
+    expect(world.occupied(5, -4)).toBe(true);
+
+    capsule.set(DEMO_CELL, { features: oneHouseLot(DEMO_CELL, 40, 40) });
+    world.reload(DEMO_CELL);
+    await settle(world, 1);
+    expect(world.occupied(45, -44)).toBe(true); // the new clearing
+    expect(world.occupied(5, -4)).toBe(false); // the stale one is gone
   }, 30_000);
 });
