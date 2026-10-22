@@ -20,6 +20,23 @@ vi.mock('@otherhere/core', async (importOriginal) => {
   };
 });
 
+// Record every material the World creates, so a test can prove each waking
+// material is disposed exactly once — a wake dropped mid-chain is a shader
+// program leaked (review 2026-10-22, P0 #1). Behaviour is unchanged.
+vi.mock('../src/material', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('../src/material')>();
+  const g = globalThis as { __wakeMaterials?: MeshStandardNodeMaterial[] };
+  g.__wakeMaterials ??= [];
+  return {
+    ...mod,
+    confidenceMaterial: (wake?: Parameters<typeof mod.confidenceMaterial>[0]) => {
+      const m = mod.confidenceMaterial(wake);
+      g.__wakeMaterials!.push(m);
+      return m;
+    },
+  };
+});
+
 /** A one-house lot at (e, n): nothing else on the Cell, so a clearing test
  *  can move the house and ask what still suppresses growth. */
 function oneHouseLot(cell: string, e: number, n: number) {
@@ -445,5 +462,67 @@ describe('reload hygiene (#60)', () => {
     await settle(world, 1);
     expect(world.occupied(45, -44)).toBe(true); // the new clearing
     expect(world.occupied(5, -4)).toBe(false); // the stale one is gone
+  }, 30_000);
+
+  it('carries an interrupted wake across a reload chain, and disposes it when the successor lands (review 2026-10-22 P0 #1)', async () => {
+    // The scenario: a ready Cell is mid-wake; a first reload moves that wake
+    // into the loading state; a second reload fires before the load lands.
+    // The `else if (s?.stale)` branch used to hand the stale Bundle on but
+    // drop the wake: its material was never disposed (a shader program
+    // leaked per occurrence) and advanceWakes stopped tracking it.
+    //
+    // The recording mock is per-file, not per-test: earlier tests in this
+    // file made waking materials of their own (and disposed them under
+    // their own spies), so this test only speaks about what it created.
+    const allWake = () =>
+      (
+        (globalThis as { __wakeMaterials?: MeshStandardNodeMaterial[] }).__wakeMaterials ?? []
+      ).filter((m) => m.name === 'soft-until-sure-waking');
+    const baseline = allWake().length;
+    const mine = () => allWake().slice(baseline);
+    const capsule = new Map([[DEMO_CELL, { features: demoLot(DEMO_CELL) }]]);
+    const world = new World(new Scene(), DEMO_CELL, { capsule });
+    world.update(0, 0);
+    await settle(world, 1);
+
+    // A real change lands and wakes: the Cell is ready, the wake in flight.
+    const lot2 = demoLot(DEMO_CELL);
+    (lot2[1]!.attrs.height as { value: number }).value = 12;
+    capsule.set(DEMO_CELL, { features: lot2 });
+    world.reload(DEMO_CELL);
+    await settle(world, 1);
+    expect(world.stats().waking).toBe(1);
+    const interrupted = mine().at(-1)!; // the wake about to be interrupted
+    const disposed = vi.spyOn(MeshStandardNodeMaterial.prototype, 'dispose');
+
+    // Reload on top of a still-loading reload, while that wake is in flight.
+    // Both fire before any load can land (each parks at its first await).
+    const lot3 = demoLot(DEMO_CELL);
+    (lot3[1]!.attrs.height as { value: number }).value = 16;
+    capsule.set(DEMO_CELL, { features: lot3 });
+    world.reload(DEMO_CELL); // carries the wake into the loading state
+    world.reload(DEMO_CELL); // …and again before it lands: the wake must ride too
+    expect(world.stats().loading).toBe(1);
+    // The carried wake is still tracked and still breathing — not silently
+    // dropped where nothing would ever dispose it.
+    expect(world.stats().waking).toBe(1);
+
+    await settle(world, 1); // the chain's last load lands (its own wake flies)
+    expect(world.stats().waking).toBe(1);
+
+    // WAKE_MS later the successor has breathed out. Every waking material
+    // the World ever created — the interrupted one, the superseded load's,
+    // the successor's — has been disposed exactly once. None leaked.
+    for (let t = 0; t < WAKE_MS + 400; t += 50) {
+      world.update(0, 0);
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    world.update(0, 0);
+    expect(world.stats().waking).toBe(0);
+    const gone = new Set(disposed.mock.contexts as MeshStandardNodeMaterial[]);
+    expect(gone.has(interrupted)).toBe(true); // the interrupted wake, at landing
+    expect(mine().length).toBeGreaterThanOrEqual(3); // interrupted, superseded, successor
+    for (const m of mine()) expect(gone.has(m)).toBe(true);
+    disposed.mockRestore();
   }, 30_000);
 });
