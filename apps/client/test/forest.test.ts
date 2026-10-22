@@ -133,4 +133,31 @@ describe('Forest', () => {
     for (let i = 0; i < 40; i++) forest.update(0, 0);
     expect(forest.settled()).toBe(true);
   });
+
+  it('reports the nearest planted tree, species and all (#66)', () => {
+    const forest = new Forest(new Scene(), hills, { radius: 400 });
+    for (let i = 0; i < 40; i++) forest.update(0, 0);
+    const w = forest.nearest(0, 0);
+    expect(w).not.toBeNull();
+    // It is a real planted instance: standing on the hills, house-sized.
+    expect(w!.y).toBeGreaterThan(0);
+    expect(w!.height).toBeGreaterThanOrEqual(15);
+    expect(w!.height).toBeLessThanOrEqual(42);
+    expect(w!.width).toBeGreaterThan(2);
+    // No query point in the planted radius reads a tree from further out.
+    for (const q of [
+      [0, 0],
+      [300, -220],
+    ] as const) {
+      const [qx, qz] = q;
+      const n = forest.nearest(qx, qz);
+      expect(n).not.toBeNull();
+      expect(Math.hypot(n!.x - qx, n!.z - qz)).toBeLessThanOrEqual(500);
+    }
+  });
+
+  it('nearest reads null before anything plants', () => {
+    const forest = new Forest(new Scene(), { active: false, heightAt: () => 100 }, { radius: 400 });
+    expect(forest.nearest(0, 0)).toBeNull();
+  });
 });
