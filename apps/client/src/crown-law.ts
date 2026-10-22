@@ -114,10 +114,7 @@ export const SCALE_MAX = 1.3;
  * Grade the readings against the predictions. Frames and predictions are
  * parallel arrays (one prediction per frame time, from `predictTip`).
  */
-export function gradeCrown(
-  frames: CrownFrame[],
-  pred: CrownPrediction[],
-): CrownVerdict {
+export function gradeCrown(frames: CrownFrame[], pred: CrownPrediction[]): CrownVerdict {
   const pairs: CrownPair[] = [];
   // Pair readings by elapsed time, not adjacency — the same windows whatever
   // the frame rate. A frame may open several windows (the ends overlap);

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { gradeCrown, MIN_PRED_PX, PAIR_DT, type CrownFrame, type CrownPrediction } from '../src/crown-law';
+import {
+  gradeCrown,
+  MIN_PRED_PX,
+  PAIR_DT,
+  type CrownFrame,
+  type CrownPrediction,
+} from '../src/crown-law';
 
 /**
  * The crown-law unit tests of #85: the law must reject a crown that sways the
@@ -41,11 +47,7 @@ type Dataset = {
  * half), with the real shader's measured noise (0.23–0.32 px along-wind; the
  * apex band's v quantization measured at 2.33 px pairwise, so ±1.1 per
  * reading), optionally drifting down-screen. */
-function crown(
-  uPred: (t: number) => number,
-  k = 1,
-  vDrift = 0,
-): Dataset {
+function crown(uPred: (t: number) => number, k = 1, vDrift = 0): Dataset {
   const frames: CrownFrame[] = [];
   const pred: CrownPrediction[] = [];
   for (let i = 0; i < N; i++) {
