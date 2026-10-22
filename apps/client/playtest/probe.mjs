@@ -753,7 +753,7 @@ async function sceneCrown() {
   });
   note('goto', { url: `${BASE}/?demo=forest&species=spruce` });
   let d = null;
-  for (const _ of Array.from({ length: 120 })) {
+  for (let wait = 0; wait < 120; wait++) {
     d = await read();
     if (d && d.ready && d.frames.length >= 30) break;
     await page.waitForTimeout(1000);
