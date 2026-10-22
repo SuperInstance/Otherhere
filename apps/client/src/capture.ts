@@ -51,9 +51,11 @@ export function seek(
     const timer = setTimeout(() => done(false), timeoutMs);
     video.onseeked = () => {
       // A seek that already timed out can still finish and fire its `seeked`
-      // after the next seek has begun; only a landing at this seek's target
-      // settles it.
-      if (Math.abs(video.currentTime - target) < SEEK_LANDED_S) done(true);
+      // after the next seek has begun. Chrome and Firefox move `currentTime`
+      // to the new target the moment it is assigned, so position alone cannot
+      // tell that late landing apart from this seek's own. `seeking` — the
+      // browser's own record of a seek still in flight — is what settles it.
+      if (!video.seeking && Math.abs(video.currentTime - target) < SEEK_LANDED_S) done(true);
     };
     video.onerror = () => done(false);
     video.currentTime = target;
