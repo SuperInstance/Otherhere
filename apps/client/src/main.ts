@@ -333,11 +333,19 @@ if (!originCell) {
           // scattered woods. Either way, town centres thin out around their buildings.
           // Nothing grows where the town is not known yet: those chunks replant when
           // their Cell's Bundle arrives (world.onBuilt), instead of trees popping out.
+          // Landcover from the Bundle's extras decides where it is forest, scrub or
+          // open meadow (ADR-0017, amended) — and where nothing is said, the biome.
           if (!world.settled(x, z)) return 0;
+          const cover = world.landcoverAt(x, z);
+          if (cover === 'meadow') return 0;
           const p = world.frame.unproject({ e: x, n: -z });
           const wild = FOREST_BIOMES[forestBiome(p.lat, p.lng)].wild;
-          return (wild ? 1 : 0.05) / (1 + world.builtUp(x, z) / 3);
+          const base = cover === 'forest' ? 1 : cover === 'scrub' ? 0.35 : wild ? 1 : 0.05;
+          return base / (1 + world.builtUp(x, z) / 3);
         },
+        // The Town's own conifer mix, when its Bundle has spoken (Essence first,
+        // biome character as fallback — both sealed into the extras by the build).
+        mix: (x, z) => world.forestSpruceP(x, z),
         // Phones and tablets get a smaller, sparser forest: same seeds, fewer chunks.
         ...(matchMedia('(pointer: coarse)').matches ? { radius: 900, maxTrees: 9000 } : {}),
       })

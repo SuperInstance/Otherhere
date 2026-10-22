@@ -95,6 +95,10 @@ function strideBoundary(stride: number): number {
 const SPRUCE_TINT = new Color('#2c4a32');
 const HEMLOCK_TINT = new Color('#36503a');
 
+/** The spruce share when no Town has spoken: the display forest's own split,
+ *  used before any Bundle arrives and in broadleaf towns with no conifers. */
+const DEFAULT_SPRUCE_P = 0.6;
+
 /* --------------------------------------------------------------------- wind */
 
 /**
@@ -416,6 +420,7 @@ export class Forest {
   private readonly ground: ForestGround;
   private readonly occupied: ((x: number, z: number) => boolean) | undefined;
   private readonly density: ((x: number, z: number) => number) | undefined;
+  private readonly mix: ((x: number, z: number) => number | undefined) | undefined;
   private readonly radius: number;
   private readonly maxTrees: number;
   private readonly spruceGeometry: BufferGeometry;
@@ -437,6 +442,9 @@ export class Forest {
       occupied?: (x: number, z: number) => boolean;
       /** 0–1: how wooded this kind of place is (biome, built-up ground). Default 1. */
       density?: (x: number, z: number) => number;
+      /** The Town's spruce share of its conifers (the Bundle extras' mix),
+       *  asked once per chunk at its centre; undefined keeps the default split. */
+      mix?: (x: number, z: number) => number | undefined;
       radius?: number;
       maxTrees?: number;
     },
@@ -444,6 +452,7 @@ export class Forest {
     this.ground = ground;
     this.occupied = opts?.occupied;
     this.density = opts?.density;
+    this.mix = opts?.mix;
     this.radius = opts?.radius ?? 1400;
     this.maxTrees = opts?.maxTrees ?? 26000;
     this.spruceGeometry = buildConiferGeometry(true);
@@ -715,6 +724,9 @@ export class Forest {
     const minX = ix * CHUNK;
     const minZ = iz * CHUNK;
     const occupied = this.occupied;
+    // One mix per chunk, asked at its centre: the Town's conifer character (the
+    // Bundle extras' mix) or the default split where no Town has spoken.
+    const spruceP = this.mix?.(minX + CHUNK / 2, minZ + CHUNK / 2) ?? DEFAULT_SPRUCE_P;
 
     for (let gz = 0; gz < COLS; gz++) {
       for (let gx = 0; gx < COLS; gx++) {
@@ -749,7 +761,7 @@ export class Forest {
         if (occupied !== undefined && occupied(x, z)) continue;
         if (valueNoise(x, z) < 0.12) continue; // a clearing the loggers left
 
-        const isSpruce = rSpecies < 0.6;
+        const isSpruce = rSpecies < spruceP;
         const stretch = isSpruce ? 18 + rHeight * 24 : 15 + rHeight * 17;
         // Above 450 m the growing season runs out and the same species stands shorter.
         const stunted = Math.min(Math.max((h - 450) / 270, 0), 1);

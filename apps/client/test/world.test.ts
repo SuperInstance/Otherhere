@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { BufferGeometry, Mesh, Scene } from 'three/webgpu';
 import { DEMO_CELL, demoLot } from '@otherhere/core';
-import { standFeatures, World } from '../src/world';
+import { standFeatures, World, zonesFor } from '../src/world';
 import { WAKE_MS } from '../src/material';
 
 /** A position attribute shaped like three's, backed by a plain array. */
@@ -36,16 +36,16 @@ type Range = { id: string; first: number; count: number };
 
 /**
  * One Bundle's worth of flat geometry: six unowned ground-hexagon vertices
- * (before the first Feature's range, as the interpreter emits), then an imagined
- * tree in the sea, an imagined tree on land, an observed tree at the sea's edge,
- * and a road. Ground height is keyed by each feature's flat x.
+ * (before the first Feature's range, as the interpreter emits), then a tall
+ * tree at the sea's edge on land, a tall tree inland, a tree at the shore, and
+ * a road. Ground height is keyed by each feature's flat x.
  */
 function flatBundle(): { pos: Positions; ranges: Range[] } {
   const pos = new Positions(30);
   const ranges: Range[] = [
-    { id: 'gen:sea', first: 6, count: 6 },
-    { id: 'gen:land', first: 12, count: 6 },
-    { id: 'osm:n7', first: 18, count: 6 },
+    { id: 'osm:n6', first: 6, count: 6 },
+    { id: 'osm:n7', first: 12, count: 6 },
+    { id: 'osm:n8', first: 18, count: 6 },
     { id: 'osm:w1:n1-n2', first: 24, count: 6 },
   ];
   // (range index, flat x = z, tall?) — x doubles as the ground-height key below.
@@ -69,26 +69,10 @@ const ground = (h: Record<number, number> = heights) => ({
 });
 
 describe('standFeatures', () => {
-  it('collapses an imagined tree below the beach line, so the stand ends at the coast', () => {
+  it('stands a tall tree on land, a tree even at the shore, and drapes flat things', () => {
     const { pos, ranges } = flatBundle();
     standFeatures(pos, ranges, 0, 0, ground());
-    const r = ranges[0]!; // gen:sea, at 0.4 m: intertidal
-    for (let i = r.first; i < r.first + r.count; i++)
-      expect([pos.getX(i), pos.getY(i), pos.getZ(i)]).toEqual([0, -1000, 0]);
-  });
-
-  it('collapses an imagined tree above the timber line', () => {
-    const pos = new Positions(12);
-    const ranges: Range[] = [{ id: 'gen:alpine', first: 6, count: 6 }];
-    for (let i = 6; i < 12; i++) pos.setXYZ(i, 90, (i - 6) * 4, 90);
-    standFeatures(pos, ranges, 0, 0, ground());
-    for (let i = 6; i < 12; i++) expect(pos.getY(i)).toBe(-1000);
-  });
-
-  it('stands an imagined tree on land, an observed tree even at the shore, and drapes flat things', () => {
-    const { pos, ranges } = flatBundle();
-    standFeatures(pos, ranges, 0, 0, ground());
-    // gen:land at 100 m: a rigid piece on the lowest ground under it, sunk 0.3.
+    // The tree at 100 m: a rigid piece on the lowest ground under it, sunk 0.3.
     for (let i = 12; i < 18; i++) expect(pos.getY(i)).toBeCloseTo((i - 12) * 4 + 100 - 0.3, 5);
     // The observed tree at 0.4 m is someone's observation: it stands, ungated.
     for (let i = 18; i < 24; i++) expect(pos.getY(i)).toBeCloseTo((i - 18) * 4 + 0.4 - 0.3, 5);
@@ -98,10 +82,10 @@ describe('standFeatures', () => {
     for (let i = 0; i < 6; i++) expect(pos.getY(i)).toBe(-1000);
   });
 
-  it('re-decides on finer ground: a tree the sea rejected stands once the ground rises', () => {
+  it('re-decides on finer ground: a shoreline tree rises once the ground rises', () => {
     const { pos, ranges } = flatBundle();
     standFeatures(pos, ranges, 0, 0, ground());
-    for (let i = 6; i < 12; i++) expect(pos.getY(i)).toBe(-1000);
+    for (let i = 6; i < 12; i++) expect(pos.getY(i)).toBeCloseTo((i - 6) * 4 + 0.4 - 0.3, 5);
     // A resnap resets from the flat positions and stands again (World.stand).
     const again = flatBundle();
     standFeatures(again.pos, again.ranges, 0, 0, ground({ ...heights, 10: 5 }));
@@ -259,5 +243,68 @@ describe('World wake-up (the moment new knowledge lands)', () => {
     world.update(0, 0);
     expect(world.stats().waking).toBe(0);
     expect(world.stats()).toMatchObject({ ready: 1, loading: 0, verified: 1 });
+  }, 30_000);
+});
+
+describe('the forest as Bundle data (ADR-0017, amended)', () => {
+  it('parses landcover rings into the world frame, skipping the malformed', () => {
+    // A square wood around (100, 200) in the Cell's local (e, n) axes, with the
+    // Cell centre itself offset to (1000, 5000): world e = 1000 + e, n = 5000 + n,
+    // and world z is -n. A broken ring (odd length) must be dropped, not thrown.
+    const { zones, spruceP } = zonesFor(
+      {
+        mix: { hemlock: 0.7, spruce: 0.25, cedar: 0.05 },
+        zones: [
+          { id: 'osm:w1', cover: 'forest', ring: [-50, -50, 50, -50, 50, 50, -50, 50] },
+          { id: 'osm:w2', cover: 'meadow', ring: [10, 10, 20] },
+        ],
+      },
+      { e: 1000, n: 5000 },
+    );
+    expect(zones).toHaveLength(1);
+    const wood = zones[0]!;
+    expect(wood.cover).toBe('forest');
+    expect(wood.ring[0]).toEqual({ e: 950, n: 4950 });
+    expect(wood.ring[2]).toEqual({ e: 1050, n: 5050 });
+    expect(wood.minE).toBe(950);
+    expect(wood.maxN).toBe(5050);
+    // The rainforest mix: a quarter of the conifers are spruce.
+    expect(spruceP).toBeCloseTo(0.25, 5);
+  });
+
+  it('leaves the silhouette split open where the mix names no conifers', () => {
+    expect(zonesFor({ mix: { broadleaf: 1 }, zones: [] }, { e: 0, n: 0 }).spruceP).toBeUndefined();
+    expect(zonesFor(undefined, { e: 0, n: 0 }).spruceP).toBeUndefined();
+    expect(zonesFor(undefined, { e: 0, n: 0 }).zones).toEqual([]);
+  });
+
+  it('answers landcover and the mix from a loaded Cell, end to end through the GLB', async () => {
+    // The demo lot carries a wood west of the road and a scrub patch east of
+    // it; the demo Cell is the world's origin, so local (e, n) is world (e, n)
+    // and world z is -n. The extras survive a real build, GLB round-trip and
+    // GLTF parse — this is the path production takes.
+    const capsule = new Map([[DEMO_CELL, { features: demoLot(DEMO_CELL) }]]);
+    const world = new World(new Scene(), DEMO_CELL, { capsule });
+    const settle = async () => {
+      for (let i = 0; i < 1000; i++) {
+        const s = world.stats();
+        if (s.ready === 1 && s.loading === 0) return s;
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      throw new Error('capsule cell never settled');
+    };
+    world.update(0, 0);
+    await settle();
+
+    // The wood: e in [-72, -46], n in [-40, -8] — and world z is -n.
+    expect(world.landcoverAt(-60, 20)).toBe('forest');
+    // The scrub patch: e in [58, 72], n in [-22, -4].
+    expect(world.landcoverAt(65, 10)).toBe('scrub');
+    // The road between them says nothing.
+    expect(world.landcoverAt(0, 0)).toBeNull();
+    // A point no Cell covers says nothing either.
+    expect(world.landcoverAt(100_000, 100_000)).toBeNull();
+    // The demo Town is temperate broadleaf with no conifers to name.
+    expect(world.forestSpruceP(0, 0)).toBeUndefined();
   }, 30_000);
 });

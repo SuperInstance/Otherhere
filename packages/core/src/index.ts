@@ -35,7 +35,6 @@ export * from './packs/building';
 export * from './packs/place';
 export * from './essence/compute';
 export * from './forest/species';
-export * from './forest/imagine';
 export * from './capture/track';
 export * from './capture/image';
 export * from './schema/agent';
