@@ -4,9 +4,10 @@ import { demoLot, DEMO_CELL } from '../src/demo/lot';
 import { readGlbJson } from '../src/glb/write';
 import { BUILTIN_GENERATORS } from '../src/generators';
 import { BundleManifest } from '../src/schema/bundle';
-import { FOREST_SPECIES } from '../src/forest/species';
+import { FOREST_SPECIES, FOREST_BIOMES, RAINFOREST_BOX } from '../src/forest/species';
 import { cellAt } from '../src/geo/h3';
 import { computeEssence } from '../src/essence/compute';
+import { REGION_BOX, REGION_PRIORS, GENERIC_PRIOR } from '../src/essence/region';
 import GOLDEN from '../src/demo/golden.json';
 
 describe('built-in generators', () => {
@@ -162,5 +163,88 @@ describe('buildBundle (invariants 1 and 2)', () => {
       essence: spoken,
     });
     expect(essenced).not.toBe(base);
+  });
+
+  it('covers the fixed lookup tables in the content address (review P0 #3)', async () => {
+    // The scenario: someone edits a wall colour in the region table. Only the
+    // region *code* was hashed, so the address — and so the GLB R2 serves
+    // under it — stayed put while the client rebuilt different bytes: the
+    // world showed fewer than n/n verified. The tables are hashed as data now,
+    // so any edit must move the address the way a Fact change does. The demo
+    // Cell is temperate with no region on purpose: the coverage is
+    // unconditional, exactly so no dependency analysis is ever needed.
+    const input = { cell: DEMO_CELL, features: demoLot() };
+    const before = await bundleInputsHash(input);
+    // Each edit is what a PR touching that table looks like; each restore
+    // holds the hash to its old value, proving it is a pure function of the
+    // tables and not of the order the edits ran in.
+    const edits: [name: string, edit: () => () => void][] = [
+      [
+        'a region wall colour',
+        () => {
+          const p = REGION_PRIORS['southeast-alaska'] as unknown as {
+            wallColours: string[];
+          };
+          const was = p.wallColours;
+          p.wallColours = ['#ffffff'];
+          return () => {
+            p.wallColours = [...was];
+          };
+        },
+      ],
+      [
+        'the generic prior pitch',
+        () => {
+          const p = GENERIC_PRIOR as unknown as { pitch: { min: number } };
+          const was = p.pitch.min;
+          p.pitch.min = 0.3;
+          return () => {
+            p.pitch.min = was;
+          };
+        },
+      ],
+      [
+        'the region box',
+        () => {
+          const b = REGION_BOX as unknown as { north: number };
+          const was = b.north;
+          b.north = 61;
+          return () => {
+            b.north = was;
+          };
+        },
+      ],
+      [
+        'a forest biome mix',
+        () => {
+          const b = FOREST_BIOMES.temperate as unknown as { mix: Record<string, number> };
+          const was = b.mix;
+          b.mix = { hemlock: 0.5, broadleaf: 0.5 };
+          return () => {
+            b.mix = { ...was };
+          };
+        },
+      ],
+      [
+        'the rainforest box',
+        () => {
+          const b = RAINFOREST_BOX as unknown as { west: number };
+          const was = b.west;
+          b.west = -147;
+          return () => {
+            b.west = was;
+          };
+        },
+      ],
+    ];
+    for (const [name, edit] of edits) {
+      const restore = edit();
+      try {
+        expect(await bundleInputsHash(input), name).not.toBe(before);
+      } finally {
+        restore();
+      }
+    }
+    expect(await bundleInputsHash(input)).toBe(before); // every restore held
   });
 });

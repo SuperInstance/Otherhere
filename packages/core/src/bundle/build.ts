@@ -11,8 +11,15 @@ import { generatorSet, type GeneratorSet } from '../generators';
 import { INTERPRETER_VERSION, runGenerator } from '../geometry/interpret';
 import { MeshBuilder } from '../geometry/mesh';
 import { cleanRing } from '../geometry/polygon';
-import { biomeMix, forestBiome, FOREST_SPECIES, type Species } from '../forest/species';
-import { regionOf } from '../essence/region';
+import {
+  biomeMix,
+  forestBiome,
+  FOREST_BIOMES,
+  FOREST_SPECIES,
+  RAINFOREST_BOX,
+  type Species,
+} from '../forest/species';
+import { regionOf, GENERIC_PRIOR, REGION_BOX, REGION_PRIORS } from '../essence/region';
 import { writeGlb } from '../glb/write';
 
 export type BundleFeature = { id: string; kind: FeatureKind; attrs: ResolvedAttrs };
@@ -49,6 +56,23 @@ const GROUND_CONF: [number, number] = [1, 0.2];
 const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 /**
+ * The fixed lookup tables a Bundle's output depends on, hashed into the
+ * content address as data (review 2026-10-22 P0 #3): the region priors and
+ * the boxes that decide which region and biome a Town sits in, the forest
+ * biomes' mixes and the species vocabulary. Before this, only the region
+ * *code* was hashed — the tables were "interpreter code, whose version is in
+ * the address" only by convention, so an edit to a wall colour kept the old
+ * address while the bytes changed: R2 served the old GLB and the client
+ * rebuilt different ones under it. Hashing them as data makes every table
+ * edit move the address the way a Fact change does, unconditionally — no
+ * dependency analysis, no convention to remember.
+ */
+export const LOOKUP_TABLES = {
+  region: { priors: REGION_PRIORS, genericPrior: GENERIC_PRIOR, box: REGION_BOX },
+  forest: { biomes: FOREST_BIOMES, species: FOREST_SPECIES, rainforestBox: RAINFOREST_BOX },
+} as const;
+
+/**
  * The content address of a Bundle (ADR-0007): a hash of everything the output
  * depends on. Same address means same bytes, on every device.
  */
@@ -58,6 +82,7 @@ export async function bundleInputsHash(input: BuildInput): Promise<string> {
     canonicalJson({
       cell: input.cell,
       interpreter: INTERPRETER_VERSION,
+      tables: LOOKUP_TABLES,
       generators: await gens.refs(),
       features: [...input.features].sort(byId),
       essence: withDerivedRegion(input),
@@ -71,8 +96,8 @@ export async function bundleInputsHash(input: BuildInput): Promise<string> {
  * from storage predates regions, but its Town sits where it always sat, so the
  * derived region is the same value a fresh computation would write — and it
  * lands in the content address, so the region a Bundle was built under is
- * always part of its hash (the region table itself is interpreter code, whose
- * version is in the address too).
+ * always part of its hash (and the region table itself is hashed as data
+ * too, via LOOKUP_TABLES).
  */
 function withDerivedRegion(input: BuildInput): Essence | undefined {
   if (!input.essence || input.essence.region) return input.essence;

@@ -88,9 +88,11 @@ export type ForestBiome = keyof typeof FOREST_BIOMES;
  * Archipelago and the immediate mainland coast): the box from Cross Sound to
  * the Nass, inland to the Coast Mountains. Real ecoregion polygons replace this
  * when satellite inference lands; until then being generous costs only soft,
- * imagined trees, and the sea keeps them off the water.
+ * imagined trees, and the sea keeps them off the water. It decides which
+ * biome a Town sits in, so it is hashed into the content address as data
+ * (review 2026-10-22 P0 #3).
  */
-const RAINFOREST_BOX = { south: 54.5, north: 60.5, west: -148, east: -129.5 };
+export const RAINFOREST_BOX = { south: 54.5, north: 60.5, west: -148, east: -129.5 } as const;
 
 export function forestBiome(lat: number, lng: number): ForestBiome {
   const b = RAINFOREST_BOX;
