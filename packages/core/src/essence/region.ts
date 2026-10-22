@@ -41,8 +41,12 @@ export const REGION_PRIORS: Record<RegionCode, RegionPrior> = {
 /**
  * The generic pitch and pitched-roof colours a town with no region keeps: the
  * values `building.basic` carried as literals before regions existed, exposed
- * through the same param slots so the generator needs no branch for them and a
- * town without a region renders exactly as it always did.
+ * through the same param slots so the generator needs no branch for them.
+ * These two slots are the only part of the old behaviour that moved verbatim —
+ * the roof-shape chain around them changed for every town in the same PR
+ * (the house rule's weights, and the small-`yes` footprint rule), so a town
+ * without a region does not draw the roofs it drew before regions; see the
+ * correction on round 13's note.
  */
 export const GENERIC_PRIOR: Pick<RegionPrior, 'pitch' | 'roofColours'> = {
   pitch: { min: 0.28, max: 0.42 },
@@ -51,10 +55,14 @@ export const GENERIC_PRIOR: Pick<RegionPrior, 'pitch' | 'roofColours'> = {
 
 /**
  * The panhandle box: Ketchikan (55.0, -131.6) to Yakutat (59.5, -139.7), west
- * to the outer coast, east to the Alaska–BC line. Coarse on purpose: a box is
- * honest about what it knows, and nobody's border runs that straight.
- * A fixed table like the priors: it decides which region a Town sits in, so
- * it is hashed into the content address as data (review 2026-10-22 P0 #3).
+ * to the outer coast. Coarse on purpose: a box is honest about what it knows,
+ * and nobody's border runs that straight — and this one does not try to: the
+ * east and north edges reach well past the Alaska–BC line, so Stewart and
+ * Atlin (BC) and Carcross and Teslin (Yukon) sit in the Southeast Alaska
+ * region along with the panhandle (region.test.ts pins those four, so the
+ * comment cannot drift from the table). A fixed table like the priors: it
+ * decides which region a Town sits in, so it is hashed into the content
+ * address as data (review 2026-10-22 P0 #3).
  */
 export const REGION_BOX = { south: 54.5, north: 60.4, west: -140.2, east: -129.6 } as const;
 

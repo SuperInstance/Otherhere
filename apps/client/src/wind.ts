@@ -5,11 +5,13 @@
  * the wind is a display layer like everything else it touches: no Bundle byte,
  * generator, or golden hash changes (the ADR-0016 doctrine, extended to motion).
  *
- * Determinism: the same class as the day clock — keyed to *elapsed render
- * time*, never the wall clock and never `Math.random`. The same elapsed second
- * is the same wind on every device, and when `?t=` (or a postcard link) freezes
- * the clock, the wind freezes with it: a pinned forest stands mid-sway, exactly
- * as it stood when the moment was saved.
+ * Determinism: the same class as the day clock — keyed to the accumulated
+ * sky step (which runs at true wall speed, clamped and never backwards),
+ * never the calendar and never `Math.random`. A pinned view freezes the
+ * step, so the same frozen clock is the same wind on every device, and when
+ * `?t=` (or a postcard link) freezes the clock, the wind freezes with it: a
+ * pinned forest stands mid-sway, exactly as it stood when the moment was
+ * saved.
  *
  * Weather keying (reading the cloud cover the sky exposes): solid overcast is
  * still air — the grey ceiling sits on the forest and nothing moves; clear sky

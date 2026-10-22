@@ -291,7 +291,12 @@ export function createAtmosphere(scene: Scene, renderer: WebGPURenderer): Atmosp
   };
 }
 
-/** Cloud cover back out of a palette: how far hazeScale sits from its clear end. */
-function cloudOf(p: SkyPalette): number {
+/** Cloud cover recovered from a palette by inverting the haze: sky.ts writes
+ * `hazeScale = 0.75 + 0.6 * cloud`, and the palette is the only channel the
+ * atmosphere receives, so the cloud uniform is that same formula backwards.
+ * The constants are sky.ts's, not this file's — if either end of the
+ * calculation moves, the round-trip test (test/atmosphere.test.ts) fails
+ * until the other moves with it. */
+export function cloudOf(p: SkyPalette): number {
   return Math.max(0, Math.min(1, (p.hazeScale - 0.75) / 0.6));
 }

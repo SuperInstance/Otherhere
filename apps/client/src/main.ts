@@ -247,9 +247,10 @@ const originCell = isDemo
       : null;
 
 // --- The day turns ---------------------------------------------------------------
-// A living sky, deterministic by construction: the clock counts elapsed render
-// time (never the wall clock — the same class of time-dependence as the waves
-// and drifting cloud shadows), so the same elapsed second is the same sky on
+// A living sky: the clock accumulates the sky step, which runs at true wall
+// speed (clamped, never backwards — see skyStep) so a slow renderer slows
+// the frame rate, not the day. A pinned `?t=` freezes the accumulation, and
+// that is where the determinism lives: a pinned scene shows the same sky on
 // every device and again after a reload. Every visit opens at mid-morning; a
 // full day passes in 24 minutes. Hold T to run the clock faster; `?t=21.5`
 // pins the start hour. Weather drifts on the same clock, with the biome's

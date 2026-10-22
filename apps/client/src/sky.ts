@@ -8,10 +8,13 @@ import { describeWind } from './wind';
  * layer: no Bundle byte, generator, or golden hash changes (the ADR-0016
  * doctrine, extended to the sky).
  *
- * Determinism: the day advances with *elapsed render time*, never the wall
- * clock — the same class of time-dependence as the ocean waves, surf foam and
- * drifting cloud shadows, which already survive the pixel-identical reload
- * e2e. Same elapsed time, same sky, on every device.
+ * Determinism: the day's hour is a pure function of the accumulated sky step,
+ * and a pinned `?t=` view freezes that accumulation — so a pinned scene shows
+ * the same sky on every device and every reload (what the pixel-identical
+ * reload e2e exercises). The step itself runs at true wall speed, clamped and
+ * never backwards (see `skyStep`): a slow renderer slows the frame rate, not
+ * the day. What is never read is the calendar — `DAY_OF_YEAR` is fixed on
+ * purpose.
  */
 
 /* ------------------------------------------------------------------ the day */
