@@ -217,6 +217,18 @@ describe('the regional prior shapes imagined buildings', () => {
     expect(pitchedShare(undefined, 30)).toBeLessThanOrEqual(0.4);
   });
 
+  it('a large unknown footprint keeps flat or hip in a region too (review P1 #4)', () => {
+    // The region branch ran before the house / small-yes rule, so every
+    // unknown building in Southeast Alaska, of any size, was pitched 8 times
+    // in 9 — a 3,000 m2 cannery got a gable. The region now speaks only where
+    // the generic rule would imagine a roof at all: it changes the weights of
+    // imagining, never which buildings get imagined.
+    expect(pitchedShare(bare('southeast-alaska'), 30)).toBeLessThanOrEqual(0.4);
+    // And the region still pitches what it should: the small ones (the rule
+    // above the large one, re-read through the region's weights).
+    expect(pitchedShare(bare('southeast-alaska'))).toBeGreaterThanOrEqual(0.75);
+  });
+
   it('a region imagines steep, metal-roofed, painted-wood buildings where nothing is known', () => {
     const region = bare('southeast-alaska');
     // Gable-led and shed-heavy: 8 of 9 weights are pitched shapes.
