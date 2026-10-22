@@ -31,6 +31,19 @@ const base: StatusInput = {
   questsDone: 0,
 };
 
+/** A recording LineSink: every replaceChildren call, kept for inspection. */
+const makeSink = () => {
+  const writes: { textContent: string }[][] = [];
+  return {
+    writes,
+    sink: {
+      replaceChildren(...nodes: unknown[]) {
+        writes.push(nodes as { textContent: string }[]);
+      },
+    },
+  };
+};
+
 describe('composeStatus tiers (review P0 #2: what gift mode must not hide)', () => {
   it('puts the imagery attribution in the moment tier, where no compact panel hides it', () => {
     const tiers = composeStatus({
@@ -54,14 +67,60 @@ describe('composeStatus tiers (review P0 #2: what gift mode must not hide)', () 
     expect(tiers.moment[1]).toContain('the hour is pinned here');
   });
 
-  it('keeps a clean hash count with the routine counts, but moves a mismatch to the live tier', () => {
+  it('keeps the counts with the routine counts; the live tier says the mismatch, once, without them', () => {
     const clean = composeStatus({ ...base, stats: { ...stats, verified: 7 } });
     expect(clean.cells.join('\n')).toContain('7/7 bundle hashes verified');
     expect(clean.live).toHaveLength(0);
 
     const bad = composeStatus({ ...base, stats: { ...stats, verified: 6, mismatched: 1 } });
-    expect(bad.cells.join('\n')).not.toContain('MISMATCHED');
-    expect(bad.live.join('\n')).toContain('6/7 bundle hashes verified · 1 MISMATCHED');
+    // The running counts, MISMATCHED tail and all, stay in the quiet tier.
+    expect(bad.cells.join('\n')).toContain('6/7 bundle hashes verified · 1 MISMATCHED');
+    // The announcement names only the mismatch count — no running numbers a
+    // Cell landing would change (review P1 #8).
+    expect(bad.live).toHaveLength(1);
+    expect(bad.live[0]).toBe(
+      '1 cell failed its hash check — it may look wrong. Reload to redraw it.',
+    );
+    expect(bad.live[0]).not.toContain('/');
+
+    const worse = composeStatus({ ...base, stats: { ...stats, verified: 5, mismatched: 2 } });
+    expect(worse.live[0]).toBe(
+      '2 cells failed their hash checks — parts may look wrong. Reload to redraw them.',
+    );
+  });
+
+  it('announces a mismatch once while healthy Cells keep landing (review P1 #8)', () => {
+    const moment = makeSink();
+    const live = makeSink();
+    const cells = makeSink();
+    const line = new StatusLine(moment.sink, live.sink, cells.sink, (t) => ({
+      textContent: t,
+    }));
+
+    // A mismatched Cell lands, then two healthy ones. The live tier must
+    // speak once — the old code moved the whole verified/MISMATCHED counts
+    // line into it, so every landing re-announced a new pair of numbers.
+    const at = (verified: number, ready: number, mismatched: number) =>
+      composeStatus({ ...base, stats: { ...stats, verified, ready, mismatched } });
+    line.update(at(6, 7, 1));
+    expect(live.writes).toHaveLength(1);
+    line.update(at(7, 8, 1)); // a healthy Cell lands
+    line.update(at(8, 9, 1)); // and another
+    expect(live.writes).toHaveLength(1); // still the one announcement
+    // The quiet tier kept counting, visibly.
+    expect(cells.writes.length).toBeGreaterThanOrEqual(3);
+    expect(cells.writes.at(-1)).toEqual([
+      { textContent: 'WebGPU · 9 cells · 1,525 features' },
+      { textContent: '8/9 bundle hashes verified · 1 MISMATCHED' },
+    ]);
+
+    // A second, different problem is a real change and speaks again.
+    line.update(at(8, 9, 2));
+    expect(live.writes).toHaveLength(2);
+    // And when the mismatch clears, the notice leaves the live tier quietly.
+    line.update(at(9, 9, 0));
+    expect(live.writes).toHaveLength(3);
+    expect(live.writes.at(-1)).toEqual([]);
   });
 
   it('puts errors, sketch, waking, quests and stale-generator notices in the live tier', () => {
@@ -83,18 +142,6 @@ describe('composeStatus tiers (review P0 #2: what gift mode must not hide)', () 
 });
 
 describe('StatusLine writes one span per line', () => {
-  const makeSink = () => {
-    const writes: { textContent: string }[][] = [];
-    return {
-      writes,
-      sink: {
-        replaceChildren(...nodes: unknown[]) {
-          writes.push(nodes as { textContent: string }[]);
-        },
-      },
-    };
-  };
-
   it('writes each tier as one node per line, so a line is a whole visible thing', () => {
     const moment = makeSink();
     const live = makeSink();
