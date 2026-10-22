@@ -13,7 +13,7 @@ vi.mock('@otherhere/core', async (importOriginal) => {
   g.__bundleBuilds ??= [];
   return {
     ...mod,
-    buildBundle: (input: { cell: string }) => {
+    buildBundle: (input: Parameters<typeof mod.buildBundle>[0]) => {
       g.__bundleBuilds!.push(input.cell);
       return mod.buildBundle(input);
     },
