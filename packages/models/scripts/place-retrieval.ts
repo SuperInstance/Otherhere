@@ -29,11 +29,7 @@ import {
   type PlaceCensus,
   type ResolvedAttrs,
 } from '@otherhere/core';
-import {
-  askPlaceVectorState,
-  normalizedPlaceVector,
-  type PlaceVector,
-} from '../src/place';
+import { askPlaceVectorState, normalizedPlaceVector, type PlaceVector } from '../src/place';
 import { JevProvider } from '../src/providers/jev';
 import { MemoryLedger, ModelRouter } from '../src/router';
 import { readFileSync as readKeyFile } from 'node:fs';
@@ -84,7 +80,8 @@ function constructed(
         colour: osm(b.colour),
       } as unknown as ResolvedAttrs,
     });
-  for (const s of trees) features.push({ kind: 'tree', attrs: { species: osm(s, 0.9) } as unknown as ResolvedAttrs });
+  for (const s of trees)
+    features.push({ kind: 'tree', attrs: { species: osm(s, 0.9) } as unknown as ResolvedAttrs });
   for (let i = 0; i < roads; i++) features.push({ kind: 'road', attrs: {} });
   for (let i = 0; i < benches; i++) features.push({ kind: 'bench', attrs: {} });
   const facts: Fact[] = features.flatMap((f, i) => {
@@ -181,8 +178,7 @@ async function main() {
     states: Record<string, { provenance: string }>;
   };
   const vectors: Record<string, Record<string, number>[]> = {};
-  for (const [id, runs] of Object.entries(baseline.runs))
-    vectors[id] = runs.map((r) => r.vector);
+  for (const [id, runs] of Object.entries(baseline.runs)) vectors[id] = runs.map((r) => r.vector);
   const decoy = baseline.decoy.vector;
 
   // Three new states, one live call each.
@@ -197,10 +193,13 @@ async function main() {
 
   const ids = Object.keys(vectors);
   const mid = (id: string) =>
-    vectors[id]!.reduce((acc, v) => {
-      for (const k of Object.keys(v)) acc[k] = (acc[k] ?? 0) + v[k]! / vectors[id]!.length;
-      return acc;
-    }, {} as Record<string, number>);
+    vectors[id]!.reduce(
+      (acc, v) => {
+        for (const k of Object.keys(v)) acc[k] = (acc[k] ?? 0) + v[k]! / vectors[id]!.length;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
   const mids = Object.fromEntries(ids.map((id) => [id, mid(id)])) as Record<
     string,
     Record<string, number>
@@ -209,7 +208,8 @@ async function main() {
 
   // Retrieval: nearest neighbours, raw and normalized, decoy included.
   console.log(`\nretrieval (cosine, ${calls} new calls, $${spent.toFixed(6)})`);
-  const neighbours: Record<string, { raw: [string, number][]; normalized: [string, number][] }> = {};
+  const neighbours: Record<string, { raw: [string, number][]; normalized: [string, number][] }> =
+    {};
   for (const a of ids) {
     const raw = ids
       .filter((b) => b !== a)
@@ -268,7 +268,8 @@ async function main() {
   };
   console.log(`\nZürich–Sitka full cosine: raw ${full.raw}, normalized ${full.normalized}`);
   console.log('  dropping a question that CARRIES similarity raises separation (lower cosine):');
-  for (const d of drop.slice(0, 4)) console.log(`    -${d.question}: raw ${d.raw}, normalized ${d.normalized}`);
+  for (const d of drop.slice(0, 4))
+    console.log(`    -${d.question}: raw ${d.raw}, normalized ${d.normalized}`);
 
   const out = {
     at: new Date().toISOString(),

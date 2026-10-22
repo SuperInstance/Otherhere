@@ -22,192 +22,72 @@
   "neighbours": {
     "zurich-seed-block": {
       "raw": [
-        [
-          "dense-city",
-          0.931
-        ],
-        [
-          "alpine-resort",
-          0.903
-        ],
-        [
-          "sitka-priors",
-          0.806
-        ],
-        [
-          "fishing-village",
-          0.761
-        ]
+        ["dense-city", 0.931],
+        ["alpine-resort", 0.903],
+        ["sitka-priors", 0.806],
+        ["fishing-village", 0.761]
       ],
       "normalized": [
-        [
-          "alpine-resort",
-          0.647
-        ],
-        [
-          "sitka-priors",
-          0.604
-        ],
-        [
-          "fishing-village",
-          0.602
-        ],
-        [
-          "dense-city",
-          0.589
-        ]
+        ["alpine-resort", 0.647],
+        ["sitka-priors", 0.604],
+        ["fishing-village", 0.602],
+        ["dense-city", 0.589]
       ]
     },
     "sitka-priors": {
       "raw": [
-        [
-          "fishing-village",
-          0.997
-        ],
-        [
-          "alpine-resort",
-          0.972
-        ],
-        [
-          "zurich-seed-block",
-          0.806
-        ],
-        [
-          "dense-city",
-          0.793
-        ]
+        ["fishing-village", 0.997],
+        ["alpine-resort", 0.972],
+        ["zurich-seed-block", 0.806],
+        ["dense-city", 0.793]
       ],
       "normalized": [
-        [
-          "fishing-village",
-          1
-        ],
-        [
-          "alpine-resort",
-          0.952
-        ],
-        [
-          "dense-city",
-          0.642
-        ],
-        [
-          "zurich-seed-block",
-          0.604
-        ]
+        ["fishing-village", 1],
+        ["alpine-resort", 0.952],
+        ["dense-city", 0.642],
+        ["zurich-seed-block", 0.604]
       ]
     },
     "fishing-village": {
       "raw": [
-        [
-          "sitka-priors",
-          0.997
-        ],
-        [
-          "alpine-resort",
-          0.954
-        ],
-        [
-          "zurich-seed-block",
-          0.761
-        ],
-        [
-          "dense-city",
-          0.75
-        ]
+        ["sitka-priors", 0.997],
+        ["alpine-resort", 0.954],
+        ["zurich-seed-block", 0.761],
+        ["dense-city", 0.75]
       ],
       "normalized": [
-        [
-          "sitka-priors",
-          1
-        ],
-        [
-          "alpine-resort",
-          0.951
-        ],
-        [
-          "dense-city",
-          0.639
-        ],
-        [
-          "zurich-seed-block",
-          0.602
-        ]
+        ["sitka-priors", 1],
+        ["alpine-resort", 0.951],
+        ["dense-city", 0.639],
+        ["zurich-seed-block", 0.602]
       ]
     },
     "dense-city": {
       "raw": [
-        [
-          "zurich-seed-block",
-          0.931
-        ],
-        [
-          "alpine-resort",
-          0.893
-        ],
-        [
-          "sitka-priors",
-          0.793
-        ],
-        [
-          "fishing-village",
-          0.75
-        ]
+        ["zurich-seed-block", 0.931],
+        ["alpine-resort", 0.893],
+        ["sitka-priors", 0.793],
+        ["fishing-village", 0.75]
       ],
       "normalized": [
-        [
-          "alpine-resort",
-          0.706
-        ],
-        [
-          "sitka-priors",
-          0.642
-        ],
-        [
-          "fishing-village",
-          0.639
-        ],
-        [
-          "zurich-seed-block",
-          0.589
-        ]
+        ["alpine-resort", 0.706],
+        ["sitka-priors", 0.642],
+        ["fishing-village", 0.639],
+        ["zurich-seed-block", 0.589]
       ]
     },
     "alpine-resort": {
       "raw": [
-        [
-          "sitka-priors",
-          0.972
-        ],
-        [
-          "fishing-village",
-          0.954
-        ],
-        [
-          "zurich-seed-block",
-          0.903
-        ],
-        [
-          "dense-city",
-          0.893
-        ]
+        ["sitka-priors", 0.972],
+        ["fishing-village", 0.954],
+        ["zurich-seed-block", 0.903],
+        ["dense-city", 0.893]
       ],
       "normalized": [
-        [
-          "sitka-priors",
-          0.952
-        ],
-        [
-          "fishing-village",
-          0.951
-        ],
-        [
-          "dense-city",
-          0.706
-        ],
-        [
-          "zurich-seed-block",
-          0.647
-        ]
+        ["sitka-priors", 0.952],
+        ["fishing-village", 0.951],
+        ["dense-city", 0.706],
+        ["zurich-seed-block", 0.647]
       ]
     }
   },
@@ -222,43 +102,19 @@
     "zurich-seed-block": {
       "within": 0.001,
       "gaps": [
-        [
-          "dense-city",
-          0.069
-        ],
-        [
-          "alpine-resort",
-          0.097
-        ],
-        [
-          "sitka-priors",
-          0.194
-        ],
-        [
-          "fishing-village",
-          0.239
-        ]
+        ["dense-city", 0.069],
+        ["alpine-resort", 0.097],
+        ["sitka-priors", 0.194],
+        ["fishing-village", 0.239]
       ]
     },
     "sitka-priors": {
       "within": 0,
       "gaps": [
-        [
-          "fishing-village",
-          0.003
-        ],
-        [
-          "alpine-resort",
-          0.028
-        ],
-        [
-          "zurich-seed-block",
-          0.194
-        ],
-        [
-          "dense-city",
-          0.207
-        ]
+        ["fishing-village", 0.003],
+        ["alpine-resort", 0.028],
+        ["zurich-seed-block", 0.194],
+        ["dense-city", 0.207]
       ]
     }
   },
