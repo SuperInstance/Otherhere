@@ -1,0 +1,328 @@
+{
+  "at": "2026-10-22T03:24:10.960Z",
+  "new_calls": 3,
+  "cost_usd": 0.000185598,
+  "states": {
+    "zurich-seed-block": {
+      "provenance": "computed from packages/core/test/fixtures/overpass-zurich.json (seed block 881f8ed951fffff), as TownDO.essence() sees it"
+    },
+    "sitka-priors": {
+      "provenance": "constructed from the pacific-rainforest biome and ADR-0017 regional priors (low wooden buildings; ~70/25/5 hemlock/spruce/cedar); NOT recorded Sitka OSM data"
+    },
+    "fishing-village": {
+      "provenance": "constructed: low wooden sheds and houses, gable roofs, a working waterfront (priors, no recorded OSM)"
+    },
+    "dense-city": {
+      "provenance": "constructed: tall flat-roofed blocks, plaster and concrete, street trees only (priors, no recorded OSM)"
+    },
+    "alpine-resort": {
+      "provenance": "constructed: mid-size chalets, heavy gables, conifers to the door (priors, no recorded OSM)"
+    }
+  },
+  "neighbours": {
+    "zurich-seed-block": {
+      "raw": [
+        [
+          "dense-city",
+          0.931
+        ],
+        [
+          "alpine-resort",
+          0.903
+        ],
+        [
+          "sitka-priors",
+          0.806
+        ],
+        [
+          "fishing-village",
+          0.761
+        ]
+      ],
+      "normalized": [
+        [
+          "alpine-resort",
+          0.647
+        ],
+        [
+          "sitka-priors",
+          0.604
+        ],
+        [
+          "fishing-village",
+          0.602
+        ],
+        [
+          "dense-city",
+          0.589
+        ]
+      ]
+    },
+    "sitka-priors": {
+      "raw": [
+        [
+          "fishing-village",
+          0.997
+        ],
+        [
+          "alpine-resort",
+          0.972
+        ],
+        [
+          "zurich-seed-block",
+          0.806
+        ],
+        [
+          "dense-city",
+          0.793
+        ]
+      ],
+      "normalized": [
+        [
+          "fishing-village",
+          1
+        ],
+        [
+          "alpine-resort",
+          0.952
+        ],
+        [
+          "dense-city",
+          0.642
+        ],
+        [
+          "zurich-seed-block",
+          0.604
+        ]
+      ]
+    },
+    "fishing-village": {
+      "raw": [
+        [
+          "sitka-priors",
+          0.997
+        ],
+        [
+          "alpine-resort",
+          0.954
+        ],
+        [
+          "zurich-seed-block",
+          0.761
+        ],
+        [
+          "dense-city",
+          0.75
+        ]
+      ],
+      "normalized": [
+        [
+          "sitka-priors",
+          1
+        ],
+        [
+          "alpine-resort",
+          0.951
+        ],
+        [
+          "dense-city",
+          0.639
+        ],
+        [
+          "zurich-seed-block",
+          0.602
+        ]
+      ]
+    },
+    "dense-city": {
+      "raw": [
+        [
+          "zurich-seed-block",
+          0.931
+        ],
+        [
+          "alpine-resort",
+          0.893
+        ],
+        [
+          "sitka-priors",
+          0.793
+        ],
+        [
+          "fishing-village",
+          0.75
+        ]
+      ],
+      "normalized": [
+        [
+          "alpine-resort",
+          0.706
+        ],
+        [
+          "sitka-priors",
+          0.642
+        ],
+        [
+          "fishing-village",
+          0.639
+        ],
+        [
+          "zurich-seed-block",
+          0.589
+        ]
+      ]
+    },
+    "alpine-resort": {
+      "raw": [
+        [
+          "sitka-priors",
+          0.972
+        ],
+        [
+          "fishing-village",
+          0.954
+        ],
+        [
+          "zurich-seed-block",
+          0.903
+        ],
+        [
+          "dense-city",
+          0.893
+        ]
+      ],
+      "normalized": [
+        [
+          "sitka-priors",
+          0.952
+        ],
+        [
+          "fishing-village",
+          0.951
+        ],
+        [
+          "dense-city",
+          0.706
+        ],
+        [
+          "zurich-seed-block",
+          0.647
+        ]
+      ]
+    }
+  },
+  "decoy": {
+    "zurich-seed-block": 0.658,
+    "sitka-priors": 0.683,
+    "fishing-village": 0.685,
+    "dense-city": 0.585,
+    "alpine-resort": 0.71
+  },
+  "snr": {
+    "zurich-seed-block": {
+      "within": 0.001,
+      "gaps": [
+        [
+          "dense-city",
+          0.069
+        ],
+        [
+          "alpine-resort",
+          0.097
+        ],
+        [
+          "sitka-priors",
+          0.194
+        ],
+        [
+          "fishing-village",
+          0.239
+        ]
+      ]
+    },
+    "sitka-priors": {
+      "within": 0,
+      "gaps": [
+        [
+          "fishing-village",
+          0.003
+        ],
+        [
+          "alpine-resort",
+          0.028
+        ],
+        [
+          "zurich-seed-block",
+          0.194
+        ],
+        [
+          "dense-city",
+          0.207
+        ]
+      ]
+    }
+  },
+  "zurich_sitka": {
+    "full": {
+      "raw": 0.806,
+      "normalized": 0.604
+    },
+    "drop_one": [
+      {
+        "question": "warm_earthy_walls",
+        "raw": 0.802,
+        "normalized": 0.504
+      },
+      {
+        "question": "heights_recorded",
+        "raw": 0.81,
+        "normalized": 0.572
+      },
+      {
+        "question": "known_in_detail",
+        "raw": 0.847,
+        "normalized": 0.597
+      },
+      {
+        "question": "steep_roofs",
+        "raw": 0.812,
+        "normalized": 0.598
+      },
+      {
+        "question": "green_setting",
+        "raw": 0.787,
+        "normalized": 0.6
+      },
+      {
+        "question": "tall_for_a_town",
+        "raw": 0.807,
+        "normalized": 0.611
+      },
+      {
+        "question": "height_scale",
+        "raw": 0.898,
+        "normalized": 0.614
+      },
+      {
+        "question": "rainy_coast",
+        "raw": 0.813,
+        "normalized": 0.621
+      },
+      {
+        "question": "dense_not_spread",
+        "raw": 0.807,
+        "normalized": 0.637
+      },
+      {
+        "question": "uniform_roofs",
+        "raw": 0.817,
+        "normalized": 0.643
+      },
+      {
+        "question": "mostly_conifers",
+        "raw": 0.818,
+        "normalized": 0.654
+      }
+    ]
+  }
+}
