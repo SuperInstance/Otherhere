@@ -9,7 +9,7 @@ Production before any change: the walk scene at desktop (partial: arrival, four 
 ## Found
 
 - A render-level crown check could not exist in a real scene: cloud shadows, mist and sky ride the same freezable clock as the crowns (round 09 measured 65–70 % of pixels moving at 2.5 s), and in e2e the closed tile ports mean no forest plants at all.
-- The height Fact is the building's *total* — ridge included — so a mesh's `maxY` cannot tell a flat roof from a pitched one; the top level's vertex count and the roof-base level can. (Found while writing the region tests; the detector is documented there.)
+- The height Fact is the building's _total_ — ridge included — so a mesh's `maxY` cannot tell a flat roof from a pitched one; the top level's vertex count and the roof-base level can. (Found while writing the region tests; the detector is documented there.)
 - #52 stands (phone HUD input starvation); nothing new beyond it.
 
 ## Fixed
