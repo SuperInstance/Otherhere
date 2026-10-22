@@ -1,7 +1,7 @@
 {
   "id": "building.basic",
-  "version": "0.3.0",
-  "description": "Any building: extruded footprint, a roof, and a window grid. Uses OSM/capture height, levels, roof and colour Facts when known; otherwise imagines them in the character of the Town (its Essence), its built region's prior, or generic defaults.",
+  "version": "0.3.1",
+  "description": "Any building: extruded footprint, a roof, and a window grid. Uses OSM/capture height, levels, roof and colour Facts when known; otherwise imagines them in the character of the Town (its Essence), its built region's prior, or generic defaults. The region's roof weights speak only where the generic rule would imagine a roof at all (a house under 400 m2, a small yes under 250 m2): a region changes the weights of imagining, never which buildings get imagined, so a large unknown footprint keeps flat or hip (review 2026-10-22 P1 #4).",
   "appliesTo": ["building"],
   "geometry": "footprint",
   "ops": [
@@ -266,26 +266,76 @@
           "else": {
             "op": "if",
             "cond": {
-              "op": "gt",
+              "op": "and",
               "args": [
                 {
-                  "op": "add",
+                  "op": "gt",
                   "args": [
                     {
-                      "param": "@essence.region.roof.flat"
+                      "op": "add",
+                      "args": [
+                        {
+                          "param": "@essence.region.roof.flat"
+                        },
+                        {
+                          "param": "@essence.region.roof.gable"
+                        },
+                        {
+                          "param": "@essence.region.roof.hip"
+                        },
+                        {
+                          "param": "@essence.region.roof.shed"
+                        }
+                      ]
                     },
-                    {
-                      "param": "@essence.region.roof.gable"
-                    },
-                    {
-                      "param": "@essence.region.roof.hip"
-                    },
-                    {
-                      "param": "@essence.region.roof.shed"
-                    }
+                    0
                   ]
                 },
-                0
+                {
+                  "op": "or",
+                  "args": [
+                    {
+                      "op": "and",
+                      "args": [
+                        {
+                          "param": "isHouse"
+                        },
+                        {
+                          "op": "lt",
+                          "args": [
+                            {
+                              "param": "@area"
+                            },
+                            400
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "op": "and",
+                      "args": [
+                        {
+                          "op": "eq",
+                          "args": [
+                            {
+                              "param": "type"
+                            },
+                            "yes"
+                          ]
+                        },
+                        {
+                          "op": "lt",
+                          "args": [
+                            {
+                              "param": "@area"
+                            },
+                            250
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
               ]
             },
             "then": {
