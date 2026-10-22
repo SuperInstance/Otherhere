@@ -49,11 +49,19 @@ export const GENERIC_PRIOR: Pick<RegionPrior, 'pitch' | 'roofColours'> = {
   roofColours: ['#8c4a3c', '#5b5f66', '#7a6a58', '#a0573f'],
 };
 
+/**
+ * The panhandle box: Ketchikan (55.0, -131.6) to Yakutat (59.5, -139.7), west
+ * to the outer coast, east to the Alaska–BC line. Coarse on purpose: a box is
+ * honest about what it knows, and nobody's border runs that straight.
+ * A fixed table like the priors: it decides which region a Town sits in, so
+ * it is hashed into the content address as data (review 2026-10-22 P0 #3).
+ */
+export const REGION_BOX = { south: 54.5, north: 60.4, west: -140.2, east: -129.6 } as const;
+
 /** A Town's region from its coordinates: a coarse box, like `forestBiome`. */
 export function regionOf(lat: number, lng: number): RegionCode | undefined {
-  // The panhandle: Ketchikan (55.0, -131.6) to Yakutat (59.5, -139.7), west to
-  // the outer coast, east to the Alaska–BC line. Coarse on purpose: a box is
-  // honest about what it knows, and nobody's border runs that straight.
-  if (lat >= 54.5 && lat <= 60.4 && lng >= -140.2 && lng <= -129.6) return 'southeast-alaska';
-  return undefined;
+  const b = REGION_BOX;
+  return lat >= b.south && lat <= b.north && lng >= b.west && lng <= b.east
+    ? 'southeast-alaska'
+    : undefined;
 }

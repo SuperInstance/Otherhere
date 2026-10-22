@@ -16,8 +16,11 @@ import { blob, box, cylinder, extrude, ribbon, roof, windows } from './shapes';
  * 0.6.0: the imagined forest leaves the build (ADR-0017, amended 2026-10-22) —
  *   the display forest draws it from the landcover rings and species mix that
  *   now ride in the GLB extras.
+ * 0.6.1: the lookup tables (region priors and boxes, forest biomes) join the
+ *   content address as data (review 2026-10-22 P0 #3). Geometry is unchanged;
+ *   every inputsHash moves because the address now covers more.
  */
-export const INTERPRETER_VERSION = '0.6.0';
+export const INTERPRETER_VERSION = '0.6.1';
 
 /** Confidence of anything a generator imagines rather than reads from a Fact. */
 export const IMAGINED = 0.25;
