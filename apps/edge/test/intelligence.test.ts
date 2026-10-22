@@ -89,6 +89,41 @@ describe('photo → Facts', () => {
     expect((await observe(id, { cell: CELL, image: '<svg>' })).status).toBe(400);
     expect((await observe('osm:w1', { cell: CELL, image: '/9j/AAAA' })).status).toBe(404);
   });
+
+  it('maps provider errors to safe 502/503 bodies, never raw provider text (#59)', async () => {
+    const id = await aBuilding();
+    // The marker photos ride through the fake vision provider only.
+
+    // An exhausted budget: our own ledger numbers, clean 503 (the vector
+    // route's tested contract, now the photo route's too).
+    const savedCaps = env.MODEL_CAPS_USD;
+    env.MODEL_CAPS_USD = JSON.stringify({ groq: 0.0000001 });
+    let res: Response;
+    try {
+      res = await observe(id, { cell: CELL, image: '/9j/AAAA' });
+    } finally {
+      env.MODEL_CAPS_USD = savedCaps;
+    }
+    expect(res.status).toBe(503);
+    let body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/budget/);
+    expect(body.error).not.toMatch(/4242|ECONNREFUSED|internal/i);
+
+    // A provider that is up but refusing us (429): unavailable, retry later.
+    res = await observe(id, { cell: CELL, image: '/9j/UNAVAILABLE99' });
+    expect(res.status).toBe(503);
+    body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/unavailable/i);
+    expect(body.error).not.toMatch(/4242|rate limit|internal/i);
+
+    // A network failure on the way to the provider: our fault class, 502,
+    // and none of the transport's detail.
+    res = await observe(id, { cell: CELL, image: '/9j/NETWORK99' });
+    expect(res.status).toBe(502);
+    body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/could not analyse the photo/i);
+    expect(body.error).not.toMatch(/4242|ECONNREFUSED|fetch failed|internal/i);
+  });
 });
 
 describe('ops routes are owner-only', () => {
