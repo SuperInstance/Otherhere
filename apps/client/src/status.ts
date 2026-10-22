@@ -9,10 +9,13 @@ import type { WorldStats } from './world';
  *                   and the imagery attribution invariant 8 owes the licence.
  *                   Always visible, including gift mode and the compact phone
  *                   panel. Not a live region: the clock ticks twice a second.
- *   #status         problems and notices — mismatches, failed cells, sketch
- *                   retries, the wake-up, quests, stale-generator notices.
- *                   Always visible; a licence, an error or a MISMATCHED line is
- *                   never clipped away. aria-live="polite", announced.
+ *   #status         problems and notices — a failed hash check (announced
+ *                   once, then quiet while more Cells land; the running
+ *                   counts stay below), failed cells, sketch retries, the
+ *                   wake-up, quests, stale-generator notices.
+ *                   Always visible; a licence, an error or a hash-check
+ *                   notice is never clipped away. aria-live="polite",
+ *                   announced.
  *   #status-cells   the routine counts — backend, cells, features, hash checks.
  *                   Visible in full; in gift mode and the compact phone panel it
  *                   waits behind More options (a whole tier hides; a line is
@@ -61,13 +64,23 @@ export function composeStatus(input: StatusInput): StatusTiers {
   cells.push(
     `${backend} · ${s.ready} cell${s.ready === 1 ? '' : 's'}${s.loading ? ` (+${s.loading} loading)` : ''} · ${s.features.toLocaleString()} features`,
   );
-  // A clean verification is routine; a mismatch is a problem the player must see,
-  // so the whole line moves to the always-visible tier when one is found.
+  // The counts line, with its MISMATCHED tail, belongs to the quiet tier: it
+  // changes on every Cell that lands, and a live region would read it as a
+  // running counter (review P1 #8). The mismatch itself is a problem the
+  // player must hear and see, so it is said aloud — once. The announcement
+  // names only the mismatch count, which stays stable while healthy Cells
+  // keep landing: the StatusLine's change gate then keeps the live region
+  // quiet, and a second, different problem (the count growing) is a real
+  // change that deserves a new announcement.
   cells.push(
     `${s.verified}/${s.ready} bundle hashes verified${s.mismatched ? ` · ${s.mismatched} MISMATCHED` : ''}`,
   );
   if (s.mismatched) {
-    live.push(cells.pop()!);
+    live.push(
+      s.mismatched === 1
+        ? '1 cell failed its hash check — it may look wrong. Reload to redraw it.'
+        : `${s.mismatched} cells failed their hash checks — parts may look wrong. Reload to redraw them.`,
+    );
   }
 
   if (s.sketch) {
