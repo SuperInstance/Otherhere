@@ -2,6 +2,7 @@ import type { ResolvedAttrs } from '../facts/resolve';
 import { Essence } from '../schema/world';
 import type { FeatureKind } from '../schema/feature';
 import { biomeMix, type ForestBiome, type Species, FOREST_SPECIES } from '../forest/species';
+import { GENERIC_PRIOR, REGION_PRIORS, type RegionCode } from './region';
 
 /** Below this many known samples, a statistic is left out (generators fall back to defaults). */
 export const ESSENCE_MIN_SAMPLES = 5;
@@ -40,7 +41,7 @@ export function knownSpecies(a: ResolvedAttrs): Species | null {
 export function computeEssence(
   town: string,
   features: Iterable<{ kind: FeatureKind; attrs: ResolvedAttrs }>,
-  opts: { biome?: ForestBiome } = {},
+  opts: { biome?: ForestBiome; region?: RegionCode } = {},
 ): Essence {
   const heights: number[] = [];
   const roofs = new Map<string, number>();
@@ -109,6 +110,7 @@ export function computeEssence(
     propFamilies,
     sampleCount: bucket(heights.length),
     ...(opts.biome ? { biome: opts.biome } : {}),
+    ...(opts.region ? { region: opts.region } : {}),
     ...(Object.keys(forest).length ? { forest } : {}),
   });
 }
@@ -135,6 +137,26 @@ export function essenceParams(e: Essence | undefined): Record<string, number | s
   };
   for (const shape of ['flat', 'gable', 'hip', 'shed'])
     out[`@essence.roof.${shape}`] = e.roofShapes[shape] ?? 0;
+  // The built region's prior (ADR-0014, the building half of the biome): where
+  // no Fact and no Town sample speaks, the region's character imagines the
+  // building. The pitch and pitched-roof colours ride the same slots whether a
+  // region speaks or not — the generic values are the literals building.basic
+  // carried before regions existed — so a town without a region renders exactly
+  // as it always did, and the generator needs no branch for them.
+  const region = e.region ? REGION_PRIORS[e.region] : null;
+  out['@essence.region.present'] = region ? 1 : 0;
+  for (const shape of ['flat', 'gable', 'hip', 'shed'] as const)
+    out[`@essence.region.roof.${shape}`] = region ? region.roofWeights[shape] : 0;
+  out['@essence.region.pitch.min'] = region ? region.pitch.min : GENERIC_PRIOR.pitch.min;
+  out['@essence.region.pitch.max'] = region ? region.pitch.max : GENERIC_PRIOR.pitch.max;
+  for (let i = 0; i < 4; i++)
+    out[`@essence.region.roofcolour.${i}`] = region
+      ? (region.roofColours[i] ?? region.roofColours[region.roofColours.length - 1])!
+      : GENERIC_PRIOR.roofColours[i]!;
+  for (let i = 0; i < 5; i++)
+    out[`@essence.region.wallcolour.${i}`] = region
+      ? (region.wallColours[i] ?? region.wallColours[region.wallColours.length - 1])!
+      : ''; // only read behind the present gate
   // The forest mix: the Town's own species shares when it has enough, else the
   // biome's default character (ADR-0017). Every species always has a weight, so
   // generators can reference any of them.

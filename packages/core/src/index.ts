@@ -34,6 +34,7 @@ export * from './capsule/place';
 export * from './packs/building';
 export * from './packs/place';
 export * from './essence/compute';
+export * from './essence/region';
 export * from './forest/species';
 export * from './capture/track';
 export * from './capture/image';
