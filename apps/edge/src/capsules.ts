@@ -63,19 +63,25 @@ export async function capsuleRoutes(
         ? (body.pose as [number, number, number, number, number])
         : undefined;
 
-    const features: Feature[] = [];
-    const facts: Fact[] = [];
+    // Snapshot every Cell at once: Towns are independent Durable Objects, so a
+    // slow one no longer serialises the save behind it. Promise.all keeps the
+    // cells' order, so the capsule's feature/fact sequence is byte-identical
+    // to the sequential loop it replaces.
+    const snaps = await Promise.all(
+      cells.map((cell) => {
+        // RPC typing of recursive JSON values is too deep for tsc; the shape is TownDO.snapshot's.
+        const town = env.TOWN.get(env.TOWN.idFromName(townOf(cell))) as unknown as {
+          snapshot(cell: string): Promise<{ features: Feature[]; facts: Fact[]; essence: Essence }>;
+        };
+        return town.snapshot(cell);
+      }),
+    );
+    const features: Feature[] = snaps.flatMap((s) => s.features);
+    const facts: Fact[] = snaps.flatMap((s) => s.facts);
     const essences: Record<string, Essence> = {};
-    for (const cell of cells) {
-      // RPC typing of recursive JSON values is too deep for tsc; the shape is TownDO.snapshot's.
-      const town = env.TOWN.get(env.TOWN.idFromName(townOf(cell))) as unknown as {
-        snapshot(cell: string): Promise<{ features: Feature[]; facts: Fact[]; essence: Essence }>;
-      };
-      const snap = await town.snapshot(cell);
-      features.push(...snap.features);
-      facts.push(...snap.facts);
-      essences[townOf(cell)] = snap.essence;
-    }
+    cells.forEach((cell, i) => {
+      essences[townOf(cell)] = snaps[i]!.essence;
+    });
 
     const id = `pc_${token(10)}`;
     const ownerKey = token(24);
