@@ -150,7 +150,11 @@ test('a live day turns the wind: the forest clock advances (#50)', async ({ page
 
 test('starts in downtown Sitka when no place is given', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByLabel('Address, place or coordinates')).toHaveValue('57.0531, -135.3351');
+  // The box shows the place's label: the address when one is known, else
+  // coordinates in degrees/minutes/seconds — never decimal (the label spec).
+  await expect(page.getByLabel('Address, place or coordinates')).toHaveValue(
+    '57°03′11″N, 135°20′06″W',
+  );
 });
 
 test('a place found by address keeps its name in the box', async ({ page }) => {
