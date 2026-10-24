@@ -97,6 +97,39 @@ hudMore.addEventListener('click', () => {
   hudMore.textContent = open ? 'Fewer options' : 'More options';
 });
 
+// --- Panel on/off ------------------------------------------------------------------
+// The whole panel and the help pill fold away to one small button, so a
+// small window can be all world: a phone in landscape, a desktop window
+// shrunk for the frame rate and the framing. H folds it too. The choice
+// is remembered on this device.
+const hudToggle = $<HTMLButtonElement>('hud-toggle');
+const setHudOff = (off: boolean) => {
+  document.body.classList.toggle('hud-off', off);
+  hudToggle.textContent = off ? '☰' : '✕';
+  hudToggle.setAttribute('aria-expanded', String(!off));
+  hudToggle.setAttribute('aria-label', off ? 'Show the panel' : 'Hide the panel');
+  try {
+    localStorage.setItem('otherhere.hudOff', off ? '1' : '0');
+  } catch {
+    // Private mode and friends: the fold still works, it is just not remembered.
+  }
+};
+try {
+  if (localStorage.getItem('otherhere.hudOff') === '1') setHudOff(true);
+} catch {
+  // As above: start with the panel showing.
+}
+hudToggle.addEventListener('click', () => setHudOff(!document.body.classList.contains('hud-off')));
+addEventListener('keydown', (e) => {
+  if (
+    e.code === 'KeyH' &&
+    !(e.target instanceof HTMLInputElement) &&
+    !(e.target instanceof HTMLSelectElement) &&
+    !(e.target instanceof HTMLTextAreaElement)
+  )
+    setHudOff(!document.body.classList.contains('hud-off'));
+});
+
 /** Build-time environment (Vite), behind one cast so this file needs no ambient types. */
 const buildEnv = (import.meta as unknown as { env: Record<string, string | undefined> }).env;
 
