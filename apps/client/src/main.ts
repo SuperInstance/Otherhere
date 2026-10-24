@@ -20,6 +20,7 @@ import {
   DEMO_CELL,
   FOREST_BIOMES,
   forestBiome,
+  formatDMS,
   generatorSet,
   generatorsMatch,
   localFrame,
@@ -95,10 +96,17 @@ hudMore.addEventListener('click', () => {
   hudMore.textContent = open ? 'Fewer options' : 'More options';
 });
 
-const start = parseStart(location.search);
+/** Build-time environment (Vite), behind one cast so this file needs no ambient types. */
+const buildEnv = (import.meta as unknown as { env: Record<string, string | undefined> }).env;
+
+let start = parseStart(location.search);
+// A build can name a baked place as its front door: the GitHub Pages build
+// has no server to ask for a town, so whenever the link itself names nothing
+// else it opens on the snapshot shipped with the client (baked places below).
+if (!start && buildEnv.VITE_DEFAULT_PLACE) start = { place: buildEnv.VITE_DEFAULT_PLACE };
 /** The address the place was found by, if it was typed rather than given as coordinates. */
 const typed = new URLSearchParams(location.search).get('q')?.slice(0, 200) ?? '';
-if (start && 'lat' in start) input.value = typed || `${start.lat}, ${start.lng}`;
+if (start && 'lat' in start) input.value = typed || formatDMS(start.lat, start.lng);
 input.addEventListener('input', () => {
   input.removeAttribute('aria-invalid');
   errorEl.hidden = true;
@@ -237,7 +245,23 @@ const place =
     ? start
     : (sessionInfo?.origin ?? capsule?.view?.center ?? (start ? null : DEFAULT_PLACE));
 if (place && !isDemo)
-  input.value = (start && 'lat' in start && typed) || `${place.lat}, ${place.lng}`;
+  input.value = (start && 'lat' in start && typed) || formatDMS(place.lat, place.lng);
+// A place is listed by name, not numbers (Casey, 2026-10-24): arriving by
+// coordinates, ask the edge for the nearest address or place and put that in
+// the box. Coordinates stay only when nothing is near — and then in
+// degrees/minutes/seconds (formatDMS above), never decimal. Display-only:
+// the box text is not a Fact and never enters a Bundle.
+if (place && !isDemo && !typed) {
+  const shown = input.value;
+  fetch(`/api/reverse?lat=${place.lat}&lng=${place.lng}`)
+    .then((res) => (res.ok ? (res.json() as Promise<{ label?: string }>) : null))
+    .then((body) => {
+      if (body?.label && input.value === shown) input.value = body.label;
+    })
+    .catch(() => {
+      // Offline, or nothing near: the degrees/minutes/seconds string stays.
+    });
+}
 const originCell = isDemo
   ? DEMO_CELL
   : capsule
