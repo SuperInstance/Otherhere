@@ -543,7 +543,13 @@ export class TownDO extends DurableObject<Env> {
   async snapshot(
     cell: string,
   ): Promise<{ status: BlockStatus; features: Feature[]; facts: Fact[]; essence: Essence }> {
-    const status = await this.ensureBlock(ingestBlockOf(cell));
+    // A capsule save is never held hostage to a slow Overpass either: after the
+    // short wait, snapshot what is stored and let the fetch finish in the background.
+    const ingest = this.ensureBlock(ingestBlockOf(cell));
+    const status = await Promise.race([
+      ingest,
+      new Promise<BlockStatus>((r) => setTimeout(() => r('loading'), INGEST_WAIT_MS)),
+    ]);
     const features = this.sql
       .exec<{ id: string; kind: Feature['kind']; anchor_cell: string }>(
         'SELECT id, kind, anchor_cell FROM features WHERE anchor_cell = ?',
