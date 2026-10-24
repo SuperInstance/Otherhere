@@ -2,26 +2,64 @@
 
 A second version of where you already are: your real place, but playable, imagined, and shared. The whole Earth starts as a stylized sketch and sharpens wherever someone plays, captures, or pays attention. It's a game first, not a digital twin.
 
-Read [`docs/BRIEF.md`](docs/BRIEF.md) for the vision, [`docs/notes/model-field-notes.md`](docs/notes/model-field-notes.md) for what we've learned about the models, [`CONTEXT.md`](CONTEXT.md) for the vocabulary, [`docs/adr/`](docs/adr) for decisions, and [`docs/PLAN-M0.md`](docs/PLAN-M0.md) for the current milestone.
+![Downtown Sitka, Alaska, generated in the browser from OpenStreetMap facts](docs/img/sitka.jpg)
 
-| Generator demo (built in the browser) | Zürich from OpenStreetMap                                    |
-| ------------------------------------- | ------------------------------------------------------------ |
-| ![Demo lot](docs/img/demo.png)        | ![Aerial view of central Zürich](docs/img/aerial-zurich.png) |
+_Downtown Sitka from the harbour: every building stands where the map says it stands, at its mapped size. The forest keeps to the hills — a town is town first, and trees grow only where the data shows trees._
 
-Geometry backed by known facts (OSM height, roof shape) renders crisp and fully coloured. Geometry the generators imagine renders **soft**: washed toward paper, with flattened shading.
+## Play it
+
+**[superinstance.github.io/Otherhere](https://superinstance.github.io/Otherhere/)** — the game, straight out of this repository, no server and nothing to install. It opens on a baked snapshot of downtown Sitka (see [Baked places](#postcards-and-baked-places)) plus the generator demo. Typing a new address and building a fresh town needs the full stack below.
+
+The full game is live at **[otherhere.superinstance.dev](https://otherhere.superinstance.dev)** and runs locally with `pnpm dev` (see [Develop](#develop)).
+
+Controls: WASD or arrows to walk, drag to look, Shift to run, scroll (or R/F) to rise and fall. On touch screens, the left side is a joystick and the right side looks around.
+
+## How a place gets made
+
+Nothing here is a pre-built asset. A place is **facts plus recipes**:
+
+1. **Facts.** OpenStreetMap is read once per area and distilled into small, attributed records — this building's footprint, its height, its roof shape, its colour — each with its source and a confidence. Facts live per H3 cell, grouped into towns.
+2. **Generators.** Deterministic recipes (a geometry DSL, interpreted the same way everywhere) turn facts into buildings, roads, trees and props. Where a fact is known — a mapped height, a real roof — the geometry renders crisp and fully coloured. Where the generators have to imagine, the geometry renders **soft**: washed toward paper, with flattened shading. You can see at a glance what the world knows and what it is guessing.
+3. **Bundles.** The generated geometry is packed into a GLB bundle and cached. A bundle is a pure function of its facts and generator versions, so every client re-hashes what it downloads and shows `n/n bundle hashes verified`. Refetching a place you have visited is instant; the cache is an optimisation, never the source of truth.
+4. **The forest obeys the town.** Trees are not scattered by mood. Mapped trees and mapped woodland render as trees; inside a loaded town, ground the data leaves blank stays streets and lots. The wild rainforest backdrop belongs to the hills beyond the town's edge.
+
+## Sharpening the world
+
+The sketch is the starting point, not the product.
+
+**Quests.** Amber beacons mark buildings whose roof, floors, or wall colour are still imagined. Photograph one and the beacon goes.
+
+**Photos.** Tap a building to see what is known about it and where each fact came from. Add a photo: a vision model writes an observation, a question pack climbs the Ladder (cheapest judge first — TypeSafe Jev, then stronger models), and confident answers become facts with `source: "capture"`. Captures outrank OpenStreetMap, so the building redraws crisper for everyone. The photo itself is never stored. Quests are derived from facts, so every device sees the same ones — postcards included.
+
+**Filmed walks.** Give the game a phone video and the GPS track of the same walk, and it samples frames along your route, works out which building you were facing, and runs each frame through the same photo pipeline. Buildings you passed sharpen.
+
+## Postcards and baked places
+
+While walking a place, **Save a postcard**: you get a link holding a snapshot of the facts of the seven cells around you. Whoever opens it rebuilds the place in their own browser from that snapshot — the same town, byte for byte, a year later, with no server in the loop.
+
+A **baked place** is a postcard shipped with the game itself. Put the snapshot at `apps/client/public/places/<name>.json` and it opens at `?place=<name>` on any build, including the serverless GitHub Pages one. The loop for improving one is the game's own loop: play the full version, sharpen the town with photos and captures, take a fresh postcard of the same cells, replace the file, push. Everyone's copy of that place gets better.
+
+## Playing together
+
+**Start a match here** and share the invite link: capture the flag on the real streets. Players join the smaller team and start at their bases; grab the enemy flag and bring it home; defenders tag intruders in their half. Enemies stay hidden unless a teammate is within 45 m (team fog). Motion travels peer-to-peer over WebRTC; the match's server-side referee decides pickups, captures, tags and score.
+
+**Lend a device.** An always-on machine can run the optional plugin runtime: it pulls jobs it can run (today: fetching OpenStreetMap blocks the edge could not reach), returns proposals, and the server derives the facts itself — a plugin is never trusted with the truth. Without one, everything works as before.
 
 ## Layout
 
 ```
-packages/core   zod schemas, H3 helpers, deterministic math + RNG, geometry DSL + interpreter,
-                built-in generators (JSON), GLB writer, OSM → Facts
-apps/edge       Cloudflare Worker: TownDO (SQLite Facts per H3 res-6 Town), R2 Bundle cache,
-                SessionDO (matches: signaling, relay, authoritative events), static client
-packages/models model router (daily budget caps), Jev / Groq / MiniMax / Claude adapters, the Ladder, the photo observer
-packages/judge  the fixed truth eval and scoring code, pinned by JUDGE.lock.json (invariant 6)
-apps/client     Vite + three.js (WebGPU, falls back to WebGL2): walk any lat/lng
-apps/agent      optional Plugin runtime (Node): pulls jobs it can run, returns proposals the edge validates
+packages/core    zod schemas, H3 helpers, deterministic math + RNG, geometry DSL + interpreter,
+                 built-in generators (JSON), GLB writer, OSM → Facts
+packages/models  model router (daily budget caps), Jev / Groq / MiniMax / Claude adapters,
+                 the Ladder, the photo observer
+packages/judge   the fixed truth eval and scoring code, pinned by JUDGE.lock.json
+apps/edge        Cloudflare Worker: TownDO (SQLite facts per town), bundle cache,
+                 SessionDO (matches: signalling, relay, authoritative events), static client
+apps/client      Vite + three.js (WebGPU, falls back to WebGL2): walk any lat/lng
+apps/agent       optional plugin runtime (Node): pulls jobs, returns proposals the edge validates
 ```
+
+Read [`docs/BRIEF.md`](docs/BRIEF.md) for the vision, [`CONTEXT.md`](CONTEXT.md) for the vocabulary, [`docs/adr/`](docs/adr) for the decisions, and [`docs/PLAN-M0.md`](docs/PLAN-M0.md) for the current milestone.
 
 ## Develop
 
@@ -32,47 +70,32 @@ pnpm seed:dev     # optional: load the recorded Zürich block, so it works witho
 open "http://localhost:5173/?at=47.3769,8.5417"
 ```
 
-Controls: WASD or arrows to walk, drag to look, Shift to run, scroll (or R/F) to rise and fall. On touch screens, the left side is a joystick and the right side looks around. `?demo=generators` shows every roof shape and prop.
-
-**Save a postcard:** while walking a place, give it a title, choose who can open it, and select **Save postcard**. You get a link. A postcard snapshots the Facts of the 7 Cells around you (ADR-0008). Whoever opens it rebuilds the place in their own browser from that snapshot, so it looks the same a year later. Private postcards need the key in their link (ADR-0012).
-
-**Sharpen a building with a photo:** tap a building to see what is known about it and where each Fact came from. Then add a photo. A vision model writes an observation, the building question pack climbs the Ladder (TypeSafe Jev first), and confident answers become Facts with `source: "capture"`. Those outrank OpenStreetMap, so the building redraws crisper. The photo is never stored. This needs Worker secrets: `GROQ_KEY` (vision) and `TYPESAFE_KEY` (Jev), plus optionally `MINIMAX_KEY` and `ANTHROPIC_API_KEY` as higher rungs. Every paid call goes through one router with daily caps per provider (`MODEL_CAPS_USD`, default $1–2/day each). Spend and every Ladder decision are kept in the `OpsDO`; set `OPS_TOKEN` to read them at `/api/ops/spend` and `/api/ops/decisions`.
-
-**Quests:** amber beacons mark up to three buildings per Cell whose roof, floors, or wall colour is still imagined. Photograph one (tap it, add a photo) to complete its Quest: the building sharpens and its beacon goes. A photo the models could not settle turns its building into an "unsure" Quest that asks for a clearer one. Quests are worked out from Facts, so every device sees the same ones, and postcards have them too.
-
-**Learn from a filmed walk:** under **Learn from a filmed walk**, give a phone video and the GPS track (.gpx) of the same walk. The browser samples a frame every few seconds, flies the camera along your track, finds the building you were facing, and sends that frame through the same photo pipeline. Buildings you passed sharpen; frames are never stored. It runs entirely in the browser plus the edge, so no plugin is needed (invariant 7).
-
-**Play capture the flag:** while walking a place, choose **Start a match here** and share the invite link. Players join the smaller team and start at their bases. Grab the enemy flag and bring it home; defenders tag intruders in their half. Enemies stay hidden unless a teammate is within 45 m (team fog). Motion travels peer to peer over WebRTC, and the match's Durable Object decides pickups, captures, tags, and score (ADR-0011). To relay through TURN behind strict NATs, set the `TURN_KEY_ID` and `TURN_KEY_API_TOKEN` Worker secrets (Cloudflare Realtime).
-
-**Lend a device (optional):** set the `AGENT_TOKEN` Worker secret, then on any always-on machine run `OTHERHERE_EDGE=https://… OTHERHERE_AGENT_TOKEN=… OTHERHERE_ALWAYS_ON=true pnpm --filter @otherhere/agent start`. The device pulls jobs it can run and sends results back as proposals; the Worker checks each one and derives Facts itself (ADR-0015). Today a Plugin fetches OpenStreetMap blocks: any block whose Overpass fetch failed at the edge is queued for it, and the owner can pre-ingest an area with `POST /api/ops/crawl {"lat":…,"lng":…,"rings":2}` (needs `OPS_TOKEN`; `GET /api/ops/jobs` shows the queue). Without a Plugin everything works as before.
+`?demo=generators` shows every roof shape and prop on one test lot. `?place=sitka` opens the baked Sitka snapshot. `?t=21.5` pins the hour.
 
 ```sh
 pnpm test         # core (Node), edge (workerd), client unit tests
-pnpm --filter @otherhere/client e2e   # Playwright: demo, real neighbourhood, pixel-identical reload, two-player match, postcards, photo and walk capture, quests
+pnpm --filter @otherhere/client e2e   # Playwright: demo, real neighbourhood, pixel-identical
+                                      # reload, two-player match, postcards, capture, quests
 pnpm lint && pnpm typecheck
-pnpm ingest <lat> <lng>               # fetch OSM around a point and summarise the Facts
-pnpm --filter @otherhere/models smoke <image>   # live: photo → observation → Jev → Facts (needs keys, ~$0.001)
-pnpm --filter @otherhere/judge truth            # live: score Jev on the fixed text truth eval (needs TYPESAFE_AI_TOKEN, ~$0.01)
-pnpm --filter @otherhere/judge photos           # live: vision→Jev vs Jev-direct, raw and fitted, RUNS=3 (needs GROQ_KEY too, ~$0.05/run)
-pnpm --filter @otherhere/judge exec tsx scripts/tune-pack.ts   # live: MiniMax rewrites the pack's wording, Jev answers, chosen on tuning photos, checked on the judge (~$0.25)
+pnpm ingest <lat> <lng>               # fetch OSM around a point and summarise the facts
 ```
+
+The photo pipeline needs Worker secrets: `GROQ_KEY` (vision) and `TYPESAFE_KEY` (Jev), optionally `MINIMAX_KEY` and `ANTHROPIC_API_KEY` as higher rungs. Every paid call goes through one router with daily caps per provider (`MODEL_CAPS_USD`, default $1–2/day each); spend and every Ladder decision are recorded, readable at `/api/ops/spend` and `/api/ops/decisions` with `OPS_TOKEN`. Matches behind strict NATs can relay via Cloudflare Realtime TURN (`TURN_KEY_ID`, `TURN_KEY_API_TOKEN`). Plugins authenticate with `AGENT_TOKEN`.
 
 ## Determinism
 
-Bundles are a pure function of Facts and generator versions (invariants 1 and 2). The demo lot's GLB hash is pinned in [`packages/core/src/demo/golden.json`](packages/core/src/demo/golden.json) and asserted in Node, in workerd, and in the browser. The client re-hashes every Bundle it downloads and shows `n/n bundle hashes verified`. If you change generator or interpreter output on purpose, bump `INTERPRETER_VERSION` (or the generator's version) and run `pnpm --filter @otherhere/core exec tsx scripts/golden.ts`.
+Bundles are a pure function of facts and generator versions. The demo lot's GLB hash is pinned in [`packages/core/src/demo/golden.json`](packages/core/src/demo/golden.json) and asserted in Node, in workerd, and in the browser. Hashing never depends on WebCrypto being available: on plain-http LAN origins `crypto.subtle` is withheld, so core falls back to a built-in SHA-256 held against the published test vectors — the town loads the same on a home network as it does over https. If you change generator or interpreter output on purpose, bump `INTERPRETER_VERSION` (or the generator's version) and run `pnpm --filter @otherhere/core exec tsx scripts/golden.ts`.
 
 ## Deploy
 
-Live at **https://otherhere.superinstance.dev**.
+**GitHub Pages** (`.github/workflows/pages.yml`): every push to `main` builds the client with Sitka as the baked front door and deploys it to [superinstance.github.io/Otherhere](https://superinstance.github.io/Otherhere/). Static and serverless — baked places and the demo only.
 
-The Worker serves both the client and the API. Deploying needs an R2 bucket named `otherhere-bundles`, which already exists in the account this was built against.
+**The full game** is a Cloudflare Worker that serves both the client and the API, live at [otherhere.superinstance.dev](https://otherhere.superinstance.dev). Deploy with the **Deploy** GitHub Action (repository secrets `CLOUDFLARE_API_TOKEN` — Workers Scripts edit, Workers R2 Storage edit — and `CLOUDFLARE_ACCOUNT_ID`; set the repository variable `DEPLOY_ENABLED=true` to deploy on every push to `main`), or by hand:
 
 ```sh
-CLOUDFLARE_API_TOKEN=... pnpm run deploy
+pnpm deploy       # builds the client, deploys the Worker (needs an R2 bucket: otherhere-bundles)
 ```
 
 See [`docs/RUNBOOK.md`](docs/RUNBOOK.md) for secrets, limits, health checks, troubleshooting and rollback.
 
-Or run the **Deploy** GitHub Action. It needs repository secrets `CLOUDFLARE_API_TOKEN` (permissions: Workers Scripts edit, Workers R2 Storage edit) and `CLOUDFLARE_ACCOUNT_ID`. To deploy on every push to `main`, set the repository variable `DEPLOY_ENABLED=true`.
-
-OSM data © OpenStreetMap contributors, ODbL. Fetched from public Overpass instances with endpoint fallback (ADR-0010).
+OSM data © OpenStreetMap contributors, ODbL. Fetched from public Overpass instances with endpoint fallback. Elevation: Mapzen Terrain Tiles (USGS 3DEP, SRTM and others).
