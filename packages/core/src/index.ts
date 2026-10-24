@@ -5,6 +5,7 @@ export * from './hash/canonical';
 export * from './hash/sha256';
 export * from './geo/h3';
 export * from './geo/frame';
+export * from './geo/format';
 export * from './schema/scope';
 export * from './schema/cell';
 export * from './schema/feature';
