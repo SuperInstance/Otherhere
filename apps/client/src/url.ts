@@ -22,9 +22,34 @@ export function parseTime(search: string): number | null {
 
 export function parseCoords(text: string): { lat: number; lng: number } | null {
   const m = /^\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*$/.exec(text);
+  if (m) {
+    const lat = Number(m[1]);
+    const lng = Number(m[2]);
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return { lat, lng };
+  }
+  return parseDMS(text);
+}
+
+const DMS_RE =
+  /^\s*(\d{1,3})°\s*(\d{1,2}(?:\.\d+)?)\s*[′']\s*(?:(\d{1,2}(?:\.\d+)?)\s*[″"])?\s*([NS])\s*[,\s]\s*(\d{1,3})°\s*(\d{1,2}(?:\.\d+)?)\s*[′']\s*(?:(\d{1,2}(?:\.\d+)?)\s*[″"])?\s*([EW])\s*$/i;
+
+/**
+ * Coordinates as the game itself writes them (formatDMS in core):
+ * `57°03′11″N, 135°20′06″W`. The address box displays a place this way, so
+ * it must read its own handwriting back — "Walk here" on the displayed
+ * label is a walk, not a place-name search for the server to fail on.
+ * ASCII quotes work too, for keyboards that cannot type ′ and ″.
+ */
+export function parseDMS(text: string): { lat: number; lng: number } | null {
+  const m = DMS_RE.exec(text);
   if (!m) return null;
-  const lat = Number(m[1]);
-  const lng = Number(m[2]);
+  const toDeg = (d: string, min: string, s: string | undefined, hemi: string) => {
+    const v = Number(d) + Number(min) / 60 + (s ? Number(s) / 3600 : 0);
+    return /[SW]/i.test(hemi) ? -v : v;
+  };
+  const lat = toDeg(m[1]!, m[2]!, m[3], m[4]!);
+  const lng = toDeg(m[5]!, m[6]!, m[7], m[8]!);
   if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
   return { lat, lng };
 }

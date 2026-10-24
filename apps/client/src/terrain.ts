@@ -638,7 +638,14 @@ export class Terrain {
 
   private async fetchElevation(job: Job): Promise<void> {
     const rec = job.rec;
-    const res = await fetch(`/api/tiles/elev/${rec.z}/${rec.x}/${rec.y}.png`, {
+    // The edge proxy and the public source serve the same tile (apps/edge
+    // tiles.ts): the proxy adds rate-limiting and an edge cache; a build
+    // with no server behind it (directTiles) fetches the source itself, so
+    // the topography — the real mountains — survives going serverless.
+    const url = this.directTiles
+      ? `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${rec.z}/${rec.x}/${rec.y}.png`
+      : `/api/tiles/elev/${rec.z}/${rec.x}/${rec.y}.png`;
+    const res = await fetch(url, {
       signal: AbortSignal.any([job.controller.signal, AbortSignal.timeout(FETCH_TIMEOUT)]),
     });
     if (!res.ok) throw new Error(`elev ${rec.key}: HTTP ${res.status}`);
@@ -659,7 +666,10 @@ export class Terrain {
 
   private async fetchSatellite(job: Job): Promise<void> {
     const rec = job.rec;
-    const res = await fetch(`/api/tiles/sat/${rec.z}/${rec.x}/${rec.y}.jpg`, {
+    const url = this.directTiles
+      ? `https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/${rec.z}/${rec.y}/${rec.x}.jpg`
+      : `/api/tiles/sat/${rec.z}/${rec.x}/${rec.y}.jpg`;
+    const res = await fetch(url, {
       signal: AbortSignal.any([job.controller.signal, AbortSignal.timeout(FETCH_TIMEOUT)]),
     });
     if (!res.ok) throw new Error(`sat ${rec.key}: HTTP ${res.status}`);

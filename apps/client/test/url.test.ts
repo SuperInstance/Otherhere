@@ -10,6 +10,21 @@ describe('parseCoords', () => {
     expect(parseCoords('91, 0')).toBeNull();
     expect(parseCoords('zurich')).toBeNull();
   });
+  it('reads back the degrees/minutes/seconds the game itself displays', () => {
+    // 57 + 3/60 + 11/3600 and -(135 + 20/60 + 6/3600)
+    expect(parseCoords('57°03′11″N, 135°20′06″W')).toEqual({
+      lat: 57 + 3 / 60 + 11 / 3600,
+      lng: -(135 + 20 / 60 + 6 / 3600),
+    });
+    expect(parseCoords(`57°03'11"N, 135°20'06"W`)).toEqual({
+      lat: 57 + 3 / 60 + 11 / 3600,
+      lng: -(135 + 20 / 60 + 6 / 3600),
+    });
+    expect(parseCoords('33°51′54″S, 151°12′35″E')).toEqual({
+      lat: -(33 + 51 / 60 + 54 / 3600),
+      lng: 151 + 12 / 60 + 35 / 3600,
+    });
+  });
 });
 
 describe('parseStart', () => {

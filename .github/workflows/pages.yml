@@ -33,7 +33,14 @@ jobs:
       - name: Build the client (Sitka as the front door)
         env:
           VITE_DEFAULT_PLACE: sitka
+          VITE_NO_SERVER: '1'
         run: pnpm --filter @otherhere/client build --base=/Otherhere/
+      - name: Build the mobile client (lite profile, nested under /mobile/)
+        env:
+          VITE_DEFAULT_PLACE: sitka
+          VITE_PROFILE: lite
+          VITE_NO_SERVER: '1'
+        run: pnpm --filter @otherhere/client build --base=/Otherhere/mobile/ --outDir dist/mobile
       - uses: actions/upload-pages-artifact@v3
         with:
           path: apps/client/dist

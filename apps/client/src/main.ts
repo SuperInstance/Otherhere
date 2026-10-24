@@ -134,6 +134,9 @@ form.addEventListener('submit', async (e) => {
     errorEl.hidden = false;
     input.focus();
   };
+  // A serverless build cannot look a place up or build a new one; say that
+  // plainly rather than failing as if the connection were at fault.
+  if (noServer) return fail(NO_SERVER_MSG);
   const c = parseCoords(input.value);
   if (c) return location.assign(`?at=${c.lat},${c.lng}`);
   const q = input.value.trim();
@@ -159,6 +162,11 @@ form.addEventListener('submit', async (e) => {
   }
 });
 $('locate').addEventListener('click', () => {
+  if (noServer) {
+    errorEl.textContent = NO_SERVER_MSG;
+    errorEl.hidden = false;
+    return;
+  }
   if (!navigator.geolocation) {
     errorEl.textContent = 'This browser cannot share its location. Type coordinates instead.';
     errorEl.hidden = false;
@@ -414,6 +422,9 @@ if (forestDemoMode) {
     ? null
     : new Terrain(scene, localFrame(cellCenter(originCell)), {
         mode: mapParam === 'satellite' ? 'satellite' : 'topo',
+        maxZ: profile.terrainMaxZ ?? undefined,
+        maxTiles: profile.terrainMaxTiles ?? undefined,
+        directTiles: noServer,
       });
   const world = new World(
     scene,
@@ -776,7 +787,7 @@ if (forestDemoMode) {
 
   // --- Match ---------------------------------------------------------------------
   const hostBtn = $<HTMLButtonElement>('host');
-  hostBtn.hidden = isDemo || !!sessionInfo;
+  hostBtn.hidden = isDemo || !!sessionInfo || noServer;
   hostBtn.addEventListener('click', async () => {
     const here = world.frame.unproject({ e: walk.pose.x, n: -walk.pose.z });
     hostBtn.disabled = true;
