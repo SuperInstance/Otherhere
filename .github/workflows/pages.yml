@@ -1,0 +1,49 @@
+name: Pages
+
+# The serverless build: the client alone, opening on the baked Sitka
+# snapshot that ships in apps/client/public/places/. Baked places and the
+# generator demo work; building a fresh town from an address needs the
+# full Worker (see the Deploy workflow / docs/RUNBOOK.md).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build the client (Sitka as the front door)
+        env:
+          VITE_DEFAULT_PLACE: sitka
+        run: pnpm --filter @otherhere/client build --base=/Otherhere/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/client/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
