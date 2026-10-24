@@ -15,7 +15,7 @@ import { sessionRoutes } from './sessions';
 import { capsuleRoutes } from './capsules';
 import { intelligenceRoutes } from './intelligence';
 import { agentRoutes } from './agents';
-import { geocodeRoute } from './geocode';
+import { geocodeRoute, reverseRoute } from './geocode';
 import { tileRoute } from './tiles';
 
 export { TownDO } from './town';
@@ -37,7 +37,7 @@ const townFor = (env: Env, cell: string) => env.TOWN.get(env.TOWN.idFromName(tow
 
 /** Which limiter, if any, guards a request. Token-gated owner and Plugin routes are not limited. */
 function limiterFor(req: Request, env: Env, path: string) {
-  if (path === '/api/geocode') return env.GEOCODE_LIMIT;
+  if (path === '/api/geocode' || path === '/api/reverse') return env.GEOCODE_LIMIT;
   if (path.startsWith('/api/tiles/')) return env.TILE_LIMIT;
   if (req.method !== 'POST') return undefined;
   if (/^\/api\/features\/[^/]+\/observe$/.test(path)) return env.PHOTO_LIMIT;
@@ -109,6 +109,7 @@ async function route(req: Request, env: Env, url: URL, path: string): Promise<Re
   if (req.method !== 'GET') return error(405, 'method not allowed');
 
   if (path === '/api/geocode') return geocodeRoute(req, env, url);
+  if (path === '/api/reverse') return reverseRoute(req, env, url);
   if (path.startsWith('/api/tiles/')) {
     const tile = await tileRoute(path, env);
     if (tile) return tile;
