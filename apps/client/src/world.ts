@@ -730,6 +730,17 @@ export class World {
   }
 
   /**
+   * True where a loaded Cell's Bundle covers the point: its Town has spoken.
+   * Ground a spoken-for Town leaves unzoned is town ground — streets, lots,
+   * yards — not unclaimed wilderness, so the display forest may not claim it
+   * by biome default. False outside every loaded Cell (and while a Cell's
+   * first Bundle is still in flight), where the wild rules decide instead.
+   */
+  covered(x: number, z: number): boolean {
+    return this.cells.get(this.cellAtWorld(x, z))?.zones !== undefined;
+  }
+
+  /**
    * The landcover under (x, z), from the loaded Cell's Bundle extras: what the
    * display forest plants by (ADR-0017, amended). Null where the loaded world
    * says nothing — open ground, or a Cell not yet loaded — and outside every
@@ -738,6 +749,7 @@ export class World {
   landcoverAt(x: number, z: number): 'forest' | 'scrub' | 'meadow' | null {
     const zones = this.cells.get(this.cellAtWorld(x, z))?.zones;
     if (!zones) return null;
+
     const p = { e: x, n: -z };
     for (const zn of zones) {
       // The bbox rejects most of the lattice before the ring is ever walked.

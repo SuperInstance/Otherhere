@@ -394,6 +394,12 @@ if (forestDemoMode) {
           if (!world.settled(x, z)) return 0;
           const cover = world.landcoverAt(x, z);
           if (cover === 'meadow') return 0;
+          // Town first: where a loaded Town has spoken and drawn no trees,
+          // there are no trees — unzoned town ground is streets and lots,
+          // not forest awaiting a biome default. The wild fallback below is
+          // only for ground no Town covers (the hills past the streamed
+          // Cells), which is where the rainforest backdrop belongs.
+          if (cover === null && world.covered(x, z)) return 0;
           const p = world.frame.unproject({ e: x, n: -z });
           const wild = FOREST_BIOMES[forestBiome(p.lat, p.lng)].wild;
           const base = cover === 'forest' ? 1 : cover === 'scrub' ? 0.35 : wild ? 1 : 0.05;
