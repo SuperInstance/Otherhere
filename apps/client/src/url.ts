@@ -4,6 +4,7 @@ export type Start =
   | { demo: true }
   | { session: string }
   | { capsule: string; key: string | null }
+  | { place: string }
   | null;
 
 /**
@@ -38,6 +39,10 @@ export function parseStart(search: string): Start {
   if (c && /^pc_[a-z2-9]{10}$/.test(c)) return { capsule: c, key: p.get('k') };
   const s = p.get('s')?.trim().toUpperCase();
   if (s && /^[A-HJ-NP-Z2-9]{6}$/.test(s)) return { session: s };
+  // A baked place: a snapshot shipped with the client (public/places/<name>.json),
+  // so a build with no server — the GitHub Pages build — can open on a real town.
+  const place = p.get('place');
+  if (place && /^[a-z0-9][a-z0-9-]{0,39}$/.test(place)) return { place };
   const at = p.get('at');
   if (at) return parseCoords(at);
   if (p.has('lat') && p.has('lng')) return parseCoords(`${p.get('lat')},${p.get('lng')}`);

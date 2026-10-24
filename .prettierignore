@@ -4,3 +4,7 @@ dist
 **/fixtures/*.json
 **/worker-configuration.d.ts
 docs/BRIEF.md
+
+# Baked place snapshots are captured postcards — generated data, like the fixtures
+# above, not source. Reformatting one would churn every re-bake.
+apps/client/public/places/*.json

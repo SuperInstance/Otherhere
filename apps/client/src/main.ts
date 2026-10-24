@@ -212,8 +212,33 @@ if (start && 'session' in start) {
   }
 }
 
-// --- Postcard (optional) -----------------------------------------------------------
+// --- Baked place (optional) --------------------------------------------------------
+// A place snapshot shipped with the client (public/places/<name>.json): the
+// postcard format as a static file, so a build with no server at all — the
+// GitHub Pages build — can still open on a real town. Everything downstream
+// treats it as the postcard it is: the visitor's browser builds the place
+// from its Facts, quests and all. Refining the town and re-baking the file
+// is how a baked place gets better: capture a fresh postcard of the same
+// Cells and replace the file.
 let capsule: Capsule | null = null;
+if (start && 'place' in start) {
+  try {
+    const res = await fetch(`${buildEnv.BASE_URL ?? '/'}places/${start.place}.json`);
+    if (res.ok) capsule = (await res.json()) as Capsule;
+  } catch {
+    // handled below
+  }
+  if (!capsule) {
+    errorEl.textContent =
+      'This build does not carry that place — it exists only on the full server.';
+    errorEl.hidden = false;
+  } else {
+    // A baked place opens as a gift, like a postcard (see below).
+    hud.classList.add('gift');
+  }
+}
+
+// --- Postcard (optional) -----------------------------------------------------------
 if (start && 'capsule' in start) {
   const q = start.key ? `?k=${encodeURIComponent(start.key)}` : '';
   try {

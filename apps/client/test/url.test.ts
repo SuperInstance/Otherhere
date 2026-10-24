@@ -25,6 +25,11 @@ describe('parseStart', () => {
       key: 'secret',
     });
   });
+  it('reads ?place= for a baked place, and rejects names that are not file-safe', () => {
+    expect(parseStart('?place=sitka')).toEqual({ place: 'sitka' });
+    expect(parseStart('?place=../secrets')).toBeNull();
+    expect(parseStart('?place=Sitka')).toBeNull();
+  });
 });
 
 describe('parseTime', () => {
