@@ -44,27 +44,47 @@ body {
   border-radius: var(--radius);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
-/* The panel's escape hatch: one small round button, bottom-right, that
-   folds the panel and the help pill away entirely — a small window or a
-   phone in landscape becomes all world. It stays when they are gone:
-   it is the way back. */
+/* The panel's escape hatch: a small round button in the panel's own
+   top-right corner — a window's close box — that folds the panel and
+   the help pill away, so a small window or a phone becomes all world.
+   Folded, the panel's box shrinks to just the button and moves to the
+   screen's top-right corner: the tiny thing that is the way back. */
 #hud-toggle {
-  position: fixed;
-  right: max(12px, env(safe-area-inset-right));
-  bottom: max(12px, env(safe-area-inset-bottom));
-  z-index: 30;
-  width: 40px;
-  height: 40px;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   border: 1px solid var(--line);
   background: var(--panel);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
-  font-size: 17px;
+  font-size: 15px;
   line-height: 1;
   cursor: pointer;
+}
+/* The corner belongs to the button: the one long line that can reach
+   it — a postcard's first line — stops short of it. */
+#hud #status-moment {
+  padding-right: 40px;
+}
+body.hud-off #hud {
+  left: auto;
+  right: max(12px, env(safe-area-inset-right));
+  width: auto;
+  padding: 0;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+body.hud-off #hud > *:not(#hud-toggle) {
+  display: none;
+}
+body.hud-off #hud-toggle {
+  position: static;
   opacity: 0.92;
 }
-body.hud-off #hud,
 body.hud-off #help {
   display: none;
 }

@@ -10,7 +10,7 @@ _Downtown Sitka from the harbour: every building stands where the map says it st
 
 **[superinstance.github.io/Otherhere](https://superinstance.github.io/Otherhere/)** — the game, straight out of this repository, no server and nothing to install. It opens on a baked snapshot of downtown Sitka (see [Baked places](#postcards-and-baked-places)) plus the generator demo. Typing a new address and building a fresh town needs the full stack below.
 
-**On a phone, use the mobile build:** [superinstance.github.io/Otherhere/mobile](https://superinstance.github.io/Otherhere/mobile/) — the same town, drawn lighter (fewer pixels per frame, a sparser forest, coarser terrain) so it stays smooth on a small GPU. Any build takes `?lite=1` for the same profile, or `?lite=0` to force the full one. And on any screen, the round button in the bottom-right corner (or the **H** key) folds the panel and the help line away entirely, so a small window can be all world; the button stays to bring them back.
+**On a phone, use the mobile build:** [superinstance.github.io/Otherhere/mobile](https://superinstance.github.io/Otherhere/mobile/) — the same town, drawn lighter (fewer pixels per frame, a sparser forest, coarser terrain) so it stays smooth on a small GPU. Any build takes `?lite=1` for the same profile, or `?lite=0` to force the full one. And on any screen, the panel's close button — the ✕ in its top-right corner, or the **H** key — folds the panel and the help line away entirely, so a small window can be all world; folded, a tiny ☰ waits in the screen's top-right corner to bring them back.
 
 The full game is live at **[otherhere.superinstance.dev](https://otherhere.superinstance.dev)** and runs locally with `pnpm dev` (see [Develop](#develop)).
 

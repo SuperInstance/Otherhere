@@ -11,6 +11,15 @@
     <canvas id="view" aria-label="Walkable view of the place"></canvas>
     <div id="joystick" aria-hidden="true"><div class="knob"></div></div>
     <main id="hud">
+      <button
+        type="button"
+        id="hud-toggle"
+        aria-expanded="true"
+        aria-controls="hud"
+        aria-label="Hide the panel"
+      >
+        ✕
+      </button>
       <form id="goto" autocomplete="off">
         <label for="coords">Address, place or coordinates</label>
         <div class="row">
@@ -101,15 +110,6 @@
         More options
       </button>
     </main>
-    <button
-      type="button"
-      id="hud-toggle"
-      aria-expanded="true"
-      aria-controls="hud"
-      aria-label="Hide the panel"
-    >
-      ✕
-    </button>
     <p id="help">
       WASD or arrows to walk · drag to look · Shift to run · scroll to rise · H hides the panel
     </p>
