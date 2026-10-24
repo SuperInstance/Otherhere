@@ -50,6 +50,7 @@ import { World } from './world';
 import { windStrength } from './wind';
 import { Terrain, type TerrainMode } from './terrain';
 import { SessionClient } from './net';
+import { resolveProfile } from './profile';
 import { describeEvent, MatchView, TEAM_NAMES } from './match';
 import { describeFacts, photoToJpegBase64, questLine, questsDone } from './feature';
 import { learnFromWalk } from './capture';
@@ -104,6 +105,20 @@ let start = parseStart(location.search);
 // has no server to ask for a town, so whenever the link itself names nothing
 // else it opens on the snapshot shipped with the client (baked places below).
 if (!start && buildEnv.VITE_DEFAULT_PLACE) start = { place: buildEnv.VITE_DEFAULT_PLACE };
+
+/** How much world this screen draws (profile.ts): full on a desktop, lite on a phone build. */
+const profile = resolveProfile(location.search, buildEnv.VITE_PROFILE);
+if (profile.lite) document.body.classList.add('lite');
+
+/**
+ * True when this build has no server behind it (the GitHub Pages build):
+ * it can open the places baked into it and the demo, it fetches terrain
+ * tiles from their public sources directly, and anything that would need
+ * the server says so — instead of blaming the visitor's connection.
+ */
+const noServer = buildEnv.VITE_NO_SERVER === '1';
+const NO_SERVER_MSG =
+  'This build has no server behind it — it opens the places baked into it, and the generator demo. For any other place, use the full game: otherhere.superinstance.dev.';
 /** The address the place was found by, if it was typed rather than given as coordinates. */
 const typed = new URLSearchParams(location.search).get('q')?.slice(0, 200) ?? '';
 if (start && 'lat' in start) input.value = typed || formatDMS(start.lat, start.lng);
@@ -164,13 +179,15 @@ $('demo').addEventListener('click', () => location.assign('?demo=generators'));
 
 // --- Scene ---------------------------------------------------------------------
 // A logarithmic depth buffer keeps roads on hillsides and mountains 20 km away both crisp.
-const renderer = new WebGPURenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const renderer = new WebGPURenderer({ canvas, antialias: profile.antialias });
+renderer.setPixelRatio(Math.min(devicePixelRatio, profile.pixelRatioCap));
 renderer.setSize(innerWidth, innerHeight);
 await renderer.init();
-const backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend
+const backendBase = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend
   ? 'WebGPU'
   : 'WebGL2';
+/** The status line names the profile too, so a screenshot says which build it was. */
+const backend = profile.lite ? `${backendBase} · lite` : backendBase;
 
 const scene = new Scene();
 scene.background = new Color(SKY);
@@ -428,13 +445,19 @@ if (forestDemoMode) {
           const p = world.frame.unproject({ e: x, n: -z });
           const wild = FOREST_BIOMES[forestBiome(p.lat, p.lng)].wild;
           const base = cover === 'forest' ? 1 : cover === 'scrub' ? 0.35 : wild ? 1 : 0.05;
-          return base / (1 + world.builtUp(x, z) / 3);
+          // The profile's share of the forest the law allows (lite draws fewer).
+          return (base / (1 + world.builtUp(x, z) / 3)) * profile.forestDensity;
         },
         // The Town's own conifer mix, when its Bundle has spoken (Essence first,
         // biome character as fallback — both sealed into the extras by the build).
         mix: (x, z) => world.forestSpruceP(x, z),
-        // Phones and tablets get a smaller, sparser forest: same seeds, fewer chunks.
-        ...(matchMedia('(pointer: coarse)').matches ? { radius: 900, maxTrees: 9000 } : {}),
+        // Phones and tablets get a smaller, sparser forest: same seeds, fewer
+        // chunks. The lite profile (a phone build, or ?lite=1) tightens it further.
+        ...(profile.lite
+          ? { radius: profile.forestRadius ?? 700, maxTrees: profile.forestMaxTrees ?? 6000 }
+          : matchMedia('(pointer: coarse)').matches
+            ? { radius: 900, maxTrees: 9000 }
+            : {}),
       })
     : null;
   if (terrain && forest) {

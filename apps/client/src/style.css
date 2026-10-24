@@ -168,6 +168,16 @@ input:focus-visible {
   border-radius: 50%;
   background: rgba(44, 42, 38, 0.35);
 }
+/* The lite profile (the phone build): a bigger stick and knob for thumbs. */
+body.lite #joystick {
+  width: 136px;
+  height: 136px;
+}
+body.lite #joystick .knob {
+  width: 56px;
+  height: 56px;
+  margin: -28px;
+}
 @media (hover: none) {
   #help {
     display: none;

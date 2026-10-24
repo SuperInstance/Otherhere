@@ -169,6 +169,10 @@ export class Terrain {
   private readonly frame: LocalFrame;
   private readonly scene: Scene;
   private readonly maxTiles: number;
+  /** Finest tile zoom this instance builds (the lite profile stops one level coarser). */
+  private readonly maxZ: number;
+  /** Fetch tiles from their public sources directly instead of the edge proxy. */
+  private readonly directTiles: boolean;
   private readonly topo = topoMaterial();
   private readonly ocean: Mesh;
   private readonly records = new Map<string, TileRecord>();
@@ -196,11 +200,13 @@ export class Terrain {
   constructor(
     scene: Scene,
     frame: LocalFrame,
-    opts: { mode?: TerrainMode; maxTiles?: number } = {},
+    opts: { mode?: TerrainMode; maxTiles?: number; maxZ?: number; directTiles?: boolean } = {},
   ) {
     this.scene = scene;
     this.frame = frame;
     this.maxTiles = Math.max(8, opts.maxTiles ?? 160);
+    this.maxZ = opts.maxZ ?? MAX_Z;
+    this.directTiles = opts.directTiles ?? false;
     this._mode = opts.mode ?? 'topo';
     this.ocean = oceanMesh();
     this.root.add(this.ocean);
@@ -245,7 +251,7 @@ export class Terrain {
   private surfaceAt(x: number, z: number): number {
     if (this.dead) return 0;
     const p = this.frame.unproject({ e: x, n: -z });
-    for (let z0 = MAX_Z; z0 >= MIN_Z; z0--) {
+    for (let z0 = this.maxZ; z0 >= MIN_Z; z0--) {
       const t = tileOf(p.lat, p.lng, z0);
       const rec = this.drawn.get(tileKey(t));
       const pos = rec?.mesh?.geometry.getAttribute('position');
@@ -290,7 +296,7 @@ export class Terrain {
   heightAt(x: number, z: number): number {
     if (this.dead) return 0;
     const p = this.frame.unproject({ e: x, n: -z });
-    for (let z0 = MAX_Z; z0 >= MIN_Z; z0--) {
+    for (let z0 = this.maxZ; z0 >= MIN_Z; z0--) {
       const t = tileOf(p.lat, p.lng, z0);
       const key = tileKey(t);
       const hm = this.records.get(key)?.heightmap ?? this.fine.get(key);
@@ -443,7 +449,7 @@ export class Terrain {
     const width = Math.max(box.maxX - box.minX, box.maxZ - box.minZ);
     const dist = boxDistance(box, x, y, z);
     const limit = wasSplit ? width * MERGE_FACTOR : width * SPLIT_FACTOR;
-    const split = node.z < MAX_Z && dist < limit;
+    const split = node.z < this.maxZ && dist < limit;
     this.split.set(key, { split, seen: this.tick });
     if (!split) {
       this.requestHeight(rec);
@@ -694,7 +700,7 @@ export class Terrain {
     }
     rec.minY = lo;
     rec.maxY = hi;
-    if (rec.z === MAX_Z) {
+    if (rec.z === this.maxZ) {
       this.rememberFine(rec.key, hm);
       const nw = this.frame.project({ lat: rec.bounds.north, lng: rec.bounds.west });
       const se = this.frame.project({ lat: rec.bounds.south, lng: rec.bounds.east });
@@ -769,7 +775,7 @@ export class Terrain {
       west = Math.min(west, p.lng);
       east = Math.max(east, p.lng);
     }
-    for (let z = MAX_Z; z >= MIN_Z; z--) {
+    for (let z = this.maxZ; z >= MIN_Z; z--) {
       const a = tileOf(north, west, z);
       const b = tileOf(south, east, z);
       const count = (b.x - a.x + 1) * (b.y - a.y + 1);
