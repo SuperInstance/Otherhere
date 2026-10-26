@@ -10,6 +10,7 @@ export * from './schema/scope';
 export * from './schema/cell';
 export * from './schema/feature';
 export * from './schema/fact';
+export * from './schema/asset';
 export * from './schema/bundle';
 export * from './schema/generator';
 export * from './schema/ruleset';

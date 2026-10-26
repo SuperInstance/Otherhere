@@ -464,6 +464,9 @@ if (forestDemoMode) {
     originCell,
     isDemo ? 'demo' : capsule ? { capsule: capsuleBundleInputs(capsule) } : 'api',
     terrain ?? undefined,
+    // Captured assets (`asset.capture`) fetch their payloads from beside the
+    // place files; the lite profile keeps them to the photograph tiers.
+    { placesBase: `${buildEnv.BASE_URL ?? '/'}places/`, lite: profile.lite },
   );
   // Spruce and hemlock on the hills: display-only, seeded per chunk, kept out of
   // buildings and roads, replanted as finer ground or new Bundles arrive.

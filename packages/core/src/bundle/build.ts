@@ -19,6 +19,7 @@ import {
   RAINFOREST_BOX,
   type Species,
 } from '../forest/species';
+import { AssetCapture } from '../schema/asset';
 import { regionOf, GENERIC_PRIOR, REGION_BOX, REGION_PRIORS } from '../essence/region';
 import { writeGlb } from '../glb/write';
 
@@ -37,6 +38,35 @@ export type ForestZone = {
  *  Everything here derives from the Features and the Essence, both in the
  *  content address, so the extras are covered by the inputs hash. */
 export type ForestExtras = { mix: Record<Species, number>; zones: ForestZone[] };
+
+/** One tier of a captured asset, as the Bundle's extras carry it. */
+export type AssetTierExtras = { path: string; hash: string; bytes: number };
+
+/**
+ * A distilled capture placed in this Cell (the `asset.capture` design): the
+ * sidecar a display layer needs to fetch, verify and place the payload that
+ * REPLACES the Feature's procedural geometry — plus the footprint ring in
+ * local-frame metres (flat `[e0, n0, …]`, centimetre-rounded, the forest
+ * zones' convention) so the client can keep trees out, stand the asset on
+ * the ground and answer picks without the payload. Derives entirely from
+ * the Feature's Facts, so the inputs hash covers it. The `assets` key is
+ * written only when a Cell actually carries a capture: Bundles without one
+ * stay byte-identical.
+ */
+export type AssetExtras = {
+  id: string;
+  family: string;
+  version: string;
+  tiers: { splat?: AssetTierExtras; impostor?: AssetTierExtras; card?: AssetTierExtras };
+  /** Placement in the Cell's local frame: position + quaternion * (scale * p). */
+  position: [number, number, number];
+  quaternion: [number, number, number, number];
+  scale: number;
+  heightM: number;
+  frontAzimuthDeg: number;
+  cardQuad?: { widthM: number; heightM: number; centreYM: number };
+  ring: number[];
+};
 
 export type BuildInput = {
   cell: string;
@@ -125,11 +155,18 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle> {
   // Town's mix ride along as extras instead of as a thousand Features.
   const forest = forestExtras(input, frame);
 
+  // A distilled capture replaces its Feature's procedural geometry outright
+  // (precedence: capture over archetype over procedural). The placement
+  // rides as extras; the payload bytes live beside the Bundle, never in it.
+  const assets = assetExtras(input, frame);
+  const captured = new Set(assets.map((a) => a.id));
+
   const ranges: { id: string; first: number; count: number }[] = [];
   // Sorted, so the vertex order — and so the bytes — never depend on the order
   // the Facts arrived in (invariant 2).
   const essence = withDerivedRegion(input);
   for (const f of [...input.features].sort(byId)) {
+    if (captured.has(f.id)) continue;
     const gen = gens.forKind(f.kind);
     if (!gen) continue;
     const first = mesh.vertexCount;
@@ -140,7 +177,7 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle> {
 
   const inputsHash = await bundleInputsHash({ ...input, generators: gens });
   const data = mesh.build();
-  const glb = writeGlbFor(input.cell, data, inputsHash, origin, ranges, forest);
+  const glb = writeGlbFor(input.cell, data, inputsHash, origin, ranges, forest, assets);
   return {
     glb,
     manifest: {
@@ -163,12 +200,100 @@ function writeGlbFor(
   origin: { lat: number; lng: number },
   ranges: { id: string; first: number; count: number }[],
   forest: ForestExtras,
+  assets: AssetExtras[],
 ): Uint8Array {
   return writeGlb(data, {
     name: cell,
     generator: `otherhere-core/${INTERPRETER_VERSION}`,
-    extras: { otherhere: { cell, inputsHash, origin, features: ranges, forest } },
+    extras: {
+      otherhere: {
+        cell,
+        inputsHash,
+        origin,
+        features: ranges,
+        forest,
+        // Only when a capture rides: a Cell without one keeps the exact
+        // extras (and so the exact bytes) it has always had.
+        ...(assets.length ? { assets } : {}),
+      },
+    },
   });
+}
+
+/**
+ * Collect the captured assets placed in this Cell. A Feature joins when its
+ * winning `asset.capture` Fact parses as a sidecar AND it carries a
+ * footprint to stand the capture on; a malformed sidecar is ignored (the
+ * Feature keeps its procedural build) rather than breaking the Bundle.
+ * Numbers are rounded the way the forest rings are — centimetres, and
+ * enough decimals on the rotation to hold a degree at building scale — so
+ * the extras stay compact and stable. Sorted by Feature ID.
+ */
+export function assetExtras(
+  input: BuildInput,
+  frame: ReturnType<typeof localFrame>,
+): AssetExtras[] {
+  const out: AssetExtras[] = [];
+  for (const f of input.features) {
+    const raw = f.attrs['asset.capture'];
+    const fp = f.attrs.footprint;
+    if (!raw || !fp || !Array.isArray(fp.value) || fp.value.length < 3) continue;
+    const parsed = AssetCapture.safeParse(raw.value);
+    if (!parsed.success) continue;
+    const cap = parsed.data;
+    const ring = cleanRing(
+      (fp.value as LngLat[]).map((p) => frame.project({ lat: p[1], lng: p[0] })),
+    );
+    if (ring.length < 3) continue;
+    const flat: number[] = [];
+    for (const p of ring) {
+      const e = Math.round(p.e * 100) / 100;
+      const n = Math.round(p.n * 100) / 100;
+      const last = flat.length - 2;
+      if (last >= 0 && flat[last] === e && flat[last + 1] === n) continue;
+      flat.push(e, n);
+    }
+    if (flat.length < 6) continue;
+    const tiers: AssetExtras['tiers'] = {};
+    for (const k of ['splat', 'impostor', 'card'] as const) {
+      const t = cap.tiers[k];
+      if (t) tiers[k] = { path: t.path, hash: t.hash, bytes: t.bytes };
+    }
+    const r3 = (v: number) => Math.round(v * 1000) / 1000;
+    const r6 = (v: number) => Math.round(v * 1e6) / 1e6;
+    out.push({
+      id: f.id,
+      family: cap.family,
+      version: cap.version,
+      tiers,
+      position: [
+        r3(cap.params.position[0]),
+        r3(cap.params.position[1]),
+        r3(cap.params.position[2]),
+      ],
+      quaternion: [
+        r6(cap.params.quaternion[0]),
+        r6(cap.params.quaternion[1]),
+        r6(cap.params.quaternion[2]),
+        r6(cap.params.quaternion[3]),
+      ],
+      scale: r6(cap.params.scale),
+      heightM: r3(cap.params.heightM),
+      frontAzimuthDeg: Math.round(cap.params.frontAzimuthDeg * 100) / 100,
+      ...(cap.params.cardQuad
+        ? {
+            cardQuad: {
+              widthM: r3(cap.params.cardQuad.widthM),
+              heightM: r3(cap.params.cardQuad.heightM),
+              centreYM: r3(cap.params.cardQuad.centreYM),
+            },
+          }
+        : {}),
+      ring: flat,
+    });
+  }
+  out.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return out;
 }
 
 /** Collect the landcover rings and the species mix for the display forest.

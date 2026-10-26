@@ -248,3 +248,141 @@ describe('buildBundle (invariants 1 and 2)', () => {
     expect(await bundleInputsHash(input)).toBe(before); // every restore held
   });
 });
+
+describe('buildBundle with a captured asset (asset.capture)', () => {
+  const HASH = 'a'.repeat(64);
+  const sidecar = {
+    family: 'test-church',
+    version: '1.0.0',
+    tiers: {
+      splat: {
+        path: 'assets/test-church/1.0.0/splat.spz',
+        hash: HASH,
+        bytes: 193_512,
+        contentType: 'application/octet-stream',
+      },
+      card: {
+        path: 'assets/test-church/1.0.0/card-256.webp',
+        hash: HASH,
+        bytes: 13_874,
+        contentType: 'image/webp',
+      },
+    },
+    params: {
+      position: [-12.3456789, 0.25, -40.5],
+      quaternion: [0.1, 0.2, 0.3, 0.9273618495495703],
+      scale: 1.25,
+      heightM: 11.5,
+      frontAzimuthDeg: 170.48677804160772,
+      cardQuad: { widthM: 34.5, heightM: 61.25, centreYM: 22.5 },
+    },
+  };
+  const capturedLot = () =>
+    demoLot().map((f) =>
+      f.id === 'osm:w200'
+        ? {
+            ...f,
+            attrs: {
+              ...f.attrs,
+              'asset.capture': { value: sidecar, confidence: 0.9, source: 'capture' as const },
+            },
+          }
+        : f,
+    );
+
+  it('replaces the procedural build: no vertex range, the placement rides as extras', async () => {
+    const { glb, manifest } = await buildBundle({ cell: DEMO_CELL, features: capturedLot() });
+    const json = readGlbJson(glb) as {
+      extras: {
+        otherhere: {
+          features: { id: string }[];
+          assets?: {
+            id: string;
+            family: string;
+            tiers: Record<string, { path: string; hash: string; bytes: number }>;
+            position: number[];
+            scale: number;
+            heightM: number;
+            ring: number[];
+          }[];
+        };
+      };
+    };
+    const oh = json.extras.otherhere;
+    expect(oh.features.map((f) => f.id)).not.toContain('osm:w200');
+    expect(manifest.featureCount).toBe(demoLot().filter((f) => f.kind !== 'landcover').length - 1);
+    expect(oh.assets).toHaveLength(1);
+    const a = oh.assets![0]!;
+    expect(a.id).toBe('osm:w200');
+    expect(a.family).toBe('test-church');
+    expect(a.tiers.splat).toEqual({
+      path: 'assets/test-church/1.0.0/splat.spz',
+      hash: HASH,
+      bytes: 193_512,
+    });
+    expect(a.tiers.card?.bytes).toBe(13_874);
+    // Numbers are rounded for the extras: millimetres on the position,
+    // six decimals on the scale, centimetres on the height.
+    expect(a.position[0]).toBe(-12.346);
+    expect(a.scale).toBe(1.25);
+    expect(a.heightM).toBe(11.5);
+    expect(a.ring.length).toBeGreaterThanOrEqual(6);
+    expect(a.ring.length % 2).toBe(0);
+  });
+
+  it('covers the sidecar in the content address', async () => {
+    const base = await bundleInputsHash({ cell: DEMO_CELL, features: demoLot() });
+    expect(await bundleInputsHash({ cell: DEMO_CELL, features: capturedLot() })).not.toBe(base);
+    const rebaked = capturedLot().map((f) =>
+      f.id === 'osm:w200'
+        ? {
+            ...f,
+            attrs: {
+              ...f.attrs,
+              'asset.capture': {
+                value: { ...sidecar, version: '1.0.1' },
+                confidence: 0.9,
+                source: 'capture' as const,
+              },
+            },
+          }
+        : f,
+    );
+    expect(await bundleInputsHash({ cell: DEMO_CELL, features: rebaked })).not.toBe(
+      await bundleInputsHash({ cell: DEMO_CELL, features: capturedLot() }),
+    );
+  });
+
+  it('a Bundle without a capture carries no assets key (bytes unchanged)', async () => {
+    const { glb } = await buildBundle({ cell: DEMO_CELL, features: demoLot() });
+    const json = readGlbJson(glb) as { extras: { otherhere: Record<string, unknown> } };
+    expect('assets' in json.extras.otherhere).toBe(false);
+  });
+
+  it('a malformed sidecar falls back to the procedural build', async () => {
+    const lot = demoLot().map((f) =>
+      f.id === 'osm:w200'
+        ? {
+            ...f,
+            attrs: {
+              ...f.attrs,
+              'asset.capture': {
+                value: {
+                  ...sidecar,
+                  tiers: { splat: { path: 'x', hash: 'not-a-hash', bytes: 1, contentType: 'x' } },
+                },
+                confidence: 0.9,
+                source: 'capture' as const,
+              },
+            },
+          }
+        : f,
+    );
+    const { glb } = await buildBundle({ cell: DEMO_CELL, features: lot });
+    const json = readGlbJson(glb) as {
+      extras: { otherhere: { features: { id: string }[]; assets?: unknown[] } };
+    };
+    expect(json.extras.otherhere.features.map((f) => f.id)).toContain('osm:w200');
+    expect(json.extras.otherhere.assets).toBeUndefined();
+  });
+});

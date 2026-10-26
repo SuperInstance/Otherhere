@@ -28,7 +28,9 @@ import {
   type CapsuleCellInput,
   type BundleManifest,
   type LocalFrame,
+  type AssetExtras,
 } from '@otherhere/core';
+import { AssetLayer, assetsFor, type AssetHost, type PlacedAsset } from './assets';
 import { confidenceMaterial, wakeUniform, WAKE_MS, type WakeUniform } from './material';
 import type { MeshStandardNodeMaterial } from 'three/webgpu';
 
@@ -67,6 +69,8 @@ type CellState = {
   clearings?: Disc[];
   /** What grows where: the display forest reads these rings (ADR-0017, amended). */
   zones?: LandcoverZone[];
+  /** Captured assets placed in this Cell (the `asset.capture` extras), if any. */
+  assets?: PlacedAsset[];
   /** The Town's spruce share of its conifers, for the display forest's silhouettes. */
   spruceP?: number;
   /** World-space footprint, for matching new ground to Cells. */
@@ -189,17 +193,21 @@ export class World {
   private clearBuckets = new Map<string, Disc[]>();
   /** Cells whose ground got finer since they were stood on it. */
   private resnap = new Set<string>();
+  /** Placed captures (the `asset.capture` display layer), when a host is configured. */
+  private assetLayer?: AssetLayer;
 
   constructor(
     scene: Scene,
     readonly originCell: string,
     private source: Source = 'api',
     private ground?: Ground,
+    assetHost?: AssetHost,
   ) {
     this.frame = localFrame(cellCenter(originCell));
     if (ground) ground.onGround = (...rect) => this.groundChanged(...rect);
     scene.add(this.root);
     scene.add(this.beaconRoot);
+    if (assetHost) this.assetLayer = new AssetLayer(scene, assetHost, ground);
   }
 
   /** The Cell under a world-frame position. */
@@ -212,6 +220,7 @@ export class World {
   update(x: number, z: number): void {
     this.advanceWakes();
     this.standAgain();
+    this.assetLayer?.update(x, z);
     if (this.source === 'demo') {
       this.want(DEMO_CELL);
       return;
@@ -226,7 +235,7 @@ export class World {
     const keep = new Set(gridDisk(here, 2));
     for (const [c, s] of this.cells) {
       if (!keep.has(c) && s.state !== 'loading') {
-        this.drop(s);
+        this.drop(c, s);
         this.cells.delete(c);
         this.onChange();
       }
@@ -311,7 +320,8 @@ export class World {
     this.indexClearings();
   }
 
-  private drop(s: CellState) {
+  private drop(cell: string, s: CellState) {
+    this.assetLayer?.detach(cell);
     this.retire(s); // a failed reload may still be holding the screen
     if (s.wake) {
       s.wake.mat.dispose();
@@ -438,6 +448,7 @@ export class World {
     ).otherhere;
     const featureRanges = extras?.features ?? [];
     const forest = zonesFor((extras as { forest?: ForestExtras } | undefined)?.forest, c);
+    const placedAssets = assetsFor((extras as { assets?: AssetExtras[] } | undefined)?.assets, c);
     const footing = this.ground ? await this.standOnGround(group, featureRanges) : undefined;
     for (const p of roadPoints) {
       p.x += c.e;
@@ -469,11 +480,16 @@ export class World {
       ...footing,
     });
     state.clearings = clearingsFor(group, ranges);
+    // A capture's lot is built ground too: the forest stays out of it even
+    // though the Feature has no vertices of its own to clear around.
+    if (placedAssets.length) state.clearings.push(...placedAssets.map((a) => a.clearing));
     state.zones = forest.zones;
     state.spruceP = forest.spruceP;
+    state.assets = placedAssets;
     this.indexClearings();
     this.root.add(group);
     this.beaconRoot.add(beacons);
+    if (placedAssets.length) this.assetLayer?.attach(cell, placedAssets, group.position);
     if (wakeU) {
       // A wake carried here by an interrupted reload (#60): its material must
       // go back now, or the new wake overwrites the reference without
@@ -573,6 +589,7 @@ export class World {
     s.beacons = this.beaconsFor(s.group!, s.ranges ?? [], s.quests ?? []);
     s.beacons.position.copy(s.group!.position);
     this.beaconRoot.add(s.beacons);
+    this.assetLayer?.restand(cell);
   }
 
   /** A tall amber column with a marker above each Quest building, placed from its vertices. */
@@ -629,6 +646,9 @@ export class World {
 
   /** The Feature under a ray (from a tap), if any. */
   pick(raycaster: Raycaster): { cell: string; featureId: string; distance: number } | null {
+    // A capture has no vertices in the Bundle: its proxy box answers first.
+    const assetHit = this.assetLayer?.pick(raycaster);
+    if (assetHit) return assetHit;
     const hits = raycaster.intersectObject(this.root, true);
     for (const hit of hits) {
       const cell = hit.object.parent?.name;
