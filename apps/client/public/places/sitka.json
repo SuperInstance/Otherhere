@@ -11832,6 +11832,59 @@
       },
       {
         "featureId": "osm:w116029214",
+        "attribute": "asset.capture",
+        "value": {
+          "family": "st-michaels-cathedral",
+          "version": "1.0.0",
+          "tiers": {
+            "splat": {
+              "path": "assets/st-michaels-cathedral/1.0.0/splat.spz",
+              "hash": "e1cfb70d0972b178e694ae06d427f081c2d51e2e7c5480f4edaca894a0364c62",
+              "bytes": 193512,
+              "contentType": "application/octet-stream"
+            },
+            "impostor": {
+              "path": "assets/st-michaels-cathedral/1.0.0/impostor.webp",
+              "hash": "8aebce4cf17b3a8756cf7527c0104b5ba3f7235a4fcef22a59c0072ec277f1e8",
+              "bytes": 70214,
+              "contentType": "image/webp"
+            },
+            "card": {
+              "path": "assets/st-michaels-cathedral/1.0.0/card.webp",
+              "hash": "2e40455358c28203185ef0b3b0b37f6c7d8237bfd3321ff3dbb88e282152088c",
+              "bytes": 26360,
+              "contentType": "image/webp"
+            }
+          },
+          "params": {
+            "position": [
+              -68.171,
+              1.372,
+              -37.418
+            ],
+            "quaternion": [
+              0.965643,
+              0.013508,
+              0.258973,
+              0.016831
+            ],
+            "scale": 3.0,
+            "heightM": 14.592,
+            "frontAzimuthDeg": 190.7,
+            "cardQuad": {
+              "widthM": 17.166,
+              "heightM": 25.736,
+              "centreYM": 6.791
+            }
+          }
+        },
+        "source": "capture",
+        "confidence": 0.9,
+        "observedAt": "2026-10-24T16:59:00.000Z",
+        "version": 1
+      },
+      {
+        "featureId": "osm:w116029214",
         "attribute": "building",
         "value": "church",
         "source": "osm",
