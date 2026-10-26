@@ -109,7 +109,10 @@ export function oceanMaterial(): MeshStandardNodeMaterial {
   const glint = pow(max(dot(reflectDir, lightDirUniform), float(0)), 180).mul(2.5);
 
   const m = new MeshStandardNodeMaterial({ roughness: 0.18, metalness: 0 });
-  m.colorNode = mix(color('#1f4552'), color('#6f97a8'), fresnel);
+  // Sitka Sound measured from the overhead corpus: a deep blue-slate
+  // (#233646 class median) lifting to a grey-green sky reflection — the
+  // re-grade of 2026-10-25; the old pair read too teal and too bright.
+  m.colorNode = mix(color('#233646'), color('#5f7d88'), fresnel);
   m.normalNode = viewNormal;
   m.emissiveNode = color('#fff4e0').mul(glint);
   m.name = 'ocean';

@@ -270,28 +270,28 @@ const KEYS: readonly Keyframe[] = [
   },
   {
     el: 12,
-    horizon: '#d8d3c4',
-    zenith: '#7ea6c4',
+    horizon: '#cfd6d6',
+    zenith: '#87a3b5',
     glow: '#ffe7c4',
-    fogFar: '#b3c1ca',
-    light: '#ffedd2',
-    lightI: 1.7,
+    fogFar: '#b4c3c6',
+    light: '#f7efdf',
+    lightI: 1.5,
     hemiSky: '#eae4dc',
-    hemiGround: '#a99c86',
+    hemiGround: '#93957f',
     hemiI: 1.6,
     stars: 0,
     moon: 0,
   },
   {
     el: 35,
-    horizon: '#d9dcd6',
-    zenith: '#8fb3c9',
+    horizon: '#d3dad8',
+    zenith: '#8cabbe',
     glow: '#fff1d6',
-    fogFar: '#b9c7cf',
-    light: '#fff4e2',
-    lightI: 1.9,
+    fogFar: '#b7c6c9',
+    light: '#f8f3e8',
+    lightI: 1.65,
     hemiSky: '#f6f2ea',
-    hemiGround: '#b7ab92',
+    hemiGround: '#a3a58c',
     hemiI: 1.7,
     stars: 0,
     moon: 0,
@@ -302,6 +302,13 @@ const KEYS: readonly Keyframe[] = [
  * The whole sky's state from the sun's elevation (degrees) and cloud cover
  * (0..1). Overcast pulls every colour toward a flat grey (darker at night),
  * swallows the discs, thickens the haze and pools the mist.
+ *
+ * The daytime rows were re-graded 2026-10-25 (the Sitka skin remake) from
+ * the fleet's reference corpus: street frames put Sitka's overcast sky at a
+ * bright cool grey (#ebebeb top band), so the horizon and the overcast
+ * targets cooled and lightened, the warm tan ground-bounce gave way to the
+ * forest floor's green-grey, and the directional light lost some of its
+ * warmth — Sitka light is bright, cool and diffuse.
  */
 export function skyPalette(elevationDeg: number, cloud: number): SkyPalette {
   const el = Math.max(KEYS[0]!.el, Math.min(KEYS[KEYS.length - 1]!.el, elevationDeg));
@@ -320,8 +327,8 @@ export function skyPalette(elevationDeg: number, cloud: number): SkyPalette {
 
   // How much daylight there is, for scaling the overcast greys.
   const dayVis = smoothstep(-8, 4, elevationDeg);
-  const greyH = mixRGB(rgb('#141a26'), rgb('#c6c9c5'), dayVis);
-  const greyZ = mixRGB(rgb('#0d141f'), rgb('#96a5b0'), dayVis);
+  const greyH = mixRGB(rgb('#141a26'), rgb('#c9cfcc'), dayVis);
+  const greyZ = mixRGB(rgb('#0d141f'), rgb('#93a5ae'), dayVis);
 
   const cloudFade = 1 - smoothstep(0.5, 0.85, cloud); // discs survive light overcast
   const horizon = mixRGB(mixRGB(rgb(lo.horizon), rgb(hi.horizon), t), greyH, cloud * 0.75);

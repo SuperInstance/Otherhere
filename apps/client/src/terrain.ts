@@ -937,9 +937,12 @@ function topoMaterial(): MeshStandardNodeMaterial {
   const h = attribute<'float'>('ground', 'float');
   const slope = float(1).sub(normalWorld.y);
 
-  let ground = mix(color('#8a8270'), color('#3f5a3a'), smoothstep(1, 2.5, h));
-  ground = mix(ground, color('#4c6b45'), smoothstep(20, 260, h));
-  ground = mix(ground, color('#7d8a5c'), smoothstep(350, 700, h));
+  // Lowland and canopy greens re-graded 2026-10-25 from the overhead corpus
+  // (vegetation class median #3e574c): cooler and greyer than the old pair,
+  // which read as bright felt under the town.
+  let ground = mix(color('#8a8270'), color('#3e574c'), smoothstep(1, 2.5, h));
+  ground = mix(ground, color('#46604f'), smoothstep(20, 260, h));
+  ground = mix(ground, color('#75855e'), smoothstep(350, 700, h));
   ground = mix(
     ground,
     color('#7a7468'),
@@ -964,7 +967,7 @@ function topoMaterial(): MeshStandardNodeMaterial {
   // Cloud shadows drift across the land; surf foam breathes along the waterline.
   const lit = ground.mul(float(1).sub(lines)).mul(cloudShadow(positionWorld));
   // Mist banks hang on the mountainsides between about 150 and 650 m, drifting slowly.
-  const misty = mix(lit, color('#d9dcd6'), mistBanks(h, positionWorld).mul(0.38));
+  const misty = mix(lit, color('#d3dad8'), mistBanks(h, positionWorld).mul(0.38));
   m.colorNode = mix(misty, color('#f4f6f2'), shoreFoam(h, positionWorld).mul(0.85));
   m.name = 'terrain-topo';
   return m;

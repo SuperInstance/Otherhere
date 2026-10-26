@@ -93,8 +93,11 @@ function strideBoundary(stride: number): number {
 }
 
 /** Spruce reads bluish, hemlock warmer — the only thing telling the species apart at distance. */
-const SPRUCE_TINT = new Color('#2c4a32');
-const HEMLOCK_TINT = new Color('#36503a');
+// Re-graded 2026-10-25 from the corpus: street-level vegetation medians at
+// #3d4927 (dark olive green-black) and overhead canopy at #3e574c. Spruce
+// keeps the green-black silhouette; hemlock takes the measured canopy tone.
+const SPRUCE_TINT = new Color('#2e4a30');
+const HEMLOCK_TINT = new Color('#3e574c');
 
 /** The spruce share when no Town has spoken: the display forest's own split,
  *  used before any Bundle arrives and in broadleaf towns with no conifers. */
