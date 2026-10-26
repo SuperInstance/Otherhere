@@ -9,6 +9,23 @@ export const OVERPASS_ENDPOINTS = [
 
 export const USER_AGENT = 'Otherhere/0.1 (+https://github.com/SuperInstance/otherhere)';
 
+/** The landcover clauses of an ingest query (ways and relations alike). */
+function landcoverClauses(b: string): string[] {
+  return [
+    `  way["landuse"="forest"]${b};`,
+    `  way["natural"="wood"]${b};`,
+    `  way["natural"="scrub"]${b};`,
+    `  way["landuse"="meadow"]${b};`,
+    // Landcover also lives on relations: the big woods (multipolygon
+    // forests) can be mapped as relations, not ways — a ways-only query
+    // silently misses them (found 2026-10-24, fixed here).
+    `  relation["landuse"="forest"]${b};`,
+    `  relation["natural"="wood"]${b};`,
+    `  relation["natural"="scrub"]${b};`,
+    `  relation["landuse"="meadow"]${b};`,
+  ];
+}
+
 /** Buildings, roads, props, and landcover areas, for one bbox. */
 export function overpassQuery(bb: BBox): string {
   const b = `(${bb.south},${bb.west},${bb.north},${bb.east})`;
@@ -20,13 +37,20 @@ export function overpassQuery(bb: BBox): string {
     `  node["natural"="tree"]${b};`,
     `  node["amenity"="bench"]${b};`,
     `  node["highway"="street_lamp"]${b};`,
-    `  way["landuse"="forest"]${b};`,
-    `  way["natural"="wood"]${b};`,
-    `  way["natural"="scrub"]${b};`,
-    `  way["landuse"="meadow"]${b};`,
+    ...landcoverClauses(b),
     ');',
     'out body geom;',
   ].join('\n');
+}
+
+/** Landcover alone, for one bbox: the sweep a re-bake runs over a wider area
+ *  than the ingest Blocks, because forest polygons anchor wherever their
+ *  centroid falls — often outside the Blocks their rings cover. */
+export function overpassLandcoverQuery(bb: BBox): string {
+  const b = `(${bb.south},${bb.west},${bb.north},${bb.east})`;
+  return ['[out:json][timeout:25];', '(', ...landcoverClauses(b), ');', 'out body geom;'].join(
+    '\n',
+  );
 }
 
 export type OverpassElement =
@@ -38,7 +62,18 @@ export type OverpassElement =
       geometry: { lat: number; lon: number }[];
       tags?: Record<string, string>;
     }
-  | { type: 'relation'; id: number; tags?: Record<string, string> };
+  | {
+      type: 'relation';
+      id: number;
+      tags?: Record<string, string>;
+      /** With `out geom`, way members carry their geometry inline. */
+      members?: {
+        type: string;
+        ref: number;
+        role: string;
+        geometry?: { lat: number; lon: number }[];
+      }[];
+    };
 
 export type OverpassResponse = { elements: OverpassElement[] };
 

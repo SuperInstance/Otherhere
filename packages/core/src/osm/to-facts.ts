@@ -98,6 +98,52 @@ const SKIP_HIGHWAYS = new Set([
 export type IngestResult = { features: Feature[]; facts: Fact[] };
 
 /**
+ * Join unordered way segments into closed rings by matching endpoints
+ * (multipolygon outers arrive as separate ways in no useful order, some
+ * reversed). Deterministic: segments are sorted before stitching and joins
+ * are taken in that fixed order, so a relation always yields the same rings
+ * in the same order however Overpass ordered its members. Open chains —
+ * outers we cannot close — are dropped: an area we cannot close is not an
+ * area we know.
+ */
+export function stitchRings(paths: LngLat[][]): LngLat[][] {
+  const same = (a: LngLat, b: LngLat) => a[0] === b[0] && a[1] === b[1];
+  const pool = paths
+    .filter((p) => p.length >= 2)
+    .map((p) => [...p])
+    .sort((a, b) => {
+      const ka = JSON.stringify(a);
+      const kb = JSON.stringify(b);
+      return ka < kb ? -1 : ka > kb ? 1 : 0;
+    });
+  const rings: LngLat[][] = [];
+  while (pool.length) {
+    let cur = pool.shift()!;
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (let i = 0; i < pool.length; i++) {
+        const s = pool[i]!;
+        const head = cur[0]!;
+        const tail = cur[cur.length - 1]!;
+        const sHead = s[0]!;
+        const sTail = s[s.length - 1]!;
+        if (same(tail, sHead)) cur = [...cur, ...s.slice(1)];
+        else if (same(tail, sTail)) cur = [...cur, ...[...s].reverse().slice(1)];
+        else if (same(head, sTail)) cur = [...s.slice(0, -1), ...cur];
+        else if (same(head, sHead)) cur = [...[...s].reverse().slice(0, -1), ...cur];
+        else continue;
+        pool.splice(i, 1);
+        grew = true;
+        break;
+      }
+    }
+    if (cur.length >= 4 && same(cur[0]!, cur[cur.length - 1]!)) rings.push(cur);
+  }
+  return rings;
+}
+
+/**
  * Convert an Overpass response into Features and Facts with `source: "osm"`
  * (invariant 4). Only Features anchored inside `block` are kept (ADR-0010).
  */
@@ -143,7 +189,41 @@ export function osmToFacts(
       else if (cover) ingestLandcover(el, tags, cover);
       else if (tags.highway && !SKIP_HIGHWAYS.has(tags.highway) && tags.area !== 'yes')
         ingestRoad(el, tags);
+    } else if (el.type === 'relation') {
+      const cover = LANDCOVER[tags.landuse ?? ''] ?? LANDCOVER[tags.natural ?? ''];
+      if (cover) ingestLandcoverRelation(el, tags, cover);
     }
+  }
+
+  /** A landcover multipolygon relation: its outer member ways, stitched into
+   *  rings, become one landcover Feature per ring. Inner rings (clearings,
+   *  lakes) are not representable in a single-ring footprint yet, so they
+   *  are skipped — the forest they would have excluded is a known over-claim,
+   *  bounded by the clearing's size. The first ring keeps the bare relation
+   *  id; later rings take `:o<k>` suffixes in stitch order. */
+  function ingestLandcoverRelation(
+    el: Extract<OverpassElement, { type: 'relation' }>,
+    tags: Record<string, string>,
+    cover: string,
+  ) {
+    const outers: LngLat[][] = [];
+    for (const m of el.members ?? []) {
+      if (m.type !== 'way' || (m.role !== 'outer' && m.role !== '') || !m.geometry?.length)
+        continue;
+      const path = m.geometry.map((g) => snapped({ lat: g.lat, lng: g.lon }));
+      if (path.length >= 2) outers.push(path);
+    }
+    const rings = stitchRings(outers);
+    rings.forEach((ring, i) => {
+      const frame = localFrame({ lat: ring[0]![1], lng: ring[0]![0] });
+      const c = frame.unproject(centroid(ring.map((p) => frame.project({ lat: p[1], lng: p[0] }))));
+      const id = i === 0 ? `osm:r${el.id}` : `osm:r${el.id}:o${i + 1}`;
+      if (!anchor(id, 'landcover', c.lat, c.lng)) return;
+      add(id, 'footprint', ring, OSM_CONFIDENCE.geometry);
+      add(id, 'landcover', cover, OSM_CONFIDENCE.type);
+      add(id, 'name', tags.name, OSM_CONFIDENCE.type);
+      add(id, 'osm.tags', tags, 1);
+    });
   }
 
   /** A landcover polygon: an observed area, never drawn directly, that the

@@ -1,7 +1,7 @@
 {
   "id": "building.basic",
-  "version": "0.3.1",
-  "description": "Any building: extruded footprint, a roof, and a window grid. Uses OSM/capture height, levels, roof and colour Facts when known; otherwise imagines them in the character of the Town (its Essence), its built region's prior, or generic defaults. The region's roof weights speak only where the generic rule would imagine a roof at all (a house under 400 m2, a small yes under 250 m2): a region changes the weights of imagining, never which buildings get imagined, so a large unknown footprint keeps flat or hip (review 2026-10-22 P1 #4).",
+  "version": "0.4.0",
+  "description": "Any building: extruded footprint, a roof, and a window grid. Uses OSM/capture height, levels, roof and colour Facts when known; otherwise imagines them in the character of the Town (its Essence), its built region's prior, or generic defaults. The region's roof weights speak only where the generic rule would imagine a roof at all (a house under 400 m2, a small yes under 250 m2): a region changes the weights of imagining, never which buildings get imagined, so a large unknown footprint keeps flat or hip (review 2026-10-22 P1 #4). 0.4.0 (2026-10-25): buildings whose OSM type is a place of worship take the measured harbour palette where no Fact speaks — pale-blue painted wood walls (#8fb0c2 — the cathedral clapboard of our material studies, at its shade tone so it survives the grade) under a galvanised roof (#8c8c8d) — and flat roofs take the measured membrane greys.",
   "appliesTo": ["building"],
   "geometry": "footprint",
   "ops": [
@@ -80,6 +80,42 @@
                 "param": "type"
               },
               "shed"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "op": "let",
+      "name": "isWorship",
+      "value": {
+        "op": "or",
+        "args": [
+          {
+            "op": "eq",
+            "args": [
+              {
+                "param": "type"
+              },
+              "church"
+            ]
+          },
+          {
+            "op": "eq",
+            "args": [
+              {
+                "param": "type"
+              },
+              "cathedral"
+            ]
+          },
+          {
+            "op": "eq",
+            "args": [
+              {
+                "param": "type"
+              },
+              "chapel"
             ]
           }
         ]
@@ -524,165 +560,16 @@
         "else": {
           "op": "if",
           "cond": {
-            "op": "gt",
-            "args": [
-              {
-                "param": "@essence.palette.count"
-              },
-              0
-            ]
+            "param": "isWorship"
           },
-          "then": {
-            "op": "pick",
-            "options": [
-              {
-                "param": "@essence.palette.0"
-              },
-              {
-                "param": "@essence.palette.1"
-              },
-              {
-                "param": "@essence.palette.2"
-              },
-              {
-                "param": "@essence.palette.3"
-              },
-              {
-                "param": "@essence.palette.4"
-              },
-              {
-                "param": "@essence.palette.5"
-              },
-              {
-                "param": "@essence.palette.6"
-              },
-              {
-                "param": "@essence.palette.7"
-              }
-            ],
-            "weights": [
-              {
-                "op": "if",
-                "cond": {
-                  "op": "gt",
-                  "args": [
-                    {
-                      "param": "@essence.palette.count"
-                    },
-                    0
-                  ]
-                },
-                "then": 8,
-                "else": 0
-              },
-              {
-                "op": "if",
-                "cond": {
-                  "op": "gt",
-                  "args": [
-                    {
-                      "param": "@essence.palette.count"
-                    },
-                    1
-                  ]
-                },
-                "then": 7,
-                "else": 0
-              },
-              {
-                "op": "if",
-                "cond": {
-                  "op": "gt",
-                  "args": [
-                    {
-                      "param": "@essence.palette.count"
-                    },
-                    2
-                  ]
-                },
-                "then": 6,
-                "else": 0
-              },
-              {
-                "op": "if",
-                "cond": {
-                  "op": "gt",
-                  "args": [
-                    {
-                      "param": "@essence.palette.count"
-                    },
-                    3
-                  ]
-                },
-                "then": 5,
-                "else": 0
-              },
-              {
-                "op": "if",
-                "cond": {
-                  "op": "gt",
-                  "args": [
-                    {
-                      "param": "@essence.palette.count"
-                    },
-                    4
-                  ]
-                },
-                "then": 4,
-                "else": 0
-              },
-              {
-                "op": "if",
-                "cond": {
-                  "op": "gt",
-                  "args": [
-                    {
-                      "param": "@essence.palette.count"
-                    },
-                    5
-                  ]
-                },
-                "then": 3,
-                "else": 0
-              },
-              {
-                "op": "if",
-                "cond": {
-                  "op": "gt",
-                  "args": [
-                    {
-                      "param": "@essence.palette.count"
-                    },
-                    6
-                  ]
-                },
-                "then": 2,
-                "else": 0
-              },
-              {
-                "op": "if",
-                "cond": {
-                  "op": "gt",
-                  "args": [
-                    {
-                      "param": "@essence.palette.count"
-                    },
-                    7
-                  ]
-                },
-                "then": 1,
-                "else": 0
-              }
-            ],
-            "key": "colour"
-          },
+          "then": "#8fb0c2",
           "else": {
             "op": "if",
             "cond": {
               "op": "gt",
               "args": [
                 {
-                  "param": "@essence.region.present"
+                  "param": "@essence.palette.count"
                 },
                 0
               ]
@@ -691,37 +578,193 @@
               "op": "pick",
               "options": [
                 {
-                  "param": "@essence.region.wallcolour.0"
+                  "param": "@essence.palette.0"
                 },
                 {
-                  "param": "@essence.region.wallcolour.1"
+                  "param": "@essence.palette.1"
                 },
                 {
-                  "param": "@essence.region.wallcolour.2"
+                  "param": "@essence.palette.2"
                 },
                 {
-                  "param": "@essence.region.wallcolour.3"
+                  "param": "@essence.palette.3"
                 },
                 {
-                  "param": "@essence.region.wallcolour.4"
+                  "param": "@essence.palette.4"
+                },
+                {
+                  "param": "@essence.palette.5"
+                },
+                {
+                  "param": "@essence.palette.6"
+                },
+                {
+                  "param": "@essence.palette.7"
                 }
               ],
-              "weights": [4, 3, 3, 2, 2],
+              "weights": [
+                {
+                  "op": "if",
+                  "cond": {
+                    "op": "gt",
+                    "args": [
+                      {
+                        "param": "@essence.palette.count"
+                      },
+                      0
+                    ]
+                  },
+                  "then": 8,
+                  "else": 0
+                },
+                {
+                  "op": "if",
+                  "cond": {
+                    "op": "gt",
+                    "args": [
+                      {
+                        "param": "@essence.palette.count"
+                      },
+                      1
+                    ]
+                  },
+                  "then": 7,
+                  "else": 0
+                },
+                {
+                  "op": "if",
+                  "cond": {
+                    "op": "gt",
+                    "args": [
+                      {
+                        "param": "@essence.palette.count"
+                      },
+                      2
+                    ]
+                  },
+                  "then": 6,
+                  "else": 0
+                },
+                {
+                  "op": "if",
+                  "cond": {
+                    "op": "gt",
+                    "args": [
+                      {
+                        "param": "@essence.palette.count"
+                      },
+                      3
+                    ]
+                  },
+                  "then": 5,
+                  "else": 0
+                },
+                {
+                  "op": "if",
+                  "cond": {
+                    "op": "gt",
+                    "args": [
+                      {
+                        "param": "@essence.palette.count"
+                      },
+                      4
+                    ]
+                  },
+                  "then": 4,
+                  "else": 0
+                },
+                {
+                  "op": "if",
+                  "cond": {
+                    "op": "gt",
+                    "args": [
+                      {
+                        "param": "@essence.palette.count"
+                      },
+                      5
+                    ]
+                  },
+                  "then": 3,
+                  "else": 0
+                },
+                {
+                  "op": "if",
+                  "cond": {
+                    "op": "gt",
+                    "args": [
+                      {
+                        "param": "@essence.palette.count"
+                      },
+                      6
+                    ]
+                  },
+                  "then": 2,
+                  "else": 0
+                },
+                {
+                  "op": "if",
+                  "cond": {
+                    "op": "gt",
+                    "args": [
+                      {
+                        "param": "@essence.palette.count"
+                      },
+                      7
+                    ]
+                  },
+                  "then": 1,
+                  "else": 0
+                }
+              ],
               "key": "colour"
             },
             "else": {
-              "op": "pick",
-              "options": [
-                "#efe6da",
-                "#e8d9c4",
-                "#d9b99b",
-                "#c98f6d",
-                "#b7c4c9",
-                "#a9b59a",
-                "#d7c6d6"
-              ],
-              "weights": [5, 5, 4, 2, 2, 1, 1],
-              "key": "colour"
+              "op": "if",
+              "cond": {
+                "op": "gt",
+                "args": [
+                  {
+                    "param": "@essence.region.present"
+                  },
+                  0
+                ]
+              },
+              "then": {
+                "op": "pick",
+                "options": [
+                  {
+                    "param": "@essence.region.wallcolour.0"
+                  },
+                  {
+                    "param": "@essence.region.wallcolour.1"
+                  },
+                  {
+                    "param": "@essence.region.wallcolour.2"
+                  },
+                  {
+                    "param": "@essence.region.wallcolour.3"
+                  },
+                  {
+                    "param": "@essence.region.wallcolour.4"
+                  }
+                ],
+                "weights": [4, 3, 3, 2, 2],
+                "key": "colour"
+              },
+              "else": {
+                "op": "pick",
+                "options": [
+                  "#efe6da",
+                  "#e8d9c4",
+                  "#d9b99b",
+                  "#c98f6d",
+                  "#b7c4c9",
+                  "#a9b59a",
+                  "#d7c6d6"
+                ],
+                "weights": [5, 5, 4, 2, 2, 1, 1],
+                "key": "colour"
+              }
             }
           }
         }
@@ -742,37 +785,44 @@
         "else": {
           "op": "if",
           "cond": {
-            "op": "eq",
-            "args": [
-              {
-                "param": "roofShape"
-              },
-              "flat"
-            ]
+            "param": "isWorship"
           },
-          "then": {
-            "op": "pick",
-            "options": ["#9a9a94", "#8a8f8c", "#a8a296"],
-            "key": "roof.colour"
-          },
+          "then": "#8c8c8d",
           "else": {
-            "op": "pick",
-            "options": [
-              {
-                "param": "@essence.region.roofcolour.0"
-              },
-              {
-                "param": "@essence.region.roofcolour.1"
-              },
-              {
-                "param": "@essence.region.roofcolour.2"
-              },
-              {
-                "param": "@essence.region.roofcolour.3"
-              }
-            ],
-            "weights": [4, 3, 2, 2],
-            "key": "roof.colour"
+            "op": "if",
+            "cond": {
+              "op": "eq",
+              "args": [
+                {
+                  "param": "roofShape"
+                },
+                "flat"
+              ]
+            },
+            "then": {
+              "op": "pick",
+              "options": ["#8f9189", "#7e827a", "#a3a69c"],
+              "key": "roof.colour"
+            },
+            "else": {
+              "op": "pick",
+              "options": [
+                {
+                  "param": "@essence.region.roofcolour.0"
+                },
+                {
+                  "param": "@essence.region.roofcolour.1"
+                },
+                {
+                  "param": "@essence.region.roofcolour.2"
+                },
+                {
+                  "param": "@essence.region.roofcolour.3"
+                }
+              ],
+              "weights": [4, 3, 2, 2],
+              "key": "roof.colour"
+            }
           }
         }
       }

@@ -28,13 +28,26 @@ export type RegionPrior = {
   wallColours: readonly string[];
 };
 
-/** Southeast Alaska: the Alexander Archipelago and the panhandle coast. */
+/**
+ * Southeast Alaska: the Alexander Archipelago and the panhandle coast.
+ *
+ * The colours were re-derived 2026-10-25 from the fleet's own reference
+ * corpus — median/dominant colours of our generated material studies
+ * (galvanised roof, asphalt shingle, green metal roof, cedar shingle,
+ * pale-blue clapboard, red-brown siding, white siding, dock planks) checked
+ * against class medians over 314 staged overhead frames. Families, in the
+ * generator's slot order: roofs run galvanised silver, asphalt slate,
+ * green metal, weathered cedar; walls run white siding, the harbour's
+ * pale-blue painted wood, weathered grey wood, red-brown siding, spruce
+ * green. (The studies are ours, generated on the Thor; no third-party
+ * imagery ships in these numbers — the corpus only taught us where to aim.)
+ */
 export const REGION_PRIORS: Record<RegionCode, RegionPrior> = {
   'southeast-alaska': {
     roofWeights: { flat: 1, gable: 5, hip: 1, shed: 2 },
     pitch: { min: 0.38, max: 0.55 },
-    roofColours: ['#5b5f66', '#7a2e2a', '#8c4a3c', '#4f545b'],
-    wallColours: ['#8a4640', '#6d7b8a', '#d9d0bd', '#4f6350', '#8d908c'],
+    roofColours: ['#8c8c8d', '#4f5154', '#48814b', '#7d7168'],
+    wallColours: ['#edeae2', '#a9c3cc', '#8f8a83', '#823739', '#4f6350'],
   },
 };
 

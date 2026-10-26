@@ -117,7 +117,9 @@ const u16 = (hex: string): number[] => {
   return [SRGB_TO_LINEAR_U16[r]!, SRGB_TO_LINEAR_U16[g]!, SRGB_TO_LINEAR_U16[b]!];
 };
 
-const REGION_ONLY_METAL = ['#7a2e2a', '#4f545b'].map(u16);
+// The measured table's metal roofs (galvanised, green metal) — colours the
+// generic list does not carry, so they can only have come from the region.
+const REGION_ONLY_METAL = ['#8c8c8d', '#48814b'].map(u16);
 const PAINTED_WOOD = REGION_PRIORS['southeast-alaska']!.wallColours.map(u16);
 const PASTELS = ['#efe6da', '#e8d9c4', '#d9b99b', '#c98f6d', '#b7c4c9', '#a9b59a', '#d7c6d6'].map(
   u16,
@@ -180,8 +182,8 @@ describe('the regional prior as Essence params', () => {
     expect(p['@essence.region.roof.gable']).toBe(5);
     expect(p['@essence.region.roof.shed']).toBe(2);
     expect(p['@essence.region.pitch.min']).toBe(REGION_PRIORS['southeast-alaska']!.pitch.min);
-    expect(p['@essence.region.roofcolour.0']).toBe('#5b5f66');
-    expect(p['@essence.region.roofcolour.1']).toBe('#7a2e2a');
+    expect(p['@essence.region.roofcolour.0']).toBe('#8c8c8d');
+    expect(p['@essence.region.roofcolour.1']).toBe('#4f5154');
   });
 
   it("carries the pre-region pitch and roof-colour literals in a region's absence", () => {
