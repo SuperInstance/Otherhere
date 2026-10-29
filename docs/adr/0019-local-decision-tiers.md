@@ -127,7 +127,7 @@ They exchange through the **trace journal** — decision logs and observation ha
 
 ## Evidence
 
-Measurements, scripts and the honest negatives are in [`docs/notes/local-decision-models.md`](../notes/local-decision-models.md).
+Measurements, scripts and the honest negatives are in [`docs/notes/local-decision-models.md`](../notes/local-decision-models.md). The tier is exposed to OpenAI-shaped clients through the front door in [ADR-0020](0020-openai-decision-front-door.md).
 
 ## References
 
