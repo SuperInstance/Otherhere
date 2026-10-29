@@ -73,6 +73,12 @@ Re-run with the minimal fit (3 runs per column, correct out of 31):
 - **B is not perfectly reproducible.** On raw photos one answer flipped in one of three runs. Across both re-runs B moved by 1 field-answer in 1 of 4 column sets, against A's 3–5 in every set. B is far steadier than A, but a single B reading near a threshold is still a sample (next section).
 - A's two columns again differ by less than A's own spread.
 
+### Cross-check from the local-tiers harness (2026-10-28)
+
+[ADR-0019](0019-local-decision-tiers.md) runs cloud Jev as one arm of a six-way comparison on the same photos, with every arm seeing byte-identical image data. Its first run reproduced the **"B, raw photo"** row exactly — 21/31 with `p03` refused — because the harness sized images by their long side, which put `p03`'s short side under the 280 px floor measured above. Sizing so that every side clears 280 gives **26/31, which is the "B, fitted" figure recorded here**, at a median 288 ms per photo pack.
+
+So the 67.7% in that first run was never a property of Jev; it was the harness breaking the rule this ADR had already measured and written down. The harness now sizes to the floor and prints any failed call with its reason.
+
 ### What reproducibility does and does not buy
 
 A separate measurement on another project asked Jev the same question about the same document five times, for nine claims: no verdict flipped, but scores moved by up to 0.02, and the claim that moved most sat right at its 0.9 threshold. "B is identical on every run" holds for these photos at these confidences. It does not mean a single reading near a threshold is firm. So:

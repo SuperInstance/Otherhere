@@ -34,7 +34,7 @@ All four answer in Jev's exact shapes — `{ type: 'noul', noul }`, `{ type: 'ch
 
 **"Flash" means different things in the two families, and that is the whole story.** Cloudflare's `clef-flash` is 9B — "flash" meaning three times smaller than `clef` (27B). Liquid's smallest is 587M — fifteen times smaller than `d1-3B`. On this box the bottleneck is **backbone prefill**, which scales with parameter count, so the naming does not transfer: the Liquid model with the smallest number in its name is the one that wins.
 
-**The local tier is worth having because it is _free_, _deterministic_, and — measured on our own packs — at least as accurate as the cloud arm.** See the accuracy section below. What that changes is that a local rung can be consulted _first, always_, so the cloud rung only has to be right when the local one is unsure.
+**The local tier is worth having because it is _free_ and _reproducible_, and — measured on our own packs — close to the cloud arm.** Local clef-flash ties cloud Jev on text (both 100%) and leads it on photos by one answer (87.1% against 83.9%), at $0 against $0.0006 a run. `d1-2B` is within one answer of cloud Jev on text (98.4%) and behind it on photos (71.0%). See the accuracy section below. What that changes is that a local rung can be consulted _first, always_, so the cloud rung only has to be right when the local one is unsure.
 
 ## A pack is not one pass
 
@@ -65,7 +65,10 @@ Same pack, same model, one image at three sizes:
 | 2,050 px (3.4 M px) | 7.8 k  | —              | 2,795 ms | —            |
 
 A full-resolution frame is unusable: **2.8 s**. The same photo at 320 px is 203 ms on `d1-3B`. Any local vision tier needs its own size cap, lower than the cloud's. `JEV_IMAGE_SIDE` in `packages/core/src/capture/image.ts` allows sides up to 1,568 px, which is right for cloud Jev and far too slow for a local model.
-_In code:_ nothing yet — the local path needs its own fit function, not `fitForJev`.
+
+**The cloud bound is a floor as well as a ceiling.** Jev accepts an image only when **every** side is inside 280–1,568 px (re-measured 2026-10-28 against the live API: 279 px is rejected, 280 px is accepted — see the accuracy section). The local models have no such floor, so an image that is fine locally can be refused by the cloud. Any image that has to satisfy both has to carry its short side over 280, which for a wide panorama means raising the long side rather than cropping. Getting this wrong is not a small error: it silently scored the cloud arm zero on a five-answer case.
+
+_In code:_ the local path still needs its own fit function, not `fitForJev` — but it must respect the same 280 px floor if the same bytes are to go to both.
 
 **A decision model reads images correctly, not just tokens.** Asked to classify a contact sheet of 3D renders, `clef-flash` returned `kind: 'render'` at 0.98 confidence and `is_grid: 0.94`; `d1-3B` on the same image returned `render` at 0.98, `is_grid: 0.89`, and a count of "21+" at 0.84. The semantics are sound. Only the latency was wrong.
 
@@ -105,7 +108,7 @@ The provider's default base URL stays `http://127.0.0.1:8095`, because the agent
 
 **A local decision model is not bit-reproducible.** Quantization changes logits, so the same pack can answer differently across builds of the same model. That is fine for an advisory rung and fatal inside a deterministic sim (invariant 2), which is why the decision rung stays outside the core and its answers are recorded rather than assumed.
 
-**Local clef-flash is not off-line, and it is the best model on the box.** It was live at `thor.local:8096` the whole time this was measured. It scores highest of any arm on both evals (100% text, 87.1% photo) at zero cost. It is kept out of the _reflex_ tier only because 1.1 s per pack is too slow for a per-tick decision — not because it is worse. It is the right choice when the answer must be right, and for offline labelling, evals and checking the fast tier.
+**Local clef-flash is not off-line, and it is the best model on the box.** It was live at `thor.local:8096` the whole time this was measured. It scores highest of any arm on both evals — 100% text, 87.1% photo — at zero cost. It is kept out of the _reflex_ tier only because 1.1 s per pack is too slow for a per-tick decision — not because it is worse. On text it ties cloud Jev at 100%; on photos it leads by one answer, which is noise at this sample size. It is the right choice when the answer must be right, and for offline labelling, evals and checking the fast tier.
 
 ## Accuracy on the fixed judge
 
@@ -117,43 +120,88 @@ MODE=photo RUNS=2 pnpm --filter @otherhere/judge exec tsx scripts/local-vs-cloud
 ```
 
 - **text** — `building-observations.v1`, 14 cases, **62** labelled field-answers. The model reads a written observation.
-- **photo** — `building-photos.v1`, 10 photos, **31** labelled field-answers. The model reads the photo. Every arm saw **byte-identical image data** (one 512 px fit), so the only variable was the model.
+- **photo** — `building-photos.v1`, 10 photos, **31** labelled field-answers. The model reads the photo. Every arm saw **byte-identical image data**, so the only variable was the model.
+
+Both tables below are one measurement set: same day, same harness, two runs per arm, **six arms**, **zero failed calls**.
 
 ### Text — 62 answers
 
-| arm                      | score      | accuracy  | median     | cost/run  | spread |
-| ------------------------ | ---------- | --------- | ---------- | --------- | ------ |
-| `local-omni`             | 42/62      | 67.7%     | 61 ms      | $0        | 0      |
-| **`local-2b`**           | **61/62**  | **98.4%** | 147 ms     | $0        | 0      |
-| `local-3b`               | 58/62      | 93.5%     | 217 ms     | $0        | 0      |
-| **`local-clef`**         | **62/62**  | **100%**  | 945 ms     | $0        | 0      |
-| _cloud-llm (MiniMax-M3)_ | _60–61/62_ | _97.6%_   | _2,658 ms_ | _$0.0076_ | _1_    |
+| arm                      | score     | accuracy | median     | cost/run | spread | errors |
+| ------------------------ | --------- | -------- | ---------- | -------- | ------ | ------ |
+| `local-omni`             | 41/62     | 66.1%    | 78 ms      | $0       | 0      | 0      |
+| `local-2b`               | 61/62     | 98.4%    | 189 ms     | $0       | 0      | 0      |
+| `local-3b`               | 58/62     | 93.5%    | 240 ms     | $0       | 0      | 0      |
+| **`local-clef`**         | **62/62** | **100%** | 965 ms     | $0       | 0      | 0      |
+| **`cloud-jev`**          | **62/62** | **100%** | **114 ms** | $0.0006  | 0      | 0      |
+| `cloud-llm` (MiniMax-M3) | 61–62/62  | 99.2%    | 3,705 ms   | $0.0075  | 1      | 0      |
 
 ### Photo — 31 answers
 
-| arm                      | score      | accuracy  | median      | cost/run  | spread |
-| ------------------------ | ---------- | --------- | ----------- | --------- | ------ |
-| `local-omni`             | 3/31       | 9.7%      | 274 ms      | $0        | 0      |
-| `local-2b`               | 22/31      | 71.0%     | 478 ms      | $0        | 0      |
-| `local-3b`               | 21/31      | 67.7%     | 571 ms      | $0        | 0      |
-| **`local-clef`**         | **27/31**  | **87.1%** | 1,136 ms    | $0        | 0      |
-| _cloud-llm (MiniMax-M3)_ | _25–26/31_ | _82.3%_   | _14,067 ms_ | _$0.0229_ | _1_    |
+| arm                      | score     | accuracy   | median     | cost/run | spread | errors |
+| ------------------------ | --------- | ---------- | ---------- | -------- | ------ | ------ |
+| `local-omni`             | 4/31      | 12.9%      | 287 ms     | $0       | 0      | 0      |
+| `local-2b`               | 22/31     | 71.0%      | 463 ms     | $0       | 0      | 0      |
+| `local-3b`               | 21/31     | 67.7%      | 576 ms     | $0       | 0      | 0      |
+| **`local-clef`**         | **27/31** | **87.1%**  | 1,048 ms   | $0       | 0      | 0      |
+| **`cloud-jev`**          | 26/31     | 83.9%      | **288 ms** | $0.0007  | 0      | 0      |
+| `cloud-llm` (MiniMax-M3) | 20–23/31  | 64.5–74.2% | 17,926 ms  | $0.0233  | 1–2    | 0      |
 
-Spread is the difference between the best and worst of two runs. Every local model was identical run to run; the cloud arm moved by one answer.
+Spread is the difference between the best and worst of two runs. Latency is the median of the
+idle-box run; a second run with a build on the machine gave the same scores with medians 20–30%
+higher, so the local numbers above are the idle ones.
+
+**Reproducibility, measured across two independent invocations of the whole harness.** The four
+local models and cloud Jev returned **exactly** the same scores every time — 4, 22, 21, 27 and 26
+on photos, and 41, 61, 58 and 62 with cloud Jev's 62 on text. The cloud LLM did not: 23/22 on
+photos in one invocation and 20/21 in the other, and 61/62 on text. One cloud Jev run outside
+those two invocations returned 25/31 on photos. **A cloud reading is a sample; a local reading is
+a fact.**
+
+### The cloud Jev photo arm was wrong before, and it was the harness
+
+The first run of this comparison reported cloud Jev at **21/31 (67.7%)** on photos with **two failed calls**. Both failures were the same case:
+
+```
+error: jev: rejected (HTTP 400) {"detail":{"error_type":"api_usage_error","message":"Invalid image dimensions."}}
+```
+
+**Not a transport failure, and not the model's fault.** `p03` is a 600×242 panorama. The harness sized images by their **long** side (512 px), which made `p03` 512×**207** — and the cloud Jev API refuses any image whose **every side** is not inside 280–1,568 px. The repo already knew this: `JEV_IMAGE_SIDE` in `packages/core/src/capture/image.ts`, measured on 2026-10-18 in [ADR-0013](../adr/0013-question-packs-speak-jev.md). The harness was violating the repo's own rule, so the cloud arm was scored zero on a five-answer case for a reason that had nothing to do with Jev.
+
+The fix keeps **both** bounds at once — the long side is raised when the short side would otherwise fall under 280, rather than cropping:
+
+```
+shared image (same bytes for every arm): p01=512x383  p02=512x512  p03=695x280  p04=414x512
+                                        p05=512x383  p06=512x383  p07=347x512  p08=512x341
+                                        p09=512x512  p10=512x429
+```
+
+`p03` becomes 695×280 — a mild 1.16× upscale, **no crop**, the whole panorama preserved. The cloud arm then answers it perfectly (5/5), and cloud Jev moves from 21/31 to **26/31**.
+
+**The corrected 26/31 = 83.9% is the number ADR-0013 already recorded** for Jev reading the photo directly with a fitted image ("B, fitted", 26/26/26 across three runs). The harness had drifted below the measurement the repo was already standing on; this run puts it back.
+
+The floor was re-measured against the live API on 2026-10-28, independently of ADR-0013's 150-size bisection — `~/d1-lab/probe_jev_image_floor.py`:
+
+| side   | 200 px | 256 px | 272 px | 279 px | **280 px** | 281 px | 288 px | 512 px |
+| ------ | ------ | ------ | ------ | ------ | ---------- | ------ | ------ | ------ |
+| result | 400    | 400    | 400    | 400    | **200**    | 200    | 200    | 200    |
+
+**280 px exactly.** The rule in `JEV_IMAGE_SIDE` is correct as written.
 
 ### What the numbers say
 
-- **Fast and wrong are not opposites.** `d1-omni-600M` answers in 61 ms and gets 67.7% on text and **9.7% on photos**. It is the fastest model on the box and the worst one on the vision path. Latency and accuracy came apart completely.
-- **The local flash model beats the cloud arm.** `clef-flash` scores highest on both evals — 100% and 87.1% — while being 3× faster on text and **12× faster** on photos, and free.
-- **`d1-2B` is the reflex.** 98.4% on text at 147 ms ≈ 7 Hz, ample for a setpoint the 60 Hz core interpolates toward. `d1-3B` is both slower and less accurate here (93.5% at 217 ms).
-- **Local is deterministic, the cloud is not.** Spread 0 for every local model, 1 answer for the cloud LLM.
+- **Fast and wrong are not opposites.** `d1-omni-600M` answers in 78 ms and gets 66.1% on text and **12.9% on photos**. It is the fastest model on the box and the worst one on the vision path. Latency and accuracy came apart completely.
+- **The cloud Jev is the fastest _perfect_ answerer we have on text.** 62/62 at 114 ms — 8.5× faster than local clef-flash, 1.7× faster than `d1-2B`, and 33× faster than the cloud LLM. It costs $0.0006 a run, and it needs a key and a network; that is the whole of the difference.
+- **Local clef-flash is the accuracy champion, by one answer on photos.** 100% on text and 87.1% on photos, against cloud Jev's 100% and 83.9%. **On text they are tied.** On photos the gap is 27 against 26 — one answer, and `model-field-notes.md` is explicit that one answer is noise. Local clef-flash is also **3.6× slower** than cloud Jev on photos (1,048 ms against 288 ms).
+- **`d1-2B` is the reflex.** 98.4% on text at 189 ms ≈ 5 Hz, ample for a setpoint the 60 Hz core interpolates toward. `d1-3B` is both slower and less accurate here (93.5% at 240 ms).
+- **Local is deterministic _within_ a run; the smallest model is not perfectly reproducible across runs.** Every local model gave identical answers across the two runs of a single invocation, and `d1-2B`, `d1-3B` and `clef-flash` were identical across two _separate_ invocations too. But `d1-omni-600M` scored 42/62 in one invocation and 41/62 in another — one case (`b06`) flipped. The likeliest cause is llama.cpp's batched GPU reductions, whose float order depends on how the prompt was split, which perturbs a near-tie in the smallest model. **The fastest model is also the least numerically stable.**
+- **The cloud LLM is the noisiest arm, and cloud Jev is not perfectly reproducible either.** The cloud LLM moved by one answer on text and up to three on photos between invocations. Cloud Jev gave the same 26/31 twice in a row on photos but gave 25/31 on a separate run. Every local model gave identical answers every time. **A cloud reading is a sample; a local reading is a fact you can cache and diff.**
 
 ### The honest limits of this comparison
 
-- **Cloud Jev was not run.** There is no `TYPESAFE_AI_TOKEN` on this machine. The Jev numbers in `model-field-notes.md` (62/62 on the text eval; 67.7% raw and 83.9% crop-and-upscale on photos) are a **recorded measurement from an earlier session**, not a side-by-side run today. The cloud arm here is MiniMax-M3, a general LLM answering the pack through `llmRung`, not a decision model.
-- **31 and 62 answers are small sets.** `model-field-notes.md` is explicit that one to two answers is noise. The 42 → 61 gap on text is 19 answers and is real. The 61 → 62 gap between `d1-2B` and `clef-flash` is **one answer and is not**. Treat them as tied.
+- **31 and 62 answers are small sets.** `model-field-notes.md` is explicit that one to two answers is noise. The 41 → 61 gap on text is 20 answers and is real. The 26 → 27 gap between cloud Jev and `clef-flash` on photos is **one answer and is not**. Treat them as tied.
 - **Two packs, one domain.** Street-level building descriptions in Sitka. Nothing here says a local decision model beats a cloud one in general.
-- **Preprocessing differs from the historical numbers.** The local arms saw a uniform 512 px fit. The recorded Jev photo numbers used `fitForJev` (centre crop, 280–1,568 px). Those are not the same bytes, so the photo comparison against the _recorded_ Jev numbers is indicative, not exact. The comparison against today's `cloud-llm` arm is exact — every arm saw identical bytes.
+- **The local arms and the cloud arm do not get the same _preprocessing_ in production.** Here they get the same bytes, which is what makes the comparison fair. In production the cloud path uses `fitForJev` (crop past 5.6:1, scale into 280–1,568 px) and the local path should use its own smaller fit. The numbers above are about the models, not about the production fits.
+- **The cloud arms were paid for.** `cloud-jev` at $0.0006–0.0007 a run and `cloud-llm` at $0.0075–0.0233. The local arms are $0 and are on the box.
 
 ## Reproduction
 
@@ -175,11 +223,11 @@ The upstream build lives in `~/llama.cpp-upstream/` (a git worktree of `origin/m
 
 ## Models on the Thor
 
-| path                     | size   | what                                           |
-| ------------------------ | ------ | ---------------------------------------------- |
-| `~/models/d1-omni-600M/` | 639 MB | **the local flash tier**                       |
-| `~/models/d1-2B/`        | 2.0 GB | second fastest; needs the upstream build       |
-| `~/models/d1-3B/`        | 3.3 GB | the decision tier with vision                  |
-| `~/models/clef-flash/`   | 7.1 GB | strongest answers; offline work, not real time |
+| path                     | size   | what                                            |
+| ------------------------ | ------ | ----------------------------------------------- |
+| `~/models/d1-omni-600M/` | 639 MB | fastest on the box; triage gate only            |
+| `~/models/d1-2B/`        | 2.0 GB | **the reflex tier** — needs the upstream build  |
+| `~/models/d1-3B/`        | 3.3 GB | the decision tier with vision                   |
+| `~/models/clef-flash/`   | 7.1 GB | strongest answers; too slow for a per-tick loop |
 
 Fetch scripts: `~/fetch-liquid-d1.sh` and `~/fetch-clef-flash.sh`, both logging to `~/cold-librarian-run.log`. The clef weights were verified by sha256 against the Hugging Face metadata before serving.

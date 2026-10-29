@@ -22,7 +22,7 @@
 // Text mode asks about a written observation; photo mode asks about the photo itself.
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { BUILDING_PACK, type Answers } from '@otherhere/core';
+import { BUILDING_PACK, fitForShared, type Answers } from '@otherhere/core';
 import {
   ChatProvider,
   JevProvider,
@@ -118,21 +118,47 @@ const PIL = (script: string, ...args: string[]): string =>
 const save = 'b=io.BytesIO();im.save(b,"JPEG",quality=90);sys.stdout.buffer.write(b.getvalue())';
 
 /**
- * The image every arm sees: a long side of LOCAL_SIDE.
+ * The image every arm sees.
  *
  * Deliberately the SAME bytes for every arm, so the only variable is the model.
- * (Jev's own path uses `fitForJev` — a centre crop into 280–1568 px — so a Jev arm
- * would need its own run to compare against the historical numbers in
- * `model-field-notes.md`. Identical bytes is what makes today's arms comparable
- * to each other.)
+ *
+ * Both bounds must hold at once, and they fight each other:
+ *   - the LOCAL arms want a small image (a long side near LOCAL_SIDE), because
+ *     local vision cost scales with pixels: 320 px ≈ 95 ms, 2,050 px ≈ 2.8 s;
+ *   - the CLOUD arm needs every side inside 280–1,568 px, or the API refuses
+ *     the image outright with HTTP 400 "Invalid image dimensions"
+ *     (JEV_IMAGE_SIDE, packages/core/src/capture/image.ts).
+ *
+ * Sizing the long side alone breaks the second rule for panoramic frames: a
+ * 600×242 photo resized to a 512 long side is 512×207, and the short side falls
+ * under 280. The cloud then rejects the image and the arm is scored zero for a
+ * reason that has nothing to do with the model.
+ *
+ * `fitForShared` in `@otherhere/core` is the rule — it raises the long side when
+ * the short side would fall under the floor, and never crops to satisfy the local
+ * cap. It is unit-tested in packages/core/test/capture-image.test.ts.
  */
-const localSized = (path: string): string =>
+const sourceSize = (path: string): { width: number; height: number } => {
+  const out = execFileSync('python3', [
+    '-I',
+    '-c',
+    'import sys;from PIL import Image;print(*Image.open(sys.argv[1]).size)',
+    path,
+  ])
+    .toString()
+    .trim();
+  const [w, h] = out.split(/\s+/).map(Number);
+  return { width: w!, height: h! };
+};
+
+const resized = (path: string, width: number, height: number): string =>
   PIL(
-    'im=Image.open(sys.argv[1]).convert("RGB");w,h=im.size;k=min(1,float(sys.argv[2])/max(w,h));' +
-      'im=im.resize((max(1,round(w*k)),max(1,round(h*k))));' +
+    'im=Image.open(sys.argv[1]).convert("RGB");' +
+      'im=im.resize((int(sys.argv[2]),int(sys.argv[3])));' +
       save,
     path,
-    String(LOCAL_SIDE),
+    String(width),
+    String(height),
   );
 
 type Case = {
@@ -147,6 +173,8 @@ type Case = {
   state: string;
   /** The SAME bytes for every arm, so the only variable is the model. */
   image?: string;
+  /** Pixel size of the shared image, for the log. */
+  size?: string;
 };
 
 let cases: Case[];
@@ -157,13 +185,19 @@ if (MODE === 'text') {
   const photos = parsePhotos(readFileSync(new URL('building-photos.v1.jsonl', root), 'utf8'));
   cases = photos.map((p) => {
     const path = new URL(p.image, root).pathname;
+    const src = sourceSize(path);
+    const fit = fitForShared(src.width, src.height, LOCAL_SIDE);
     return {
       id: p.id,
       expected: p.expected,
       state: VISION_PROMPT,
-      image: localSized(path),
+      image: resized(path, fit.width, fit.height),
+      size: `${fit.width}x${fit.height}`,
     };
   });
+  console.log(
+    `shared image (same bytes for every arm): ${cases.map((c) => `${c.id}=${c.size}`).join('  ')}\n`,
+  );
 }
 
 // ── run ─────────────────────────────────────────────────────────────────────
@@ -176,7 +210,7 @@ async function attempt(arm: Arm, c: Case): Promise<Outcome> {
     const r = await arm.ask(c.state, image);
     return { score: scoreCase(c, r.answers), ms: Date.now() - t0, costUsd: r.costUsd };
   } catch (err) {
-    const why = `error: ${(err as Error).message.slice(0, 120)}`;
+    const why = `error: ${(err as Error).message.slice(0, 400)}`;
     // A failed call scores zero on the same denominator: it is a real failure of that arm.
     return {
       score: { ...scoreCase(c, null), misses: [why] },
@@ -236,4 +270,22 @@ for (const [i, c] of cases.entries()) {
     return `${arm.name}=${o.score.correct}/${o.score.total}`;
   });
   console.log(`  ${c.id.padEnd(6)} ${parts.join('  ')}`);
+}
+
+// A failed call is not a wrong answer, it is a dead arm: it must be visible.
+// The score above already counts it as zero; this prints WHY, so a transport
+// failure is never mistaken for a wrong judgement.
+const failures = arms.flatMap((arm) =>
+  results
+    .get(arm.name)!
+    .flatMap((run, r) => run.map((o, i) => ({ arm: arm.name, run: r + 1, case: cases[i]!.id, o })))
+    .filter((f) => f.o.error),
+);
+if (failures.length) {
+  console.log(`\nfailed calls (${failures.length}) — each scored zero on the same denominator:`);
+  for (const f of failures) {
+    console.log(`  ${f.arm.padEnd(12)} run ${f.run}  ${f.case.padEnd(6)} ${f.o.error}`);
+  }
+} else {
+  console.log('\nfailed calls: none');
 }
