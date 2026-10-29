@@ -10,6 +10,7 @@ import {
 } from '@otherhere/core';
 import { BudgetExceeded, ProviderUnavailable } from './router';
 import { JevRejected, type JevProvider } from './providers/jev';
+import type { LocalDecisionProvider } from './providers/local';
 import type { ChatProvider } from './providers/chat';
 import type { ClaudeProvider } from './providers/claude';
 
@@ -110,6 +111,28 @@ export function jevRung(jev: JevProvider): LadderRung {
     rung: 'jev',
     async decide(req) {
       const r = await jev.ask(req.pack, req.state);
+      return { answers: r.value, confidence: packConfidence(r.value), costUsd: r.costUsd };
+    },
+  };
+}
+
+/**
+ * A local decision model: the same System One protocol as Jev, served from
+ * this machine, free per call.
+ *
+ * It sits on the reserved `distilled` rung, between the deterministic rules
+ * and the cloud. On a Jetson AGX Thor, `d1-omni-600M` answers a
+ * three-question pack in 16–38 ms against ~334 ms from cloud Jev, and it
+ * costs nothing per call — so it is the rung worth asking first.
+ *
+ * Local answers are advisory. Nothing a rung returns reaches Bundle bytes on
+ * its own (invariant 2); see ADR-0019.
+ */
+export function localRung(local: LocalDecisionProvider): LadderRung {
+  return {
+    rung: 'distilled',
+    async decide(req) {
+      const r = await local.ask(req.pack, req.state);
       return { answers: r.value, confidence: packConfidence(r.value), costUsd: r.costUsd };
     },
   };

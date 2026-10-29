@@ -52,6 +52,13 @@ export const Answer = z.discriminatedUnion('type', [
     score: z.number(),
     confidence: z.number().min(0).max(1),
     probabilities: z.record(z.string(), z.number()).optional(),
+    /**
+     * The level scale, keyed by level index. Jev and the local models both
+     * send it; without it a reader cannot tell what a score of 1.2 means.
+     */
+    legend: z
+      .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+      .optional(),
   }),
 ]);
 export type Answer = z.infer<typeof Answer>;
