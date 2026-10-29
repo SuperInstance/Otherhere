@@ -35,6 +35,27 @@ The sketch is the starting point, not the product.
 
 **Filmed walks.** Give the game a phone video and the GPS track of the same walk, and it samples frames along your route, works out which building you were facing, and runs each frame through the same photo pipeline. Buildings you passed sharpen.
 
+## Real places, real meshes
+
+A fact sharpens a building. A **capture** replaces it outright.
+
+Give the game one photograph of a building and a machine on the other side of the LAN turns it
+into a real 3D model — one photograph in, a textured mesh out, in about half a minute. That
+mesh is a tier of the capture: fetched by its hash, verified before it is parsed, and drawn in
+the building's own frame. Walk up to it and you get the true capture, a gaussian field filmed
+from the street; walk away and the mesh takes over — far smaller in bytes, and honest about
+the fact that it only saw one side.
+
+The same lane takes a street photograph and rebuilds the _place_: the depth map becomes
+geometry, the photograph is painted onto it vertex by vertex, and the result is a backdrop you
+can stand in front of. It is not a reconstruction of what is behind the camera, and the docs
+say so.
+
+Both halves are measured, not asserted — [ADR-0023](docs/adr/0023-the-client-gains-a-model-tier.md)
+and [ADR-0024](docs/adr/0024-a-generated-tier-is-framed-into-its-capture.md) record what was
+built and what it does not do, and [`docs/proart-handoff.md`](docs/proart-handoff.md) is the
+map of the two machines for anyone working on the renderer.
+
 ## Postcards and baked places
 
 While walking a place, **Save a postcard**: you get a link holding a snapshot of the facts of the seven cells around you. Whoever opens it rebuilds the place in their own browser from that snapshot — the same town, byte for byte, a year later, with no server in the loop.
