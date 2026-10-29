@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDING_PACK, type Answers, type DecisionLog, type LadderRung } from '@otherhere/core';
-import { Ladder, humanRung, llmRung, ruleRung } from '../src/ladder';
+import { Ladder, humanRung, llmRung, localRung, ruleRung } from '../src/ladder';
 import { observeBuilding } from '../src/observe';
 import { BudgetExceeded, MemoryLedger, ModelRouter, ProviderUnavailable } from '../src/router';
 import { ChatProvider } from '../src/providers/chat';
 import { JevProvider, JevRejected } from '../src/providers/jev';
+import { LocalDecisionProvider } from '../src/providers/local';
 
 const sure: Answers = {
   visible: { type: 'noul', noul: 0.98 },
@@ -250,5 +251,66 @@ describe('observeBuilding visibility gate', () => {
     });
     expect(obs.gate).toMatchObject({ skipped: 'refused' });
     expect(obs.facts.length).toBe(4);
+  });
+
+  it('takes the local decision model first and never reaches the cloud', async () => {
+    const logs: DecisionLog[] = [];
+    let cloudCalls = 0;
+    const local = new LocalDecisionProvider({
+      baseUrl: 'http://127.0.0.1:8095',
+      fetch: async () =>
+        Response.json({
+          model: 'd1-omni-600M',
+          answers: sure,
+          usage: { input_tokens: 210, output_tokens: 0 },
+        }),
+    });
+    const ladder = new Ladder(
+      [
+        localRung(local),
+        {
+          rung: 'jev',
+          decide: async () => {
+            cloudCalls++;
+            return { answers: sure, confidence: 0.9, costUsd: 0.001 };
+          },
+        },
+      ],
+      { log: (d) => void logs.push(d) },
+    );
+    const r = await ladder.decide(req);
+    expect(r).toMatchObject({ rung: 'distilled', accepted: true });
+    expect(r!.decision.costUsd).toBe(0);
+    expect(cloudCalls).toBe(0);
+    expect(logs.map((l) => l.rung)).toEqual(['distilled']);
+  });
+
+  it('escalates to the cloud when the local model is unsure', async () => {
+    const local = new LocalDecisionProvider({
+      baseUrl: 'http://127.0.0.1:8095',
+      fetch: async () =>
+        Response.json({
+          model: 'd1-omni-600M',
+          answers: unsure,
+          usage: { input_tokens: 210, output_tokens: 0 },
+        }),
+    });
+    const ladder = new Ladder([localRung(local), fixed('jev', sure)], { log: () => {} });
+    expect(await ladder.decide(req)).toMatchObject({ rung: 'jev', accepted: true });
+  });
+
+  it('skips the local rung when the local server is unreachable', async () => {
+    const logs: DecisionLog[] = [];
+    const local = new LocalDecisionProvider({
+      baseUrl: 'http://127.0.0.1:1',
+      fetch: async () => {
+        throw new Error('ECONNREFUSED');
+      },
+    });
+    const ladder = new Ladder([localRung(local), fixed('jev', sure)], {
+      log: (d) => void logs.push(d),
+    });
+    expect(await ladder.decide(req)).toMatchObject({ rung: 'jev', accepted: true });
+    expect(logs[0]).toMatchObject({ rung: 'distilled', outcome: 'unavailable' });
   });
 });
