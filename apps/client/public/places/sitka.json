@@ -11854,6 +11854,12 @@
               "hash": "2e40455358c28203185ef0b3b0b37f6c7d8237bfd3321ff3dbb88e282152088c",
               "bytes": 26360,
               "contentType": "image/webp"
+            },
+            "model": {
+              "path": "assets/st-michaels-cathedral/1.0.0/model.glb",
+              "hash": "bdc6919d18894947d008b9ceac9c1f3ccd18fd4c896ea648ba6456e8238f87a8",
+              "bytes": 169132,
+              "contentType": "model/gltf-binary"
             }
           },
           "params": {
