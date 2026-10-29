@@ -34,7 +34,7 @@ All four answer in Jev's exact shapes — `{ type: 'noul', noul }`, `{ type: 'ch
 
 **"Flash" means different things in the two families, and that is the whole story.** Cloudflare's `clef-flash` is 9B — "flash" meaning three times smaller than `clef` (27B). Liquid's smallest is 587M — fifteen times smaller than `d1-3B`. On this box the bottleneck is **backbone prefill**, which scales with parameter count, so the naming does not transfer: the Liquid model with the smallest number in its name is the one that wins.
 
-**The local tier is worth having because it is _free_, not because it is better.** We have not compared local and cloud accuracy on the same packs (see the honest negatives). What changes without that comparison is that a local rung can be consulted _first, always_, so the cloud rung only has to be right when the local one is unsure.
+**The local tier is worth having because it is _free_, _deterministic_, and — measured on our own packs — at least as accurate as the cloud arm.** See the accuracy section below. What that changes is that a local rung can be consulted _first, always_, so the cloud rung only has to be right when the local one is unsure.
 
 ## A pack is not one pass
 
@@ -101,11 +101,59 @@ The provider's default base URL stays `http://127.0.0.1:8095`, because the agent
 
 **The Cloudflare weights ship as transformers with custom code, not GGUF.** `Cloudflare/clef-flash` is `Qwen3_5ForConditionalGeneration` plus a separate `joint_head.safetensors` (243 MB) and `joint_schema_model.py` — 18.8 GB of BF16 with a `transformers`-only loading path. The official Cloudflare recipe is SGLang in Docker (`lmsysorg/sglang:dev-clef`). It is servable by llama.cpp only because the llama.cpp org converted it (`ggml-org/Clef-Flash-GGUF`, Apache-2.0, `decision_type: clef` in the GGUF metadata). The local path depends on a conversion, not on Cloudflare's own artefacts.
 
-**We have not compared local and cloud accuracy on the same packs.** Everything above is latency, shape and cost. Whether `d1-omni-600M` at 15 ms is as good as Jev at 334 ms on our question packs is open, and `docs/notes/model-field-notes.md` is explicit that one to two answers on a small set is noise. Nothing here claims the local model is better; it claims the local model is cheap enough to _always_ be available, which changes what a ladder can do even if its accuracy is a little lower.
+**We compared local and cloud accuracy on the same packs.** See the accuracy section below. The cloud arm turned out not to be the ceiling.
 
 **A local decision model is not bit-reproducible.** Quantization changes logits, so the same pack can answer differently across builds of the same model. That is fine for an advisory rung and fatal inside a deterministic sim (invariant 2), which is why the decision rung stays outside the core and its answers are recorded rather than assumed.
 
-**Local clef-flash is still worth keeping on the box.** Its answers were the most confident of any model here, and at 387 ms for a three-question pack it is perfectly usable for offline work — labelling datasets, running the evals, checking the flash tier against a stronger model. It is simply not a real-time tier on a Thor.
+**Local clef-flash is not off-line, and it is the best model on the box.** It was live at `thor.local:8096` the whole time this was measured. It scores highest of any arm on both evals (100% text, 87.1% photo) at zero cost. It is kept out of the _reflex_ tier only because 1.1 s per pack is too slow for a per-tick decision — not because it is worse. It is the right choice when the answer must be right, and for offline labelling, evals and checking the fast tier.
+
+## Accuracy on the fixed judge
+
+Latency alone does not say which model should answer a pack. We ran the **same packs through the same fixed judge** (`packages/judge/src/score.ts`, invariant 6 — the judge was not modified), changing only who answers. Harness: `packages/judge/scripts/local-vs-cloud.ts`.
+
+```bash
+MODE=text  RUNS=2 pnpm --filter @otherhere/judge exec tsx scripts/local-vs-cloud.ts
+MODE=photo RUNS=2 pnpm --filter @otherhere/judge exec tsx scripts/local-vs-cloud.ts
+```
+
+- **text** — `building-observations.v1`, 14 cases, **62** labelled field-answers. The model reads a written observation.
+- **photo** — `building-photos.v1`, 10 photos, **31** labelled field-answers. The model reads the photo. Every arm saw **byte-identical image data** (one 512 px fit), so the only variable was the model.
+
+### Text — 62 answers
+
+| arm                      | score      | accuracy  | median     | cost/run  | spread |
+| ------------------------ | ---------- | --------- | ---------- | --------- | ------ |
+| `local-omni`             | 42/62      | 67.7%     | 61 ms      | $0        | 0      |
+| **`local-2b`**           | **61/62**  | **98.4%** | 147 ms     | $0        | 0      |
+| `local-3b`               | 58/62      | 93.5%     | 217 ms     | $0        | 0      |
+| **`local-clef`**         | **62/62**  | **100%**  | 945 ms     | $0        | 0      |
+| _cloud-llm (MiniMax-M3)_ | _60–61/62_ | _97.6%_   | _2,658 ms_ | _$0.0076_ | _1_    |
+
+### Photo — 31 answers
+
+| arm                      | score      | accuracy  | median      | cost/run  | spread |
+| ------------------------ | ---------- | --------- | ----------- | --------- | ------ |
+| `local-omni`             | 3/31       | 9.7%      | 274 ms      | $0        | 0      |
+| `local-2b`               | 22/31      | 71.0%     | 478 ms      | $0        | 0      |
+| `local-3b`               | 21/31      | 67.7%     | 571 ms      | $0        | 0      |
+| **`local-clef`**         | **27/31**  | **87.1%** | 1,136 ms    | $0        | 0      |
+| _cloud-llm (MiniMax-M3)_ | _25–26/31_ | _82.3%_   | _14,067 ms_ | _$0.0229_ | _1_    |
+
+Spread is the difference between the best and worst of two runs. Every local model was identical run to run; the cloud arm moved by one answer.
+
+### What the numbers say
+
+- **Fast and wrong are not opposites.** `d1-omni-600M` answers in 61 ms and gets 67.7% on text and **9.7% on photos**. It is the fastest model on the box and the worst one on the vision path. Latency and accuracy came apart completely.
+- **The local flash model beats the cloud arm.** `clef-flash` scores highest on both evals — 100% and 87.1% — while being 3× faster on text and **12× faster** on photos, and free.
+- **`d1-2B` is the reflex.** 98.4% on text at 147 ms ≈ 7 Hz, ample for a setpoint the 60 Hz core interpolates toward. `d1-3B` is both slower and less accurate here (93.5% at 217 ms).
+- **Local is deterministic, the cloud is not.** Spread 0 for every local model, 1 answer for the cloud LLM.
+
+### The honest limits of this comparison
+
+- **Cloud Jev was not run.** There is no `TYPESAFE_AI_TOKEN` on this machine. The Jev numbers in `model-field-notes.md` (62/62 on the text eval; 67.7% raw and 83.9% crop-and-upscale on photos) are a **recorded measurement from an earlier session**, not a side-by-side run today. The cloud arm here is MiniMax-M3, a general LLM answering the pack through `llmRung`, not a decision model.
+- **31 and 62 answers are small sets.** `model-field-notes.md` is explicit that one to two answers is noise. The 42 → 61 gap on text is 19 answers and is real. The 61 → 62 gap between `d1-2B` and `clef-flash` is **one answer and is not**. Treat them as tied.
+- **Two packs, one domain.** Street-level building descriptions in Sitka. Nothing here says a local decision model beats a cloud one in general.
+- **Preprocessing differs from the historical numbers.** The local arms saw a uniform 512 px fit. The recorded Jev photo numbers used `fitForJev` (centre crop, 280–1,568 px). Those are not the same bytes, so the photo comparison against the _recorded_ Jev numbers is indicative, not exact. The comparison against today's `cloud-llm` arm is exact — every arm saw identical bytes.
 
 ## Reproduction
 
