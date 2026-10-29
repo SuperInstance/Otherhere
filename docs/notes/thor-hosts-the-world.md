@@ -255,31 +255,66 @@ x-content-source: place sitka.json
 
 ## The geometry question, measured
 
-[ADR-0022](../adr/0022-geometry-is-computed-ahead-of-the-walk.md) records the decision; the
-numbers are here. Measured on the Thor, 2026-10-29, VGGT-1B at 518 × 924, bf16, weights
-resident (`~/d1-lab/bench_vggt_service.py`):
+[ADR-0022](../adr/0022-the-geometry-service-is-moge.md) records the decision; the numbers are
+here. Measured on the Thor, 2026-10-29, at 518 × 924, bf16, weights resident.
 
-| frames         | forward | per frame | peak GPU |
-| -------------- | ------- | --------- | -------- |
-| 1 (cold)       | 218.9 s | 218.9 s   | 8.0 GB   |
-| 1 (second run) | 190.6 s | 190.6 s   | 8.0 GB   |
-| 4              | 82.5 s  | 20.6 s    | 9.3 GB   |
-| 16             | 44.4 s  | 2.78 s    | 12.1 GB  |
+**VGGT-1B** (`~/d1-lab/bench_vggt_steady.py`, six repeats, median of the last three):
 
-**Four frames are faster than one.** The curve is not monotone, and that is the finding: the
-first forwards pay CUDA kernel compilation (the torch wheel carries no `sm_110` SASS for these
-kernels, so they are JIT-compiled from PTX on first use). The second single-image run was still
-paying part of that bill, so 190.6 s is an **upper bound** on the steady-state single-image
-cost, and it is already 300× over the service threshold the research asked about (250–600 ms).
+| repeat                       | forward      |
+| ---------------------------- | ------------ |
+| 1 (first in a fresh process) | 1516.4 ms    |
+| 2                            | 882.2 ms     |
+| 3                            | 900.3 ms     |
+| 4                            | 901.9 ms     |
+| 5                            | 881.0 ms     |
+| 6                            | 865.0 ms     |
+| **steady-state median**      | **881.0 ms** |
 
-Two more costs the frame counts hide: the 5.03 GB checkpoint took **1201.7 s** to deserialise
-by the ordinary `torch.load` path (mmap cuts it to minutes), and one frame's point map is
-478,632 points — **5.74 MB as fp32** — which is 0.62 s of the measured 9.3 MB/s link before
-any compression.
+**MoGe ViT-Large, MIT** (`~/d1-lab/bench_moge_service.py`):
 
-**The consequence is architectural, not a matter of tuning.** Geometry is computed ahead of the
-walk, in batches, and fetched like any other content-addressed payload. The renderer gains no
-new request path; it never waits on a model.
+| setting                   | warm        | peak GPU |
+| ------------------------- | ----------- | -------- |
+| `num_tokens=1200`         | **72.2 ms** | 1.43 GB  |
+| resolution level 6        | 130.1 ms    | 1.60 GB  |
+| resolution level 8        | 144.1 ms    | 1.66 GB  |
+| `num_tokens=2500`         | 148.1 ms    | 1.68 GB  |
+| resolution level 9 (full) | 150.2 ms    | 1.69 GB  |
+
+### The measurement nearly lied, twice
+
+The first VGGT benchmark reported **218.9 s** for one image and **190.6 s** for the second, and
+an ADR was written on that number before it was checked. It was almost entirely **CUDA kernel
+compilation**: the torch wheel carries no `sm_110` SASS for these kernels, so they are
+JIT-compiled from PTX on first use, and a new tensor shape recompiles. The tell was that the
+curve was not monotone — four frames came in at 82.5 s and sixteen at 44.4 s, _faster_ than one.
+
+The same lab notebook had already recorded the mirror image of this mistake for memory
+("flat-memory extrapolation from 8/32-frame probes under-estimated the 230-frame activation
+cost"). The rule is the same in both directions: **measure at the target, repeat the
+measurement, and believe the tail, not the head.**
+
+### What the frame counts hid
+
+- **Weight load: 1201.7 s** for the 5.03 GB checkpoint by the ordinary `torch.load` path. mmap
+  cuts it to 99.1 s. A service that reloads on every restart is a service that is cold for
+  twenty minutes.
+- **The payload is the constraint, not the compute.** One 518 × 924 point map is 478,632 points
+  — **5.74 MB as fp32, 2.87 MB as fp16** — and the depth map is another 1.91 MB as fp32. At the
+  measured 9.3 MB/s that is **0.31–0.62 s of link** per frame, on top of the compute. A service
+  that answers in 72 ms and then spends 300 ms moving the answer has an answer that takes
+  **0.4 s**, not 72 ms. The service sends depth and intrinsics, not a point map.
+
+### The conclusion, and the correction
+
+**A geometry service is viable, and it is MoGe — not VGGT.** 72 ms per query, MIT licence,
+1.26 GB of weights, 1.4 GB of VRAM. VGGT keeps the batch lane: many images into one global
+frame is what a per-cell capture wants, and 230 frames in one coordinate system where COLMAP
+produced three fragments is a real strength.
+
+The first draft of this section said the opposite ("geometry is computed ahead of the walk, the
+Thor is not asked for geometry on demand") on the strength of the 190.6 s figure. That number
+was wrong, the ADR built on it was wrong, and both were corrected rather than quietly amended:
+the superseded ADR was deleted in the same commit that replaced it.
 
 ---
 
@@ -297,3 +332,6 @@ new request path; it never waits on a model.
 - **The research sweeps were wrong three times** about this machine. Upstream pins are not
   local truth. Every load-bearing claim above is measured on this box, including the one
   experiment that failed the first time.
+- **The first geometry benchmark lied too**, by a factor of 216: 190.6 s where the truth was
+  0.88 s. The cause was CUDA kernel compilation, invisible unless the curve is read for
+  monotonicity. An ADR was written on the wrong number and had to be replaced.

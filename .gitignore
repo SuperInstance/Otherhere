@@ -9,3 +9,5 @@ test-results/
 playwright-report/
 apps/client/test-results/
 *.result.json
+__pycache__/
+*.pyc
