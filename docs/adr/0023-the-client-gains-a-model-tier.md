@@ -111,10 +111,28 @@ model tiers: 1
 1/1 model tiers verified AND decoded on the ProArt
 ```
 
-That tier is not a fixture. It is a cathedral: **one photograph, SPAR3D, 31.9 s on the Thor,
-10.6 GB of VRAM at the peak**, reconstructed into a UV'd, PBR-textured mesh, finished to
-10,000 triangles and a 512 px WebP at **168,980 B — under the repo's 192,000 B full-profile
-budget** — and served to the renderer.
+### And in a browser, with the client's own three
+
+A decode is not a picture. The last mile was proven in **a real Chromium on the ProArt**, on a
+page that imports `three`, `three/addons/loaders/GLTFLoader.js` and
+`three/addons/libs/meshopt_decoder.module.js` — the same bare specifiers the client uses,
+resolved by Vite — and nothing else:
+
+```
+loaded the client's own three, GLTFLoader and meshopt decoder
+fetched assets/st-michaels-spar3d/1.0.0/model.glb: 168,980 B
+sha256 145d065a50db577d5acb5a7414d70c5f…
+parsed: 1 mesh(es), 11,135 vertices, 9,999 triangles
+drew it
+```
+
+The picture it drew is the cathedral: one photograph, SPAR3D, 31.9 s on the Thor, 10.6 GB of
+VRAM at the peak, reconstructed into a UV'd, PBR-textured mesh, finished to 10,000 triangles
+and a 512 px WebP at **168,980 B — under the repo's 192,000 B full-profile budget** — served to
+the renderer, fetched over the LAN, hash-verified, parsed and drawn.
+
+That tier is not a fixture. It is a real generated asset, served from the Thor, drawn by the
+game's own renderer on the other machine.
 
 ### The second door: one photograph becomes a place
 
@@ -158,9 +176,10 @@ view the photograph shows and knows nothing about what is behind the camera.
   photograph it returned a shell of the dominant foreground structure — recognisable, and
   useless as a place. It is the right tool for an object and the wrong tool for a street.
 - **A meshopt round trip that the verifier cannot see.** The verifier reads the finished GLB
-  with three's decoder, which is what the browser loads, but the _rendered_ result in the
-  browser has not been checked with the mesh in a real scene yet. The ProArt proof decodes the
-  bytes; it does not draw them.
+  with three's decoder, which is what the browser loads, and the browser has now drawn the
+  mesh — but the verifier reads the _file_, not the scene the file is placed in.
 - **The relief's scale.** MoGe's depth is metric up to the model's own scale convention. The
   relief inherits that, so a place's relief and a place's capture may not agree on how big the
   world is.
+- **A place the walker can walk into.** The mesh tier makes a generated _object_ real in the
+  world; it does not make a generated _place_ walkable.

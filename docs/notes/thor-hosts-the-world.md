@@ -435,6 +435,8 @@ knows nothing about what is behind the camera.
   field is `byteStride` and its modes are strings; and `Buffer.prototype.slice()` returns a
   _view_, not a copy, so `readFileSync(...).slice().buffer` pointed at the whole file from
   offset 0. Both produced confident, wrong numbers.
-- **The mesh has been decoded, not drawn.** The ProArt proof fetches the model tier,
-  hash-verifies it and decodes it with the client's own decoder on the renderer's machine. The
-  browser drawing that mesh in a real scene is not yet proven.
+- **The mesh is drawn in a proof page, not in the game's world.** A real Chromium on the
+  ProArt, on a page importing the same bare specifiers the client uses, fetched the tier over
+  the LAN, verified the hash, parsed 11,135 vertices and 9,999 triangles and drew them. But
+  no place file names a `model` tier yet: a Bundle's capture Fact has to carry it before the
+  running game shows it, and that Fact is not written.
