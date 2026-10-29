@@ -81,9 +81,14 @@ Three things had to be right, and each was wrong the first time:
 - **The placement goes on a wrapper, not on the loaded scene.** A generated mesh carries its
   own frame (the transform that puts it where its generator put it); overwriting that would
   move the geometry out from under its own texture.
-- **The ladder is: splat near, model next, photographs beyond.** A mesh is not a photograph —
+- **The ladder is: the splat near, the model everywhere else.** A mesh is not a photograph —
   it is geometry with real silhouettes — so it outranks the impostor wherever it exists, and
-  it is cheap enough to be worth the draw: the finished assets are **48–169 KB**.
+  it is cheap enough to be worth the draw: the finished assets are **48–169 KB**. A capture
+  with a `model` tier therefore shows the mesh at every distance at or beyond the splat's
+  140 m band, and the photograph is the tier for a capture that has no mesh. (This says what
+  `chooseTier` does; an earlier draft of this line claimed the ladder was "splat near, model
+  next, photographs beyond", which is not what the code has ever done — the photograph never
+  comes back once a mesh exists. The behaviour is unchanged; the sentence now matches it.)
 - **The lite profile never fetches a mesh.** The lite profile is a photograph tier, and it
   stays one.
 - **The pipeline's vocabulary does not move.** The capture pipeline calls its gaussian field
