@@ -318,6 +318,93 @@ the superseded ADR was deleted in the same commit that replaced it.
 
 ---
 
+## The finishing lane: a generated mesh in, a game-ready mesh out
+
+Every generator on the Thor ends at the same problem. A Hunyuan mesh is 5,351,844 B; the
+repo's law for a full-profile tier is 192,000 B; the ProArt renders it on a 6 GB card over a
+9.3–11.5 MB/s link. The bytes have to come down, and the Thor is the only place with the CPU
+to take them down.
+
+The lane is **Blender (decimate + resize + WebP export) → gltfpack `-cc`
+(`EXT_meshopt_compression`)**, measured on the Hunyuan cathedral (40,000 faces, 5,351,844 B):
+
+| triangles  | texture    | bytes       | reduction                              |
+| ---------- | ---------- | ----------- | -------------------------------------- |
+| 40,000     | 1024 px    | 428,948     | 12.5×                                  |
+| 20,000     | 1024 px    | 329,912     | 16.2×                                  |
+| 10,000     | 1024 px    | 266,660     | 20.1×                                  |
+| 20,000     | 512 px     | 239,892     | 22.3×                                  |
+| **10,000** | **512 px** | **176,640** | **30.3× — under the 192,000 B budget** |
+| 5,000      | 512 px     | 125,032     | 42.8×                                  |
+
+~1.2–3.9 s per size. Three traps are worth naming, because each cost real time:
+
+- **gltfpack has no aarch64 release.** It was built from source here
+  (`~/thor-bench/gen3d-src/meshoptimizer`, cmake `-DMESHOPT_BUILD_GLTFPACK=ON`).
+- **Draco is a trap, not an option.** Blender 4.0 ships the Draco _importer_ but not the
+  exporter, so `export_draco_mesh_compression_enable` is silently ignored and the file comes
+  out the same size with the flag on. meshopt is also the better choice for a browser anyway —
+  it decodes an order of magnitude faster, and the repo already depends on it.
+- **Blender cannot read `EXT_meshopt_compression`** (4.0.2), so the finished file cannot be
+  re-imported to check it. It is checked with the **repo's own decoder** instead
+  (`~/d1-lab/verify_meshopt_glb.mjs`), which is what the client loads. A byte count is not a
+  verification.
+
+## Image-to-3D: SPAR3D works here, for objects
+
+The research sweep said SPAR3D would be gated on `gpytoolbox` (MATLAB) the way SF3D is. It is
+not: SPAR3D guards those imports and degrades gracefully, and its two hard dependencies
+(`uv_unwrapper`, `texture_baker`) both compiled and imported on `sm_110`. The weights were
+already on the shelf (`~/models/stable-point-aware-3d`, 7.33 GB).
+
+Two runs, two different answers, and the difference is the point:
+
+| input                                    | inference | peak VRAM | result                                                                             |
+| ---------------------------------------- | --------- | --------- | ---------------------------------------------------------------------------------- |
+| a cathedral photograph (`prepped.png`)   | 31.9 s    | 10.6 GB   | **a recognisable 3D cathedral** — dome, spires, textured walls                     |
+| a street photograph through a car window | 8.5 s     | 10.3 GB   | a shell of the dominant foreground structure: the A-pillar and door frame, smeared |
+
+SPAR3D is an **object** reconstructor. Given a subject it produces a UV'd, PBR-textured mesh
+(base colour + normal map, metallic/roughness) — unlike TripoSG, which has no UV or texture
+at all and would have been useless as an asset. The finished cathedral is **168,980 B at
+10,000 triangles**, under the full-profile budget, and the render after decimation is
+indistinguishable from the render before it.
+
+On a street photograph it is not a place tool. The honest reading: **SPAR3D is the right tool
+for an object, and the relief pipeline below is the right tool for a street.**
+
+## One photograph becomes a place
+
+The capture pipeline needs a COLMAP session, a walk around the place and an hour of compute.
+That is why the corpus has eleven places rather than eleven hundred.
+
+The geometry service already answers "what is here?" in 72 ms. What it could not answer was
+"make that into something the game can load". The **relief pipeline** answers it: a depth map
+plus intrinsics is enough to rebuild the place as a relief mesh — the scene as the camera saw
+it — with the photograph itself as the texture, painted on exactly, because every vertex's UV
+is the pixel it was unprojected from.
+
+Measured end to end on the cathedral photograph: **3.3 s** (geometry 190 ms round trip, relief
+1.6 s, finish 1.5 s), and the finished asset is **50,684 B at 10,000 triangles**.
+
+Measured against the photograph it came from, rendered **from the photograph's own camera**
+(the intrinsics give the focal length; the glTF camera frame puts the camera at the origin
+looking down −Z):
+
+| asset                                    | PSNR (sRGB) | pixels off by more than 48 | bytes   |
+| ---------------------------------------- | ----------- | -------------------------- | ------- |
+| 100×60 grid, 10,000 triangles            | 22.05 dB    | 3.15 %                     | 50,684  |
+| 200×120 grid, 40,000 triangles           | 24.60 dB    | 1.74 %                     | 162,124 |
+| 100×60 grid, **full-resolution** texture | 22.13 dB    | 3.07 %                     | —       |
+
+The third row is the informative one: **the texture downscale costs nothing** (22.13 vs
+22.05 dB) and the residual is the 2.5D geometry — the chord approximation of a surface that
+is only known at the grid's samples. Decimation costs nothing either: the 10,000-triangle
+asset and the 11,682-triangle one score identically.
+
+**This is a backdrop, not a reconstruction.** It builds the view the photograph shows and
+knows nothing about what is behind the camera.
+
 ## The honest negatives
 
 - **No released world model fits this job.** One has published Jetson-Thor numbers, and it is
@@ -335,3 +422,19 @@ the superseded ADR was deleted in the same commit that replaced it.
 - **The first geometry benchmark lied too**, by a factor of 216: 190.6 s where the truth was
   0.88 s. The cause was CUDA kernel compilation, invisible unless the curve is read for
   monotonicity. An ADR was written on the wrong number and had to be replaced.
+- **SPAR3D is not a place tool.** On a street photograph it produced a shell of the car's
+  door frame, not a street. The relief pipeline covers that case instead.
+- **The relief is 2.5D.** Exact from the photograph's camera and wrong away from it, by
+  construction. Its 22–25 dB is the price of a mesh that knows only what it was shown.
+- **The finishing lane squashed non-square textures.** It resized every texture to a square,
+  which is invisible on the Hunyuan cathedral (square textures) and turned a 1080×1920
+  photograph of a place into a 512×512 texture — a place painted stretched sideways. The
+  aspect ratio is now kept. Nothing measured the old lane's _shape_; only its byte count was
+  ever checked.
+- **The verifier's first two failures were its own, not the file's.** The extension's stride
+  field is `byteStride` and its modes are strings; and `Buffer.prototype.slice()` returns a
+  _view_, not a copy, so `readFileSync(...).slice().buffer` pointed at the whole file from
+  offset 0. Both produced confident, wrong numbers.
+- **The mesh has been decoded, not drawn.** The ProArt proof fetches the model tier,
+  hash-verifies it and decodes it with the client's own decoder on the renderer's machine. The
+  browser drawing that mesh in a real scene is not yet proven.

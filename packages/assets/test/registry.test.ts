@@ -7,6 +7,7 @@ import { createCaptureService } from '../src/server';
 
 const PAYLOAD = Buffer.from('a gaussian field, more or less');
 const CARD = Buffer.from('a photograph of a building');
+const MODEL = Buffer.from('glTF\u0000\u0000\u0000 a triangle mesh');
 
 /** Build a capture directory the way the capture pipeline writes one. */
 const makeCapture = (
@@ -19,8 +20,10 @@ const makeCapture = (
   mkdirSync(join(dir, 'tiers'), { recursive: true });
   const meshHash = sha256(PAYLOAD);
   const cardHash = sha256(CARD);
+  const modelHash = sha256(MODEL);
   writeFileSync(join(dir, 'tiers', 'mesh.spz'), PAYLOAD);
   writeFileSync(join(dir, 'tiers', 'card.webp'), CARD);
+  writeFileSync(join(dir, 'tiers', 'model.glb'), MODEL);
   writeFileSync(
     join(dir, 'tiers', 'mesh.spz.receipt.json'),
     JSON.stringify({ file: 'mesh.spz', tier: 'mesh', hash: meshHash, bytes: PAYLOAD.byteLength }),
@@ -28,6 +31,10 @@ const makeCapture = (
   writeFileSync(
     join(dir, 'tiers', 'card.webp.receipt.json'),
     JSON.stringify({ file: 'card.webp', tier: 'card', hash: cardHash, bytes: CARD.byteLength }),
+  );
+  writeFileSync(
+    join(dir, 'tiers', 'model.glb.receipt.json'),
+    JSON.stringify({ file: 'model.glb', tier: 'model', hash: modelHash, bytes: MODEL.byteLength }),
   );
   writeFileSync(
     join(dir, 'asset.capture.json'),
@@ -40,6 +47,7 @@ const makeCapture = (
       tiers: {
         mesh: { hash: meshHash, bytes: PAYLOAD.byteLength },
         card: { hash: cardHash, bytes: CARD.byteLength },
+        model: { hash: modelHash, bytes: MODEL.byteLength },
       },
       params: { subject: { name: family } },
       provenance: { source: 'capture' },
@@ -66,12 +74,17 @@ describe('readCapture', () => {
   it('reads the tiers and translates the pipeline tier names to the client names', () => {
     const { entry, problems } = readCapture(join(root, 'sitka-dock-boat', '1.0.0'));
     expect(problems).toEqual([]);
-    expect(Object.keys(entry.tiers).sort()).toEqual(['card', 'splat']);
+    expect(Object.keys(entry.tiers).sort()).toEqual(['card', 'model', 'splat']);
     // The pipeline calls it "mesh"; the client calls it "splat".
     expect(entry.tiers.splat?.file).toBe('mesh.spz');
     expect(entry.tiers.splat?.path).toBe('assets/sitka-dock-boat/1.0.0/splat.spz');
     expect(entry.tiers.card?.path).toBe('assets/sitka-dock-boat/1.0.0/card.webp');
     expect(entry.tiers.splat?.contentType).toBe('model/gaussian-splat');
+    // A real triangle mesh keeps its own name in both vocabularies: the
+    // pipeline writes `model.glb`, the client calls the tier `model`.
+    expect(entry.tiers.model?.file).toBe('model.glb');
+    expect(entry.tiers.model?.path).toBe('assets/sitka-dock-boat/1.0.0/model.glb');
+    expect(entry.tiers.model?.contentType).toBe('model/gltf-binary');
   });
 
   it('refuses a payload that does not match its receipt', () => {
@@ -128,6 +141,21 @@ describe('the capture service', () => {
     const body = Buffer.from(await res.arrayBuffer());
     expect(body.byteLength).toBe(PAYLOAD.byteLength);
     expect(sha256(body)).toBe(sha256(PAYLOAD));
+
+    await service.close();
+  });
+
+  it('serves a real triangle mesh at its own tier path', async () => {
+    const service = createCaptureService({ root, port: 0, host: '127.0.0.1' });
+    await service.listen();
+    const base = `http://127.0.0.1:${service.address()!.port}`;
+
+    const res = await fetch(`${base}/places/assets/sitka-dock-boat/1.0.0/model.glb`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('model/gltf-binary');
+    expect(res.headers.get('x-content-sha256')).toBe(sha256(MODEL));
+    const body = Buffer.from(await res.arrayBuffer());
+    expect(sha256(body)).toBe(sha256(MODEL));
 
     await service.close();
   });

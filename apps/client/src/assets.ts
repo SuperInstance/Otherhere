@@ -23,9 +23,15 @@ import { sha256Hex, type AssetExtras } from '@otherhere/core';
  * stands it where the extras place it. Nothing here reaches Bundle bytes.
  *
  * Tier ladder (budgets are the design's law, enforced here at fetch time):
- * the full profile shows the true 3D capture (`splat`) near and the large
- * photograph (`impostor`) far; the lite profile never fetches the splat —
- * the small photograph (`card`) is its tier at every distance.
+ * the full profile shows the true 3D capture (`splat`) near, a real triangle
+ * mesh (`model`) next, and the large photograph (`impostor`) far; the lite
+ * profile never fetches the splat — the small photograph (`card`) is its tier
+ * at every distance.
+ *
+ * The `model` tier is the one the Thor's generators write. Before it existed
+ * every generated asset on the Thor — a Hunyuan mesh, a SPAR3D mesh, a relief
+ * mesh rebuilt from one photograph — came out as a GLB the client had no
+ * vocabulary for, so the whole asset lane ended at a file nobody could open.
  */
 
 export type AssetHost = {
@@ -41,7 +47,7 @@ export type AssetHost = {
   lite: boolean;
 };
 
-export type TierName = 'splat' | 'impostor' | 'card';
+export type TierName = 'splat' | 'impostor' | 'card' | 'model';
 type TierRef = { path: string; hash: string; bytes: number };
 
 /** One capture placed in the world frame, parsed from a Bundle's extras. */
@@ -128,6 +134,11 @@ export function assetsFor(
  * The tier a profile shows at a distance. Pure. A missing preferred tier
  * falls to the next one down; a lone splat shows at any distance rather
  * than leaving the lot empty.
+ *
+ * The ladder: the gaussian field near, a real mesh (`model`) next, the
+ * photographs beyond. A mesh is not a photograph — it is geometry with real
+ * silhouettes — so it outranks the impostor wherever it exists, and it is
+ * cheap enough (a finished mesh is 50-190 KB) to be worth the draw.
  */
 export function chooseTier(
   lite: boolean,
@@ -135,7 +146,11 @@ export function chooseTier(
   tiers: Partial<Record<TierName, TierRef>>,
 ): TierName | null {
   if (lite) return tiers.card ? 'card' : tiers.impostor ? 'impostor' : null;
-  if (distanceM < SPLAT_NEAR_M && tiers.splat) return 'splat';
+  if (distanceM < SPLAT_NEAR_M) {
+    if (tiers.splat) return 'splat';
+    if (tiers.model) return 'model';
+  }
+  if (tiers.model) return 'model';
   return tiers.impostor ? 'impostor' : tiers.card ? 'card' : tiers.splat ? 'splat' : null;
 }
 
@@ -274,7 +289,12 @@ export class AssetLayer {
     }
     e.loading = tier;
     try {
-      const obj = tier === 'splat' ? await this.buildSplat(e) : await this.buildCard(e, tier);
+      const obj =
+        tier === 'splat'
+          ? await this.buildSplat(e)
+          : tier === 'model'
+            ? await this.buildModel(e)
+            : await this.buildCard(e, tier);
       if (!this.entries.has(this.key(e.cell, e.placed.featureId))) {
         obj.traverse((o) => (o as Mesh).geometry?.dispose());
         return; // detached while loading
@@ -331,6 +351,47 @@ export class AssetLayer {
     mesh.scale.setScalar(e.placed.local.scale);
     const out = new Group();
     out.add(mesh);
+    return out;
+  }
+
+  /**
+   * A real triangle mesh: the GLB the Thor's generators write, with its
+   * geometry compressed with EXT_meshopt_compression.
+   *
+   * The decoder is three's own (three/addons/libs/meshopt_decoder.module.js),
+   * which is what the loader itself would use. The bytes are hash-verified
+   * first, like every other tier: an unverified payload is never parsed.
+   *
+   * The placement goes on a WRAPPER, not on the loaded scene. A generated
+   * mesh carries its own frame — the transform that puts it where the
+   * generator put it — and overwriting that would move the geometry out from
+   * under its own texture.
+   */
+  private async buildModel(e: Entry): Promise<Group> {
+    const tier = e.placed.tiers.model!;
+    const bytes = await this.verifiedBytes(tier);
+    const [{ GLTFLoader }, { MeshoptDecoder }] = await Promise.all([
+      import('three/addons/loaders/GLTFLoader.js'),
+      import('three/addons/libs/meshopt_decoder.module.js'),
+    ]);
+    const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
+    const gltf = await loader.parseAsync(
+      bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+      '',
+    );
+
+    const p = e.placed;
+    const inner = new Group();
+    inner.name = 'model';
+    inner.add(gltf.scene);
+    const [px, py, pz] = p.local.position;
+    inner.position.set(px, py, pz);
+    const [qx, qy, qz, qw] = p.local.quaternion;
+    inner.quaternion.copy(new Quaternion(qx, qy, qz, qw));
+    inner.scale.setScalar(p.local.scale);
+    const out = new Group();
+    out.add(inner);
     return out;
   }
 
