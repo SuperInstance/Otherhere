@@ -180,12 +180,30 @@ The biggest trap is "let the Thor render and the ProArt display" — killed on b
 - `src/registry.ts` — reads a capture directory (`asset.capture.json` + `tiers/` +
   `*.receipt.json`), verifies every payload against its receipt, and produces the manifest.
   A payload that does not match is **withheld and reported**, not served.
+- `src/places.ts` — reads the **place files** and the `assets/` tree beside them, and accepts
+  the place file's own record (tier, sha256, byte count) as a second kind of voucher. A
+  capture that was baked into a place has no pipeline sidecar and no receipt, but the place
+  file names every tier and its hash — just as content-addressed. **The rule is unchanged:
+  never serve an unverified payload.** Only the source of the record differs.
 - `src/server.ts` — serves `GET /places/registry.json` and
   `GET /places/assets/<family>/<version>/<file>`, with the sha256 in a response header so a
-  mismatch is diagnosable from the wire. The registry is re-read every 60 s, so a capture
-  that lands becomes fetchable without a restart.
-- `test/registry.test.ts` — 9 tests over the tier-name translation, the hash enforcement, the
-  refusal path, and an HTTP round trip.
+  mismatch is diagnosable from the wire, and the record that vouched for it in
+  `x-content-source`. The registry is re-read every 60 s, so a capture that lands becomes
+  fetchable without a restart.
+- `test/registry.test.ts`, `test/places.test.ts` — 17 tests over the tier-name translation, the
+  hash enforcement, the refusal path, the place-file record, and an HTTP round trip.
+
+### The client may fetch payloads from another host
+
+`apps/client/src/assets.ts` takes an optional `assetBase`: where the tier payloads are
+fetched from, defaulting to the directory the place files are served from. The place file
+stays where the game server put it; the payloads come from the Thor.
+
+**`BASE_URL` could not be used for this, and the reason is worth recording.** In Vite,
+`import.meta.env.BASE_URL` is the reserved **base path** — the prefix the app's own JS, CSS
+and asset URLs are built with. Pointing it at a remote host would rewrite the game's own
+script tags to a server that does not serve them, and the page would not load at all. A
+second origin needs its own variable: `VITE_ASSET_BASE`, naming the host's root.
 
 ### Proven end to end, from the ProArt
 
@@ -205,6 +223,63 @@ smoke-dock/splat             168,831 B    52.9 ms  bytes=True hash=True
 ```
 
 **A splat tier arrives in ~50 ms.** That is the fetch-on-notice budget met.
+
+### And then the door had no house
+
+The service was serving nine tiers. **The client was using none of them.** Two reasons, both
+found by reading the actual code rather than the design:
+
+1. The client fetches its payloads from `${BASE_URL}places/<path>` — and `BASE_URL` is Vite's
+   base path, which cannot name another host (above).
+2. The place file the running ProArt game served named **zero** asset tiers. Its checkout sits
+   on `local-sitka-night` at `cf76c7f`, from before the asset layer existed: no
+   `apps/client/src/assets.ts`, no `assets/` directory beside the place file.
+
+And the capture the place file _did_ name — `st-michaels-cathedral`, three tiers — was not
+among the three captures the service served, because a capture baked into a place has no
+pipeline sidecar and no receipt. It had a place file and nothing else.
+
+So the service grew a second kind of voucher (the place file's own record), and the client
+grew a second origin (`VITE_ASSET_BASE`). The service now serves **twelve** verified tiers:
+nine from the capture registry, three vouched for by `sitka.json`:
+
+```
+$ curl -sI http://127.0.0.1:8098/places/assets/st-michaels-cathedral/1.0.0/splat.spz
+content-type: model/gaussian-splat
+content-length: 193512
+x-content-sha256: e1cfb70d0972b178e694ae06d427f081c2d51e2e7c5480f4edaca894a0364c62
+x-content-source: place sitka.json
+```
+
+---
+
+## The geometry question, measured
+
+[ADR-0022](../adr/0022-geometry-is-computed-ahead-of-the-walk.md) records the decision; the
+numbers are here. Measured on the Thor, 2026-10-29, VGGT-1B at 518 × 924, bf16, weights
+resident (`~/d1-lab/bench_vggt_service.py`):
+
+| frames         | forward | per frame | peak GPU |
+| -------------- | ------- | --------- | -------- |
+| 1 (cold)       | 218.9 s | 218.9 s   | 8.0 GB   |
+| 1 (second run) | 190.6 s | 190.6 s   | 8.0 GB   |
+| 4              | 82.5 s  | 20.6 s    | 9.3 GB   |
+| 16             | 44.4 s  | 2.78 s    | 12.1 GB  |
+
+**Four frames are faster than one.** The curve is not monotone, and that is the finding: the
+first forwards pay CUDA kernel compilation (the torch wheel carries no `sm_110` SASS for these
+kernels, so they are JIT-compiled from PTX on first use). The second single-image run was still
+paying part of that bill, so 190.6 s is an **upper bound** on the steady-state single-image
+cost, and it is already 300× over the service threshold the research asked about (250–600 ms).
+
+Two more costs the frame counts hide: the 5.03 GB checkpoint took **1201.7 s** to deserialise
+by the ordinary `torch.load` path (mmap cuts it to minutes), and one frame's point map is
+478,632 points — **5.74 MB as fp32** — which is 0.62 s of the measured 9.3 MB/s link before
+any compression.
+
+**The consequence is architectural, not a matter of tuning.** Geometry is computed ahead of the
+walk, in batches, and fetched like any other content-addressed payload. The renderer gains no
+new request path; it never waits on a model.
 
 ---
 

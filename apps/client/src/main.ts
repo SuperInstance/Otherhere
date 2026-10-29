@@ -133,6 +133,14 @@ addEventListener('keydown', (e) => {
 /** Build-time environment (Vite), behind one cast so this file needs no ambient types. */
 const buildEnv = (import.meta as unknown as { env: Record<string, string | undefined> }).env;
 
+/**
+ * Where the capture tier payloads live, when they live somewhere other than
+ * beside the place files — the Thor hosts them, the game server keeps the
+ * place file. `BASE_URL` is Vite's own base path and cannot name a host, so
+ * a second origin gets its own variable: the host's root, not the directory.
+ */
+const assetHost = buildEnv.VITE_ASSET_BASE?.replace(/\/+$/, '');
+
 let start = parseStart(location.search);
 // A build can name a baked place as its front door: the GitHub Pages build
 // has no server to ask for a town, so whenever the link itself names nothing
@@ -466,7 +474,13 @@ if (forestDemoMode) {
     terrain ?? undefined,
     // Captured assets (`asset.capture`) fetch their payloads from beside the
     // place files; the lite profile keeps them to the photograph tiers.
-    { placesBase: `${buildEnv.BASE_URL ?? '/'}places/`, lite: profile.lite },
+    // With VITE_ASSET_BASE the payloads come from another host — the Thor —
+    // and the place file stays where the game server put it.
+    {
+      placesBase: `${buildEnv.BASE_URL ?? '/'}places/`,
+      ...(assetHost ? { assetBase: `${assetHost}/places/` } : {}),
+      lite: profile.lite,
+    },
   );
   // Spruce and hemlock on the hills: display-only, seeded per chunk, kept out of
   // buildings and roads, replanted as finer ground or new Bundles arrive.
