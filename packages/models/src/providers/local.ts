@@ -9,7 +9,14 @@ import type { FetchLike } from './jev';
  */
 export const LOCAL_PRICING: Pricing = { inputPerM: 0, outputPerM: 0 };
 
-/** The default local endpoint: a `llama-server` on this machine. */
+/**
+ * The default local endpoint: a `llama-server` on this machine.
+ *
+ * The agent app runs on the Thor, so loopback is the right default. The
+ * server also listens on the LAN at `http://192.168.0.78:8095` with no API
+ * key, so a caller on another machine can pass that as `baseUrl` and use the
+ * Thor as a shared decision model.
+ */
 export const LOCAL_BASE_URL = 'http://127.0.0.1:8095';
 
 /**

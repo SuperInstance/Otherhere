@@ -81,6 +81,18 @@ Three differences between the two servers, all small:
 
 _In code:_ `LocalDecisionProvider` in `packages/models/src/providers/local.ts` handles all three, and `localRung` in `packages/models/src/ladder.ts` puts it on the reserved `distilled` rung.
 
+## The local server's exposure
+
+The Thor runs the flash tier as `d1-flash.service`, serving `d1-omni-600M` on **port 8095**.
+
+It is bound to **`0.0.0.0` with no API key**, by the project owner's choice on 2026-10-28, so anything on `192.168.0.0/24` can use the Thor as a shared decision model. Consequences, accepted deliberately:
+
+- **No authentication.** Anyone on the LAN can spend the Thor's GPU for free. The decision model is rate-unlimited.
+- **CORS allows every origin.** A browser on the LAN can POST to it from any page it happens to have open, so a stray tab can drive the Thor's GPU.
+- **Both are reversible.** This build of `llama-server` supports `--api-key` and `--api-key-file`; adding one is a flag on the unit and a header on the caller.
+
+The provider's default base URL stays `http://127.0.0.1:8095`, because the agent app runs on the Thor itself. A caller elsewhere on the LAN points at `http://192.168.0.78:8095` explicitly.
+
 ## Honest negatives
 
 **`d1-2B` does not load on llama.cpp 0.7.0-dev.** Its backbone is LFM3-VL-2B and the build reports `unknown model architecture: 'lfm3'`. Upstream llama.cpp added it later (`model : add LiquidAI/LFM3-1.7B and LiquidAI/LFM3-VL-2B`, #31252) plus LFM3-Omni and LFM3 video input (#31257, #31283). On the upstream build it loads and reports `lfm3-d1`, and it is the second-fastest model here. **This is the one case where the newest small model is unusable and an older bigger one is the only option** — `d1-3B` works on both builds, `d1-2B` only on upstream, and `d1-omni-600M` on both because it is LFM2-based.

@@ -51,6 +51,8 @@ We run a **five-tier stack**. Authority flows **down** the stack and never up: o
 
 Local `clef-flash` is **not** in T1: at 157 ms per question it cannot be a reflex. It stays on the box for offline work — labelling, evals, and checking the flash tier against a stronger model.
 
+T1's server is reachable on the LAN (`0.0.0.0:8095`, no API key), so the Thor can serve as a shared decision model for the other machines. That is a deliberate choice with a cost — unauthenticated callers can spend the GPU — and it is reversible with `--api-key`. The provider's default base URL stays loopback, because the agent app runs on the Thor itself.
+
 ### The rules that make it work
 
 1. **The core never asks the model what to do.** T0 owns movement, collision, and the invariants. A model answer is a _setpoint_ the core interpolates toward — advisory by construction, not by convention.
