@@ -18,6 +18,25 @@ Read this before changing anything. It is the context a new session lacks: how t
 
 - **Standing Bundles on the ground**: Bundles are built flat. After the hash check, the client moves each Feature onto the terrain: a building as one rigid piece onto the lowest ground under it, a road draped per vertex. It does this again when finer ground arrives (`World.standAgain`, `standFeatures`). The server never knows elevation.
 
+- **Captured assets** ride beside a Bundle, not inside it. An `asset.capture` Fact names the
+  tiers of a capture — `splat` (a gaussian field), `model` (a real triangle mesh), `impostor`
+  and `card` (photographs) — each with its path, sha256 and byte count
+  (`packages/core/src/schema/asset.ts`). The payloads live beside the place file that vouches
+  for them, and the client fetches, hash-verifies and draws them (`apps/client/src/assets.ts`).
+  The ladder is **splat near, model next, photographs beyond**; the lite profile never fetches
+  a mesh (ADR-0023).
+- **A capture's tiers share ONE placement.** The Fact carries a single
+  `position`/`quaternion`/`scale` for every tier, so a _generated_ mesh cannot choose where it
+  stands — it has to be authored into the capture's frame on the Thor, or it lands in the
+  wrong place at the wrong size facing the wrong way (ADR-0024).
+
+- **The Thor hosts models and generates assets; the ProArt renders them** (ADR-0021). The Thor
+  is a Jetson AGX Thor on the LAN; the ProArt is the renderer. If you are working on the
+  renderer, **read [`docs/proart-handoff.md`](docs/proart-handoff.md)** first: it is the map of
+  what the other machine hosts, how to reach it, and the rules that keep the two halves
+  honest. The Thor also serves a live index of everything it has at `http://thor.local:8100/`
+  (`/index.json` for agents) — read it before you guess what exists.
+
 ## Rules that are easy to break
 
 - **Determinism (invariant 2)**: anything that reaches Bundle bytes must not depend on

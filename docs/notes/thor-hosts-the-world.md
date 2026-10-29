@@ -441,6 +441,19 @@ normals unit, UVs in range — PASS.
 **The reconstruction is of a facade, not of a building.** SPAR3D saw one side; framed to the
 capture's height, the mesh is 11.3 m wide where the cathedral is about 20 m.
 
+### And then the game asked for it
+
+The tier is not a fixture. The place file names it, so the running game asks for it:
+
+```
+GET /places/assets/st-michaels-cathedral/1.0.0/model.glb  200  model/gltf-binary  169,132 B
+console: 0 errors
+```
+
+Fetched from the **game's own server** — the payload is baked into the place file's `assets/`
+tree, so the place file vouches for it by hash and the game serves it with no build-time
+configuration at all. Hash-verified, parsed and added to the scene, with no console error.
+
 See [ADR-0024](../adr/0024-a-generated-tier-is-framed-into-its-capture.md).
 
 ## The honest negatives
@@ -473,8 +486,10 @@ See [ADR-0024](../adr/0024-a-generated-tier-is-framed-into-its-capture.md).
   field is `byteStride` and its modes are strings; and `Buffer.prototype.slice()` returns a
   _view_, not a copy, so `readFileSync(...).slice().buffer` pointed at the whole file from
   offset 0. Both produced confident, wrong numbers.
-- **The mesh is drawn in a proof page, not in the game's world.** A real Chromium on the
-  ProArt, on a page importing the same bare specifiers the client uses, fetched the tier over
-  the LAN, verified the hash, parsed 11,135 vertices and 9,999 triangles and drew them. But
-  no place file names a `model` tier yet: a Bundle's capture Fact has to carry it before the
-  running game shows it, and that Fact is not written.
+- **The mesh is drawn in the game, but not yet photographed close up.** A real Chromium on the
+  ProArt, driving the **running game**, fetched the tier from the game's own server, verified
+  the hash and drew it — 200, `model/gltf-binary`, no console errors. But the check that the
+  mesh stands on the _right building_ is the silhouette comparison against the splat at the
+  same bearing, not a photograph of the cathedral in the game: at 165 m the cathedral is a
+  small part of a 1280×800 frame of downtown Sitka, and nobody has yet stood in front of it
+  with a camera.
