@@ -206,6 +206,44 @@ The floor was re-measured against the live API on 2026-10-28, independently of A
 - **The local arms and the cloud arm do not get the same _preprocessing_ in production.** Here they get the same bytes, which is what makes the comparison fair. In production the cloud path uses `fitForJev` (crop past 5.6:1, scale into 280–1,568 px) and the local path wants its own smaller fit — `fitForShared` is the rule for one image that has to serve both. The numbers above are about the models, not about the production fits.
 - **The cloud arms were paid for.** `cloud-jev` at $0.0006–0.0007 a run and `cloud-llm` at $0.0075–0.0233. The local arms are $0 and are on the box.
 
+## The front door: OpenAI shape in, decision answer out
+
+The decision models speak TypeSafe's System One protocol, but the agents that want to use
+them — the pi agent on the ProArt among them — speak the OpenAI chat API. There is a small
+server in front of them on **port 8097** that translates one into the other, so an
+OpenAI-shaped client can use the decision tier without knowing anything about System One.
+
+```bash
+curl -s http://192.168.0.78:8097/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"d1-2B","messages":[{"role":"user","content":"A hiker slipped on a wet boardwalk."}]}'
+```
+
+The answer comes back as JSON in the chat message, one entry per question, each with its
+question text beside it:
+
+```json
+{
+  "urgent": {
+    "question": "Does this require immediate action?",
+    "answer": { "type": "noul", "noul": 0.7696983476537502 }
+  }
+}
+```
+
+Send a pack in the message (`{"questions": {...}}`, inline or in a ` ```json ` block) and you
+get exactly those answers; send plain language and you get the built-in `urgent` / `severity`
+/ `next` pack. Images ride along as `image_url` parts, so the multimodal models work over
+the OpenAI shape too — a photo costs 621 extra prompt tokens (122 → 743).
+
+The rules it keeps: completion tokens are always **zero** (a decision model emits no text),
+it streams when asked (OpenAI clients default to `stream: true`, and several treat a
+non-streamed body as a broken stream), and an upstream refusal comes back as the model's
+own message rather than as a wrong answer.
+
+See [ADR-0020](../adr/0020-openai-decision-front-door.md). It is open on the LAN with no
+authentication, like the rest of the Thor's decision services.
+
 ## Reproduction
 
 ```bash
