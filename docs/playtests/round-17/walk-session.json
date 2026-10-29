@@ -1,0 +1,799 @@
+{
+  "base": "http://127.0.0.1:8788",
+  "at": "",
+  "scene": "walk",
+  "t": null,
+  "hash": null,
+  "viewport": {
+    "size": "1280x800",
+    "phone": false
+  },
+  "log": [
+    {
+      "t": "21:02:55.259",
+      "kind": "goto",
+      "clock": null,
+      "url": "http://127.0.0.1:8788/"
+    },
+    {
+      "t": "21:02:55.268",
+      "kind": "console",
+      "clock": null,
+      "type": "warning",
+      "text": "No available adapters."
+    },
+    {
+      "t": "21:02:55.269",
+      "kind": "console",
+      "clock": null,
+      "type": "warning",
+      "text": "THREE.WebGPURenderer: WebGPU is not available, running under WebGL2 backend."
+    },
+    {
+      "t": "21:02:56.039",
+      "kind": "console",
+      "clock": {
+        "hour": 9.5,
+        "timeOfDay": "9:30 AM",
+        "weather": "clear",
+        "cloud": 0,
+        "sunElevation": 0
+      },
+      "type": "warning",
+      "text": "[.WebGL-0x318c001d8800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "t": "21:02:56.266",
+      "kind": "console",
+      "clock": {
+        "hour": 9.5,
+        "timeOfDay": "9:30 AM",
+        "weather": "clear",
+        "cloud": 0,
+        "sunElevation": 0
+      },
+      "type": "warning",
+      "text": "[.WebGL-0x318c001d8800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "t": "21:02:56.456",
+      "kind": "console",
+      "clock": {
+        "hour": 9.5,
+        "timeOfDay": "9:30 AM",
+        "weather": "clear",
+        "cloud": 0,
+        "sunElevation": 0
+      },
+      "type": "warning",
+      "text": "[.WebGL-0x318c001d8800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "t": "21:02:56.582",
+      "kind": "console",
+      "clock": {
+        "hour": 9.5,
+        "timeOfDay": "9:30 AM",
+        "weather": "clear",
+        "cloud": 0,
+        "sunElevation": 0
+      },
+      "type": "warning",
+      "text": "[.WebGL-0x318c001d8800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+    },
+    {
+      "t": "21:02:57.354",
+      "kind": "shot",
+      "clock": {
+        "hour": 9.5,
+        "timeOfDay": "9:30 AM",
+        "weather": "clear",
+        "cloud": 0,
+        "sunElevation": 0
+      },
+      "name": "01-arrival",
+      "bytes": 319702,
+      "stats": {
+        "ready": 0,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 0,
+        "verified": 0,
+        "mismatched": 0,
+        "quests": 0,
+        "waking": 0
+      },
+      "sky": {
+        "hour": 9.5,
+        "elevation": 0,
+        "cloud": 0,
+        "wind": 0
+      }
+    },
+    {
+      "t": "21:03:02.170",
+      "kind": "settled",
+      "clock": {
+        "hour": 9.604,
+        "timeOfDay": "9:36 AM",
+        "weather": "broken overcast",
+        "cloud": 0.679,
+        "sunElevation": 47.5
+      },
+      "label": "arrival",
+      "seconds": 4.8,
+      "stats": {
+        "ready": 7,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 1631,
+        "verified": 7,
+        "mismatched": 0,
+        "quests": 21,
+        "waking": 0
+      },
+      "sky": {
+        "hour": 9.604439999999997,
+        "elevation": 47.54742497412249,
+        "cloud": 0.6792800098882352,
+        "wind": 0.062024055354001704
+      }
+    },
+    {
+      "t": "21:03:07.068",
+      "kind": "shot",
+      "clock": {
+        "hour": 9.604,
+        "timeOfDay": "9:36 AM",
+        "weather": "broken overcast",
+        "cloud": 0.679,
+        "sunElevation": 47.5
+      },
+      "name": "02-settled",
+      "bytes": 136202,
+      "stats": {
+        "ready": 7,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 1631,
+        "verified": 7,
+        "mismatched": 0,
+        "quests": 21,
+        "waking": 0
+      },
+      "sky": {
+        "hour": 9.604439999999997,
+        "elevation": 47.54742497412249,
+        "cloud": 0.6792800098882352,
+        "wind": 0.062024055354001704
+      }
+    },
+    {
+      "t": "21:03:29.726",
+      "kind": "shot",
+      "clock": {
+        "hour": 9.887,
+        "timeOfDay": "9:53 AM",
+        "weather": "broken overcast",
+        "cloud": 0.632,
+        "sunElevation": 49.3
+      },
+      "name": "03-walk-1",
+      "bytes": 155229,
+      "stats": {
+        "ready": 7,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 1631,
+        "verified": 7,
+        "mismatched": 0,
+        "quests": 21,
+        "waking": 0
+      },
+      "sky": {
+        "hour": 9.886926666666668,
+        "elevation": 49.32053192763138,
+        "cloud": 0.6318926119206459,
+        "wind": 0.18686876818756903
+      }
+    },
+    {
+      "t": "21:04:23.361",
+      "kind": "shot",
+      "clock": {
+        "hour": 10.793,
+        "timeOfDay": "10:47 AM",
+        "weather": "broken overcast",
+        "cloud": 0.558,
+        "sunElevation": 53.9
+      },
+      "name": "03-walk-2",
+      "bytes": 104942,
+      "stats": {
+        "ready": 7,
+        "loading": 3,
+        "sketch": 0,
+        "errors": 0,
+        "features": 1631,
+        "verified": 7,
+        "mismatched": 0,
+        "quests": 21,
+        "waking": 0
+      },
+      "sky": {
+        "hour": 10.79300666666667,
+        "elevation": 53.909504217508704,
+        "cloud": 0.5583498276652652,
+        "wind": 0.3908635936007995
+      }
+    },
+    {
+      "t": "21:05:00.969",
+      "kind": "shot",
+      "clock": {
+        "hour": 11.462,
+        "timeOfDay": "11:27 AM",
+        "weather": "broken overcast",
+        "cloud": 0.605,
+        "sunElevation": 55.9
+      },
+      "name": "03-walk-3",
+      "bytes": 203957,
+      "stats": {
+        "ready": 10,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 2048,
+        "verified": 10,
+        "mismatched": 0,
+        "quests": 30,
+        "waking": 0
+      },
+      "sky": {
+        "hour": 11.462145,
+        "elevation": 55.878917895058095,
+        "cloud": 0.6045144173718994,
+        "wind": 0.3723036229429678
+      }
+    },
+    {
+      "t": "21:05:35.532",
+      "kind": "shot",
+      "clock": {
+        "hour": 12.011,
+        "timeOfDay": "12:00 PM",
+        "weather": "broken overcast",
+        "cloud": 0.611,
+        "sunElevation": 56.4
+      },
+      "name": "03-walk-4",
+      "bytes": 250703,
+      "stats": {
+        "ready": 10,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 2048,
+        "verified": 10,
+        "mismatched": 0,
+        "quests": 30,
+        "waking": 0
+      },
+      "sky": {
+        "hour": 12.011290000000002,
+        "elevation": 56.38645735137321,
+        "cloud": 0.6114375010976223,
+        "wind": 0.25057659730241916
+      }
+    },
+    {
+      "t": "21:06:07.460",
+      "kind": "after-walk",
+      "clock": {
+        "hour": 12.61,
+        "timeOfDay": "12:36 PM",
+        "weather": "broken overcast",
+        "cloud": 0.638,
+        "sunElevation": 55.7
+      },
+      "stats": {
+        "ready": 10,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 2048,
+        "verified": 10,
+        "mismatched": 0,
+        "quests": 30,
+        "waking": 0
+      },
+      "sky": {
+        "hour": 12.609605000000002,
+        "elevation": 55.73592475177682,
+        "cloud": 0.6384699922467323,
+        "wind": 0.19294350151844267
+      }
+    },
+    {
+      "t": "21:06:11.541",
+      "kind": "shot",
+      "clock": {
+        "hour": 12.623,
+        "timeOfDay": "12:37 PM",
+        "weather": "broken overcast",
+        "cloud": 0.642,
+        "sunElevation": 55.7
+      },
+      "name": "04-after-walk",
+      "bytes": 115470,
+      "stats": {
+        "ready": 10,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 2048,
+        "verified": 10,
+        "mismatched": 0,
+        "quests": 30,
+        "waking": 0
+      },
+      "sky": {
+        "hour": 12.622936666666668,
+        "elevation": 55.707464323262506,
+        "cloud": 0.6422056924600782,
+        "wind": 0.18199957956118457
+      }
+    },
+    {
+      "t": "21:06:12.510",
+      "kind": "console",
+      "clock": {
+        "hour": 12.623,
+        "timeOfDay": "12:37 PM",
+        "weather": "broken overcast",
+        "cloud": 0.642,
+        "sunElevation": 55.7
+      },
+      "type": "warning",
+      "text": "No available adapters."
+    },
+    {
+      "t": "21:06:12.511",
+      "kind": "console",
+      "clock": {
+        "hour": 12.623,
+        "timeOfDay": "12:37 PM",
+        "weather": "broken overcast",
+        "cloud": 0.642,
+        "sunElevation": 55.7
+      },
+      "type": "warning",
+      "text": "THREE.WebGPURenderer: WebGPU is not available, running under WebGL2 backend."
+    },
+    {
+      "t": "21:06:13.222",
+      "kind": "settled",
+      "clock": {
+        "hour": 9.5,
+        "timeOfDay": "9:30 AM",
+        "weather": "broken overcast",
+        "cloud": 0.695,
+        "sunElevation": 46.9
+      },
+      "label": "demo",
+      "seconds": 0.7,
+      "stats": {
+        "ready": 1,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 20,
+        "verified": 1,
+        "mismatched": 0,
+        "quests": 0,
+        "waking": 0
+      },
+      "sky": {
+        "hour": 9.500038333332938,
+        "elevation": 46.85980975560587,
+        "cloud": 0.6949148742362119,
+        "wind": 0.0400185088103907
+      }
+    },
+    {
+      "t": "21:06:15.573",
+      "kind": "shot",
+      "clock": {
+        "hour": 9.5,
+        "timeOfDay": "9:30 AM",
+        "weather": "broken overcast",
+        "cloud": 0.695,
+        "sunElevation": 46.9
+      },
+      "name": "05-demo-generators",
+      "bytes": 77094,
+      "stats": {
+        "ready": 1,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 20,
+        "verified": 1,
+        "mismatched": 0,
+        "quests": 0,
+        "waking": 0
+      },
+      "sky": {
+        "hour": 9.500038333332938,
+        "elevation": 46.85980975560587,
+        "cloud": 0.6949148742362119,
+        "wind": 0.0400185088103907
+      }
+    },
+    {
+      "t": "21:06:16.081",
+      "kind": "console",
+      "clock": {
+        "hour": 9.5,
+        "timeOfDay": "9:30 AM",
+        "weather": "broken overcast",
+        "cloud": 0.695,
+        "sunElevation": 46.9
+      },
+      "type": "warning",
+      "text": "No available adapters."
+    },
+    {
+      "t": "21:06:16.082",
+      "kind": "console",
+      "clock": {
+        "hour": 9.5,
+        "timeOfDay": "9:30 AM",
+        "weather": "broken overcast",
+        "cloud": 0.695,
+        "sunElevation": 46.9
+      },
+      "type": "warning",
+      "text": "THREE.WebGPURenderer: WebGPU is not available, running under WebGL2 backend."
+    },
+    {
+      "t": "21:06:29.035",
+      "kind": "console",
+      "clock": {
+        "hour": 9.5,
+        "timeOfDay": "9:30 AM",
+        "weather": "broken overcast",
+        "cloud": 0.695,
+        "sunElevation": 46.9
+      },
+      "type": "warning",
+      "text": "No available adapters."
+    },
+    {
+      "t": "21:06:29.040",
+      "kind": "console",
+      "clock": {
+        "hour": 9.5,
+        "timeOfDay": "9:30 AM",
+        "weather": "broken overcast",
+        "cloud": 0.695,
+        "sunElevation": 46.9
+      },
+      "type": "warning",
+      "text": "THREE.WebGPURenderer: WebGPU is not available, running under WebGL2 backend."
+    },
+    {
+      "t": "21:06:47.422",
+      "kind": "settled",
+      "clock": {
+        "hour": 9.797,
+        "timeOfDay": "9:47 AM",
+        "weather": "broken overcast",
+        "cloud": 0.646,
+        "sunElevation": 48.8
+      },
+      "label": "goto-sitka",
+      "seconds": 18.4,
+      "stats": {
+        "ready": 7,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 1085,
+        "verified": 7,
+        "mismatched": 0,
+        "quests": 13,
+        "waking": 0
+      },
+      "sky": {
+        "hour": 9.797488333333334,
+        "elevation": 48.7758666604116,
+        "cloud": 0.6460015046607893,
+        "wind": 0.12034061436367702
+      }
+    },
+    {
+      "t": "21:06:51.218",
+      "kind": "shot",
+      "clock": {
+        "hour": 9.797,
+        "timeOfDay": "9:47 AM",
+        "weather": "broken overcast",
+        "cloud": 0.646,
+        "sunElevation": 48.8
+      },
+      "name": "06-goto-lincoln-st",
+      "bytes": 87571,
+      "stats": {
+        "ready": 7,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 1085,
+        "verified": 7,
+        "mismatched": 0,
+        "quests": 13,
+        "waking": 0
+      },
+      "sky": {
+        "hour": 9.797488333333334,
+        "elevation": 48.7758666604116,
+        "cloud": 0.6460015046607893,
+        "wind": 0.12034061436367702
+      }
+    },
+    {
+      "t": "21:07:05.098",
+      "kind": "hud-click",
+      "clock": {
+        "hour": 9.797,
+        "timeOfDay": "9:47 AM",
+        "weather": "broken overcast",
+        "cloud": 0.646,
+        "sunElevation": 48.8
+      },
+      "name": "details-0",
+      "path": "real",
+      "ms": 8926
+    },
+    {
+      "t": "21:07:31.426",
+      "kind": "hud-click",
+      "clock": {
+        "hour": 9.797,
+        "timeOfDay": "9:47 AM",
+        "weather": "broken overcast",
+        "cloud": 0.646,
+        "sunElevation": 48.8
+      },
+      "name": "details-1",
+      "path": "real",
+      "ms": 15135
+    },
+    {
+      "t": "21:07:41.112",
+      "kind": "hud-panels-open",
+      "clock": {
+        "hour": 9.797,
+        "timeOfDay": "9:47 AM",
+        "weather": "broken overcast",
+        "cloud": 0.646,
+        "sunElevation": 48.8
+      },
+      "count": 2
+    },
+    {
+      "t": "21:08:22.110",
+      "kind": "hud-click",
+      "clock": {
+        "hour": 10.865,
+        "timeOfDay": "10:51 AM",
+        "weather": "broken overcast",
+        "cloud": 0.562,
+        "sunElevation": 54.2
+      },
+      "name": "save-postcard",
+      "path": "real",
+      "ms": 13217
+    },
+    {
+      "t": "21:08:25.498",
+      "kind": "postcard",
+      "clock": {
+        "hour": 11.277,
+        "timeOfDay": "11:16 AM",
+        "weather": "broken overcast",
+        "cloud": 0.604,
+        "sunElevation": 55.5
+      },
+      "link": "http://127.0.0.1:8788/?c=pc_487f23byuk&t=10.07"
+    },
+    {
+      "t": "21:08:43.113",
+      "kind": "shot",
+      "clock": {
+        "hour": 11.36,
+        "timeOfDay": "11:21 AM",
+        "weather": "broken overcast",
+        "cloud": 0.604,
+        "sunElevation": 55.7
+      },
+      "name": "07-postcard-saved",
+      "bytes": 124911,
+      "stats": {
+        "ready": 7,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 1085,
+        "verified": 7,
+        "mismatched": 0,
+        "quests": 13,
+        "waking": 0
+      },
+      "sky": {
+        "hour": 11.359656666666666,
+        "elevation": 55.67249942583093,
+        "cloud": 0.6044236024747044,
+        "wind": 0.3739040879762021
+      }
+    },
+    {
+      "t": "21:08:45.377",
+      "kind": "console",
+      "clock": {
+        "hour": 11.36,
+        "timeOfDay": "11:21 AM",
+        "weather": "broken overcast",
+        "cloud": 0.604,
+        "sunElevation": 55.7
+      },
+      "type": "warning",
+      "text": "No available adapters."
+    },
+    {
+      "t": "21:08:45.381",
+      "kind": "console",
+      "clock": {
+        "hour": 11.36,
+        "timeOfDay": "11:21 AM",
+        "weather": "broken overcast",
+        "cloud": 0.604,
+        "sunElevation": 55.7
+      },
+      "type": "warning",
+      "text": "THREE.WebGPURenderer: WebGPU is not available, running under WebGL2 backend."
+    },
+    {
+      "t": "21:08:57.133",
+      "kind": "settled",
+      "clock": {
+        "hour": 10.07,
+        "timeOfDay": "10:04 AM",
+        "weather": "broken overcast",
+        "cloud": 0.595,
+        "sunElevation": 50.4
+      },
+      "label": "postcard-open",
+      "seconds": 11.8,
+      "stats": {
+        "ready": 7,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 1085,
+        "verified": 7,
+        "mismatched": 0,
+        "quests": 13,
+        "waking": 0
+      },
+      "sky": {
+        "hour": 10.07,
+        "elevation": 50.3958129545372,
+        "cloud": 0.5950923995100641,
+        "wind": 0.249246254682318
+      }
+    },
+    {
+      "t": "21:09:00.877",
+      "kind": "hud-status",
+      "clock": {
+        "hour": 10.07,
+        "timeOfDay": "10:04 AM",
+        "weather": "broken overcast",
+        "cloud": 0.595,
+        "sunElevation": 50.4
+      },
+      "status": "13 quests nearby: photograph a building under an amber beacon"
+    },
+    {
+      "t": "21:09:09.403",
+      "kind": "shot",
+      "clock": {
+        "hour": 10.07,
+        "timeOfDay": "10:04 AM",
+        "weather": "broken overcast",
+        "cloud": 0.595,
+        "sunElevation": 50.4
+      },
+      "name": "08-postcard-opened",
+      "bytes": 71835,
+      "stats": {
+        "ready": 7,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 1085,
+        "verified": 7,
+        "mismatched": 0,
+        "quests": 13,
+        "waking": 0
+      },
+      "sky": {
+        "hour": 10.07,
+        "elevation": 50.3958129545372,
+        "cloud": 0.5950923995100641,
+        "wind": 0.249246254682318
+      }
+    },
+    {
+      "t": "21:09:09.955",
+      "kind": "hud-status",
+      "clock": {
+        "hour": 10.07,
+        "timeOfDay": "10:04 AM",
+        "weather": "broken overcast",
+        "cloud": 0.595,
+        "sunElevation": 50.4
+      },
+      "status": "13 quests nearby: photograph a building under an amber beacon"
+    },
+    {
+      "t": "21:09:15.596",
+      "kind": "shot",
+      "clock": {
+        "hour": 10.07,
+        "timeOfDay": "10:04 AM",
+        "weather": "broken overcast",
+        "cloud": 0.595,
+        "sunElevation": 50.4
+      },
+      "name": "09-final",
+      "bytes": 72080,
+      "stats": {
+        "ready": 7,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 1085,
+        "verified": 7,
+        "mismatched": 0,
+        "quests": 13,
+        "waking": 0
+      },
+      "sky": {
+        "hour": 10.07,
+        "elevation": 50.3958129545372,
+        "cloud": 0.5950923995100641,
+        "wind": 0.249246254682318
+      }
+    },
+    {
+      "t": "21:09:15.596",
+      "kind": "scene-done",
+      "clock": {
+        "hour": 10.07,
+        "timeOfDay": "10:04 AM",
+        "weather": "broken overcast",
+        "cloud": 0.595,
+        "sunElevation": 50.4
+      },
+      "scene": "walk"
+    }
+  ]
+}

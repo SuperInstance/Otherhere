@@ -23,8 +23,8 @@ Read this before changing anything. It is the context a new session lacks: how t
   and `card` (photographs) — each with its path, sha256 and byte count
   (`packages/core/src/schema/asset.ts`). The payloads live beside the place file that vouches
   for them, and the client fetches, hash-verifies and draws them (`apps/client/src/assets.ts`).
-  The ladder is **splat near, model next, photographs beyond**; the lite profile never fetches
-  a mesh (ADR-0023).
+  The ladder is **splat near, mesh beyond** — a capture with a `model` tier never shows its
+  photograph again; the lite profile never fetches a mesh (ADR-0023).
 - **A capture's tiers share ONE placement.** The Fact carries a single
   `position`/`quaternion`/`scale` for every tier, so a _generated_ mesh cannot choose where it
   stands — it has to be authored into the capture's frame on the Thor, or it lands in the

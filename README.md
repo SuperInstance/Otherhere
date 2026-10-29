@@ -43,8 +43,8 @@ Give the game one photograph of a building and a machine on the other side of th
 into a real 3D model — one photograph in, a textured mesh out, in about half a minute. That
 mesh is a tier of the capture: fetched by its hash, verified before it is parsed, and drawn in
 the building's own frame. Walk up to it and you get the true capture, a gaussian field filmed
-from the street; walk away and the mesh takes over — far smaller in bytes, and honest about
-the fact that it only saw one side.
+from the street; walk away and the mesh takes over — and it is honest about the fact that it
+only saw one side. St Michael's Cathedral's mesh is 169,132 B against its splat's 193,512 B.
 
 The same lane takes a street photograph and rebuilds the _place_: the depth map becomes
 geometry, the photograph is painted onto it vertex by vertex, and the result is a backdrop you

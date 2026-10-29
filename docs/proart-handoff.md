@@ -112,9 +112,11 @@ index, check the watchdog log before you change anything:
 | `impostor` | a large photograph (`.webp`)  | —                     | when there is no mesh             |
 | `card`     | a small photograph (`.webp`)  | —                     | **the lite profile's only tier**  |
 
-The ladder is **splat near, model next, photographs beyond**, and the lite profile never
-fetches a mesh at all (ADR-0023). A mesh outranks the photographs wherever it exists: it is
-geometry with real silhouettes, and it is cheap enough to be worth the draw.
+The ladder is **splat near, mesh beyond**: a capture with a `model` tier shows the gaussian
+field within 140 m and the mesh at every distance beyond that, so its photograph is never
+shown again. The lite profile never fetches a mesh at all (ADR-0023). A mesh outranks the
+photographs wherever it exists: it is geometry with real silhouettes, and it is cheap enough to
+be worth the draw.
 
 ### How a payload gets served
 

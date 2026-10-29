@@ -7,6 +7,8 @@
 // the in-world clock and weather at the moment it was written.
 //
 // Scenes (`--scene`, default `walk`):
+//   stand        stand at one saved pose and look; the frame is the world, and
+//                the log says which asset tier the game fetched for it.
 //   walk         round 1's exploratory run: arrive, walk, demo, goto, postcard.
 //   day          hold T through a full day; screenshots at night/dawn/golden/noon/dusk.
 //   determinism  load the same pinned `?t=` URL twice in fresh contexts; compare.
@@ -20,6 +22,7 @@
 //   node playtest/probe.mjs --base http://localhost:5173 --at 47.3769,8.5417 --seed --scene postcard --tag local-zurich-postcard
 //   node playtest/probe.mjs --base http://localhost:5173 --at 47.3769,8.5417 --seed --scene determinism --t 21.5 --tag local-zurich-det
 //   node playtest/probe.mjs --base http://localhost:5173 --at 47.3769,8.5417 --seed --scene sketch --tag local-zurich-sketch
+//   node playtest/probe.mjs --base http://127.0.0.1:8788 --place sitka --scene stand --hash 51.30,1.7,381.95,-0.1868,0 --tag round-17-splat
 // Artifacts land OUTSIDE the repo, in otherhere-lab/playtest-artifacts/<tag>-*
 // (PNG + JSON), plus a session summary JSON with every console/error/network row.
 
@@ -37,10 +40,11 @@ const arg = (name, fallback) => {
 
 const BASE = arg('base', 'http://localhost:5173');
 const AT = arg('at', ''); // "" = the site default (downtown Sitka)
+const PLACE = arg('place', ''); // a baked place by name (?place=sitka)
 const TAG = arg('tag', 'probe');
 const SCENE = arg('scene', 'walk');
 const PINNED_T = arg('t', ''); // pinned day-clock hour for the URL (?t=)
-const HASH = arg('hash', ''); // saved pose for the URL (#x,y,z,yaw,pitch)
+const HASH = arg('hash', '').replace(/^#/, ''); // saved pose for the URL (#x,y,z,yaw,pitch)
 const VIEWPORT = arg('viewport', ''); // "<W>x<H>"; --phone defaults it to 390x844
 // A malformed --viewport must fail loudly (#61): every earlier round was judged
 // at a known size, and a silent 1280x800 fallback would name evidence for a
@@ -55,6 +59,12 @@ const OUT =
   process.env.PLAYTEST_OUT ??
   new URL('../../../../otherhere-lab/playtest-artifacts/', import.meta.url).pathname;
 mkdirSync(OUT, { recursive: true });
+
+// A screenshot has to wait for the page to be still enough to read back, and
+// under software GL (no GPU) the world is still streaming terrain tiles when
+// the moment arrives. The default 30 s is not enough for a first look at a
+// whole place, and a screenshot that times out is evidence that never arrives.
+const SHOT_TIMEOUT_MS = Number(process.env.PROBE_SHOT_TIMEOUT_MS ?? 180_000);
 
 // The repo's e2e config points at a preinstalled Chromium; do the same, falling
 // back to whatever chromium-* build is in the playwright cache.
@@ -161,6 +171,11 @@ const attach = (p) => {
   );
   p.on('response', (r) => {
     if (r.status() >= 400) note('http', { status: r.status(), url: r.url().slice(0, 200) });
+    // Which asset tier the game actually asked for, and whether it got it.
+    // This is the row that proves the ladder: the same capture, at two
+    // distances, fetching two different tiers from the same place file.
+    const m = r.url().match(/places\/assets\/([^/]+)\/([^/]+)\/([a-z]+)\.[a-z0-9]+$/);
+    if (m) note('tier-fetch', { family: m[1], version: m[2], tier: m[3], status: r.status() });
   });
 };
 
@@ -200,7 +215,7 @@ const settle = async (label, timeoutMs = 90000) => {
 
 const shot = async (name) => {
   await readWorld(); // the row names the moment the picture was taken
-  const b = await page.screenshot({ path: `${OUT}${TAG}-${name}.png` });
+  const b = await page.screenshot({ path: `${OUT}${TAG}-${name}.png`, timeout: SHOT_TIMEOUT_MS });
   note('shot', {
     name,
     bytes: b.length,
@@ -257,7 +272,7 @@ const hideHud = () =>
 const worldShot = async (name) => {
   await hideHud();
   await readWorld(); // the row names the moment the picture was taken
-  const b = await page.screenshot({ path: `${OUT}${TAG}-${name}.png` });
+  const b = await page.screenshot({ path: `${OUT}${TAG}-${name}.png`, timeout: SHOT_TIMEOUT_MS });
   note('world-shot', {
     name,
     bytes: b.length,
@@ -267,8 +282,15 @@ const worldShot = async (name) => {
   return b;
 };
 
-const placeUrl = (extra = '') =>
-  `${BASE}/${AT ? `?at=${AT}` : ''}${PINNED_T ? `${AT ? '&' : '?'}t=${PINNED_T}` : ''}${extra}${HASH ? `#${HASH}` : ''}`;
+const placeUrl = (extra = '') => {
+  const q = [];
+  // A baked place and a coordinate lookup are two doors into the world; a
+  // baked place is the one that carries asset tiers, so it wins.
+  if (PLACE) q.push(`place=${encodeURIComponent(PLACE)}`);
+  if (AT) q.push(`at=${encodeURIComponent(AT)}`);
+  if (PINNED_T) q.push(`t=${encodeURIComponent(PINNED_T)}`);
+  return `${BASE}/${q.length ? `?${q.join('&')}` : ''}${extra}${HASH ? `#${HASH}` : ''}`;
+};
 
 /** Compare two screenshot buffers: byte equality, else the worst channel delta. */
 const pngStats = (a, b) => {
@@ -406,6 +428,20 @@ const savePostcard = async (title) => {
 const openLink = (link) => page.goto(/^https?:\/\//.test(link) ? link : `${BASE}${link}`);
 
 /* ------------------------------------------------------------- scenes */
+
+/**
+ * Stand still at one pose and look.
+ *
+ * The A/B scene: one camera position, one frame, and the log row saying which
+ * asset tier the game fetched for it. No walking, no demo, no postcard — the
+ * frame is only the world, and the world drew exactly one payload.
+ */
+async function sceneStand() {
+  await page.goto(placeUrl(), { waitUntil: 'domcontentloaded', timeout: 60000 });
+  note('goto', { url: placeUrl() });
+  await settle('stand');
+  await worldShot('stand');
+}
 
 async function sceneWalk() {
   if (SEED) await seedBlock();
@@ -823,6 +859,7 @@ async function sceneCrown() {
 }
 
 const SCENES = {
+  stand: sceneStand,
   walk: sceneWalk,
   day: sceneDay,
   determinism: sceneDeterminism,
@@ -831,7 +868,7 @@ const SCENES = {
   crown: sceneCrown,
 };
 if (!SCENES[SCENE]) {
-  console.error(`unknown --scene ${SCENE} (walk|day|determinism|postcard|sketch|crown)`);
+  console.error(`unknown --scene ${SCENE} (stand|walk|day|determinism|postcard|sketch|crown)`);
   process.exit(2);
 }
 

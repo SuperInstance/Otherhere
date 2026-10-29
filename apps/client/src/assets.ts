@@ -74,7 +74,7 @@ export type PlacedAsset = {
   clearing: { x: number; z: number; r: number; built: true };
 };
 
-/** Full profile: the splat inside this distance, photographs beyond it. */
+/** Full profile: the splat inside this distance, the mesh beyond it. */
 export const SPLAT_NEAR_M = 140;
 
 /**
@@ -135,10 +135,12 @@ export function assetsFor(
  * falls to the next one down; a lone splat shows at any distance rather
  * than leaving the lot empty.
  *
- * The ladder: the gaussian field near, a real mesh (`model`) next, the
- * photographs beyond. A mesh is not a photograph — it is geometry with real
+ * The ladder: the gaussian field near, and then the mesh (`model`) at every
+ * distance beyond it. A mesh is not a photograph — it is geometry with real
  * silhouettes — so it outranks the impostor wherever it exists, and it is
- * cheap enough (a finished mesh is 50-190 KB) to be worth the draw.
+ * cheap enough (a finished mesh is 50-190 KB) to be worth the draw. The
+ * photographs are the tiers for a capture that has no mesh: once a capture
+ * has one, the impostor is never shown again.
  */
 export function chooseTier(
   lite: boolean,

@@ -1,0 +1,164 @@
+{
+  "what": "round 17 \u2014 the tier ladder, read out of the running game on the ProArt",
+  "how": "apps/client/playtest/probe.mjs --scene stand --place sitka --hash <x,y,z,yaw,pitch>",
+  "base": "http://127.0.0.1:8788 (wrangler dev on the ProArt, serving the merged feat/framed-model-tier client)",
+  "ladder": "SPLAT_NEAR_M = 140 m; below it the gaussian splat, at and above it the model",
+  "runs": [
+    {
+      "tag": "r17-ab-138m",
+      "pose": "51.30,1.7,381.95,-0.1868,0",
+      "place": "sitka",
+      "viewport": {
+        "size": "1280x800",
+        "phone": false
+      },
+      "tier": "splat",
+      "tierStatus": 200,
+      "capture": "st-michaels-cathedral/1.0.0",
+      "settledSeconds": 20.4,
+      "stats": {
+        "ready": 7,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 1646,
+        "verified": 7,
+        "mismatched": 0,
+        "quests": 21,
+        "waking": 0
+      },
+      "frameBytes": 108134,
+      "errors": 0
+    },
+    {
+      "tag": "r17-ab-142m",
+      "pose": "50.56,1.7,385.89,-0.1868,0",
+      "place": "sitka",
+      "viewport": {
+        "size": "1280x800",
+        "phone": false
+      },
+      "tier": "model",
+      "tierStatus": 200,
+      "capture": "st-michaels-cathedral/1.0.0",
+      "settledSeconds": 23,
+      "stats": {
+        "ready": 7,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 1646,
+        "verified": 7,
+        "mismatched": 0,
+        "quests": 21,
+        "waking": 0
+      },
+      "frameBytes": 70055,
+      "errors": 0
+    },
+    {
+      "tag": "r17-b180",
+      "pose": "76.93,1.7,388.35,0.0000,0",
+      "place": "sitka",
+      "viewport": {
+        "size": "1280x800",
+        "phone": false
+      },
+      "tier": "model",
+      "tierStatus": 200,
+      "capture": "st-michaels-cathedral/1.0.0",
+      "settledSeconds": 17.6,
+      "stats": {
+        "ready": 7,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 1646,
+        "verified": 7,
+        "mismatched": 0,
+        "quests": 21,
+        "waking": 0
+      },
+      "frameBytes": 51119,
+      "errors": 0
+    },
+    {
+      "tag": "r17-b200",
+      "pose": "28.36,1.7,379.79,-0.3491,0",
+      "place": "sitka",
+      "viewport": {
+        "size": "1280x800",
+        "phone": false
+      },
+      "tier": "model",
+      "tierStatus": 200,
+      "capture": "st-michaels-cathedral/1.0.0",
+      "settledSeconds": 7.2,
+      "stats": {
+        "ready": 7,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 1646,
+        "verified": 7,
+        "mismatched": 0,
+        "quests": 21,
+        "waking": 0
+      },
+      "frameBytes": 95174,
+      "errors": 0
+    },
+    {
+      "tag": "r17-b215",
+      "pose": "-4.52,1.7,362.67,-0.6109,0",
+      "place": "sitka",
+      "viewport": {
+        "size": "1280x800",
+        "phone": false
+      },
+      "tier": "model",
+      "tierStatus": 200,
+      "capture": "st-michaels-cathedral/1.0.0",
+      "settledSeconds": 5.9,
+      "stats": {
+        "ready": 7,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 1646,
+        "verified": 7,
+        "mismatched": 0,
+        "quests": 21,
+        "waking": 0
+      },
+      "frameBytes": 70819,
+      "errors": 0
+    },
+    {
+      "tag": "r17-b250",
+      "pose": "-56.51,1.7,294.92,-1.2217,0",
+      "place": "sitka",
+      "viewport": {
+        "size": "1280x800",
+        "phone": false
+      },
+      "tier": "model",
+      "tierStatus": 200,
+      "capture": "st-michaels-cathedral/1.0.0",
+      "settledSeconds": 13.1,
+      "stats": {
+        "ready": 7,
+        "loading": 0,
+        "sketch": 0,
+        "errors": 0,
+        "features": 1646,
+        "verified": 7,
+        "mismatched": 0,
+        "quests": 21,
+        "waking": 0
+      },
+      "frameBytes": 80226,
+      "errors": 0
+    }
+  ]
+}
