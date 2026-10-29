@@ -16,6 +16,13 @@
  * The tier names are the client's names. The capture pipeline calls its gaussian field
  * `mesh` (it is the SPZ finalist); the client calls that tier `splat`. The registry
  * translates, once, here.
+ *
+ * The `model` tier is a real triangle mesh (a GLB, geometry compressed with
+ * EXT_meshopt_compression) — the tier the Thor's generators write and the tier the
+ * game actually draws. It was added after the first capture-shaped experiments: every
+ * generated asset on the Thor — a Hunyuan mesh, a SPAR3D mesh, a relief mesh rebuilt
+ * from one photograph — came out as a GLB, and the client had no vocabulary for a GLB,
+ * so the whole asset lane ended at a file nobody could open.
  */
 
 import { createHash } from 'node:crypto';
@@ -23,10 +30,13 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 /** The tiers the client understands, coarsest last-resort first. */
-export const TIER_NAMES = ['splat', 'impostor', 'card'] as const;
+export const TIER_NAMES = ['splat', 'impostor', 'card', 'model'] as const;
 export type TierName = (typeof TIER_NAMES)[number];
 
-/** The name the capture pipeline uses for the gaussian field. */
+/**
+ * The name the capture pipeline uses for the gaussian field. The pipeline's `model`
+ * tier needs no alias: the client's tier is called `model` too.
+ */
 const PIPELINE_TIER_ALIASES: Record<string, TierName> = { mesh: 'splat' };
 
 export type TierFile = {
@@ -69,6 +79,15 @@ const CONTENT_TYPES: Record<TierName, string> = {
   splat: 'model/gaussian-splat',
   impostor: 'image/webp',
   card: 'image/webp',
+  model: 'model/gltf-binary',
+};
+
+/** The file extension each tier is served under. */
+const TIER_EXTENSIONS: Record<TierName, string> = {
+  splat: 'spz',
+  impostor: 'webp',
+  card: 'webp',
+  model: 'glb',
 };
 
 export const sha256 = (bytes: Buffer): string => createHash('sha256').update(bytes).digest('hex');
@@ -159,7 +178,7 @@ export function readCapture(dir: string): { entry: CaptureEntry; problems: strin
     entry.tiers[clientTier] = {
       tier: clientTier,
       file: receipt.file,
-      path: `assets/${family}/${version}/${clientTier}.${clientTier === 'splat' ? 'spz' : 'webp'}`,
+      path: `assets/${family}/${version}/${clientTier}.${TIER_EXTENSIONS[clientTier]}`,
       hash: actualHash,
       bytes: bytes.byteLength,
       contentType: CONTENT_TYPES[clientTier],

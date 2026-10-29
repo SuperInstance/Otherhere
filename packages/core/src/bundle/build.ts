@@ -57,7 +57,17 @@ export type AssetExtras = {
   id: string;
   family: string;
   version: string;
-  tiers: { splat?: AssetTierExtras; impostor?: AssetTierExtras; card?: AssetTierExtras };
+  /**
+   * The tiers this capture offers. `splat` is the gaussian field, `model` a real
+   * triangle mesh (the GLB the Thor's generators write), `impostor` the view atlas
+   * and `card` the small photograph.
+   */
+  tiers: {
+    splat?: AssetTierExtras;
+    impostor?: AssetTierExtras;
+    card?: AssetTierExtras;
+    model?: AssetTierExtras;
+  };
   /** Placement in the Cell's local frame: position + quaternion * (scale * p). */
   position: [number, number, number];
   quaternion: [number, number, number, number];
@@ -255,7 +265,7 @@ export function assetExtras(
     }
     if (flat.length < 6) continue;
     const tiers: AssetExtras['tiers'] = {};
-    for (const k of ['splat', 'impostor', 'card'] as const) {
+    for (const k of ['splat', 'impostor', 'card', 'model'] as const) {
       const t = cap.tiers[k];
       if (t) tiers[k] = { path: t.path, hash: t.hash, bytes: t.bytes };
     }

@@ -69,4 +69,13 @@ describe('chooseTier', () => {
     expect(chooseTier(false, 5_000, { splat: all.splat })).toBe('splat');
     expect(chooseTier(false, 5, {})).toBeNull();
   });
+  it('a real mesh outranks the photographs, and the splat outranks the mesh', () => {
+    const model = { path: 'm.glb', hash: 'h', bytes: 1 };
+    expect(chooseTier(false, 5, { model })).toBe('model');
+    expect(chooseTier(false, 5_000, { model, ...all })).toBe('model');
+    expect(chooseTier(false, SPLAT_NEAR_M - 1, { model, ...all })).toBe('splat');
+    // The lite profile never fetches a mesh either: it is a photograph tier.
+    expect(chooseTier(true, 5, { model })).toBeNull();
+    expect(chooseTier(true, 5, { model, card: all.card })).toBe('card');
+  });
 });

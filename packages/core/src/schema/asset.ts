@@ -9,10 +9,10 @@ import { z } from 'zod';
  * the derived display extras (see `assetExtras` in bundle/build).
  *
  * Tier ladder, coarsest last-resort first in spirit: `card` is the smallest
- * photograph (the lite profile's only tier), `impostor` the larger one, and
- * `splat` the true 3D capture (a gaussian field, .spz). A client picks the
- * richest tier its profile and the viewer's distance allow; the Bundle
- * itself never degrades.
+ * photograph (the lite profile's only tier), `impostor` the larger one,
+ * `model` a real triangle mesh (a GLB), and `splat` the true 3D capture (a
+ * gaussian field, .spz). A client picks the richest tier its profile and the
+ * viewer's distance allow; the Bundle itself never degrades.
  */
 export const AssetTier = z.object({
   /** Path of the payload, relative to the directory serving the place file. */
@@ -31,6 +31,8 @@ export const AssetCapture = z.object({
     splat: AssetTier.optional(),
     impostor: AssetTier.optional(),
     card: AssetTier.optional(),
+    /** A real triangle mesh — the GLB the Thor's generators write. */
+    model: AssetTier.optional(),
   }),
   params: z.object({
     /**
