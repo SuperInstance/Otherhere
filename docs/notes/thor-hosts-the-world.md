@@ -405,6 +405,44 @@ asset and the 11,682-triangle one score identically.
 **This is a backdrop, not a reconstruction.** It builds the view the photograph shows and
 knows nothing about what is behind the camera.
 
+## The mesh has to be framed before it can stand anywhere
+
+The place file carries **one** placement for every tier of a capture, so a generated mesh has
+no say in where it lands: the capture's own `position`, `quaternion` and `scale` are applied
+to whatever frame the generator produced. For St Michael's Cathedral that is not a small
+error. The capture's placement point sits **1.153 m east and 15.894 m south** of the
+building's footprint ring, and the capture's own frame is **y-down** — its 48.765-unit
+extent along its own `y` is 14.592 m of building, because its `y` points at the ground.
+
+The mesh arrives y-up, centred, and 0.992 units tall, where the building is 4.864. Under one
+transform they would be in different places at different sizes.
+
+So the mesh is framed on the Thor, once, before it is published: the shared placement
+undone, then the target applied — base centre at the footprint ring's centre (projected into
+the Cell's local frame exactly as the Bundle builder projects it), standing on the ground,
+the capture's `heightM` tall, front facing the capture's `frontAzimuthDeg`. The check the
+tool prints is the game itself:
+
+```
+baseCentreWorld   [-1.153, 0, -15.894]      the target offset, exactly
+heightM           14.592                    the capture's heightM, exactly
+frontAzimuthDeg   190.7                     the capture's front bearing
+```
+
+A matrix can be right and the result still wrong, so both were rendered by **one renderer**
+from **one bearing** — 190.7°, the capture's own front — under the capture's own placement.
+The splat's church and the generated mesh share a silhouette: the same mass in the same
+columns, the same spire above it, at the same scale.
+
+The finished tier is **169,132 B** at 10,000 triangles, under the 192,000 B full-profile
+budget, and the client's own decoder reads it back: 11,135 vertices, 9,999 triangles,
+normals unit, UVs in range — PASS.
+
+**The reconstruction is of a facade, not of a building.** SPAR3D saw one side; framed to the
+capture's height, the mesh is 11.3 m wide where the cathedral is about 20 m.
+
+See [ADR-0024](../adr/0024-a-generated-tier-is-framed-into-its-capture.md).
+
 ## The honest negatives
 
 - **No released world model fits this job.** One has published Jetson-Thor numbers, and it is
