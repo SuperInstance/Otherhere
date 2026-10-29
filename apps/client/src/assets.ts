@@ -31,6 +31,13 @@ import { sha256Hex, type AssetExtras } from '@otherhere/core';
 export type AssetHost = {
   /** Directory the place files (and their `assets/` payloads) are served from, trailing slash. */
   placesBase: string;
+  /**
+   * Where the tier payloads are fetched from, trailing slash. Defaults to
+   * `placesBase` — but the payloads do not have to live beside the place files:
+   * the Thor hosts them, and the renderer may fetch them from there while the
+   * place file itself stays on the game server.
+   */
+  assetBase?: string;
   lite: boolean;
 };
 
@@ -292,7 +299,7 @@ export class AssetLayer {
 
   /** Fetch a tier's bytes and hold them to the hash the Bundle carries. */
   private async verifiedBytes(tier: TierRef): Promise<Uint8Array> {
-    const res = await fetch(`${this.host.placesBase}${tier.path}`);
+    const res = await fetch(`${this.host.assetBase ?? this.host.placesBase}${tier.path}`);
     if (!res.ok) throw new Error(`${tier.path}: HTTP ${res.status}`);
     const bytes = new Uint8Array(await res.arrayBuffer());
     if (bytes.byteLength !== tier.bytes)
