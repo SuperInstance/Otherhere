@@ -1,0 +1,58 @@
+[
+ {
+  "texture": "cedar-shingle",
+  "prompt": "seamless flat texture of weathered cedar shingle siding, grey brown wood shingles, coastal Alaska house wall, straight-on frontal view, photorealistic texture, even lighting, no windows, no perspective",
+  "gen_s": 6.1,
+  "cos_vs_church": 0.3232,
+  "cos_vs_houses": 0.2604
+ },
+ {
+  "texture": "pale-blue-clapboard",
+  "prompt": "seamless flat texture of pale blue painted wooden clapboard siding, horizontal boards, subtle weathering, Russian Orthodox church wall in Sitka Alaska, straight-on frontal view, photorealistic texture, even lighting",
+  "gen_s": 6.1,
+  "cos_vs_church": 0.4022,
+  "cos_vs_houses": 0.2837
+ },
+ {
+  "texture": "red-brown-siding",
+  "prompt": "seamless flat texture of dark red brown painted wood siding, horizontal boards, coastal Alaska house, straight-on frontal view, photorealistic texture, even lighting, no windows",
+  "gen_s": 6.1,
+  "cos_vs_church": 0.3388,
+  "cos_vs_houses": 0.2123
+ },
+ {
+  "texture": "galvanised-roof",
+  "prompt": "seamless flat texture of galvanised corrugated metal roofing, weathered silver grey with faint rust streaks, straight-on frontal view, photorealistic texture, even lighting",
+  "gen_s": 6.2,
+  "cos_vs_church": 0.2867,
+  "cos_vs_houses": 0.2243
+ },
+ {
+  "texture": "asphalt-shingle-roof",
+  "prompt": "seamless flat texture of dark grey asphalt shingle roofing, wet coastal climate, straight-on frontal view, photorealistic texture, even lighting",
+  "gen_s": 6.2,
+  "cos_vs_church": 0.3432,
+  "cos_vs_houses": 0.2674
+ },
+ {
+  "texture": "white-siding",
+  "prompt": "seamless flat texture of white painted wooden siding, horizontal boards, subtle grey weathering, Alaska town house, straight-on frontal view, photorealistic texture, even lighting",
+  "gen_s": 6.1,
+  "cos_vs_church": 0.3852,
+  "cos_vs_houses": 0.2202
+ },
+ {
+  "texture": "dock-planks",
+  "prompt": "seamless flat texture of silvery weathered spruce wood planks, harbour dock boards with gaps and nail heads, straight-on frontal view, photorealistic texture, even lighting",
+  "gen_s": 6.2,
+  "cos_vs_church": 0.2822,
+  "cos_vs_houses": 0.3131
+ },
+ {
+  "texture": "green-metal-roof",
+  "prompt": "seamless flat texture of green painted standing seam metal roof panels, coastal Alaska, straight-on frontal view, photorealistic texture, even lighting",
+  "gen_s": 6.1,
+  "cos_vs_church": 0.3663,
+  "cos_vs_houses": 0.1904
+ }
+]

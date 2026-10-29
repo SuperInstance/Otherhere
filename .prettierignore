@@ -8,3 +8,12 @@ docs/BRIEF.md
 # Baked place snapshots are captured postcards — generated data, like the fixtures
 # above, not source. Reformatting one would churn every re-bake.
 apps/client/public/places/*.json
+
+# Thor Foundry: the recipes are exported from the Thor's asset registry and the
+# build versions are recorded by the build runner. Same reasoning as the baked
+# place snapshots above — generated data, not source. Reformatting one would
+# churn every re-export. The hand-written foundry/README.md is still checked.
+foundry/recipes/*.json
+foundry/data/*.json
+foundry/textures/*.json
+foundry/builds/**/*.json

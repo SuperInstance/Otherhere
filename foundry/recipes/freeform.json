@@ -1,0 +1,67 @@
+[
+  {
+    "seed": 900003,
+    "rung": "L0",
+    "status": "active",
+    "use_count": 0,
+    "params": {
+      "engine": "blender",
+      "build_id": 1,
+      "version": 3,
+      "title": "build me a three-masted sailboat",
+      "brief": "The asset is a three-masted pirate sailboat, with a hull, three masts (main, fore, and mizzen), and corresponding sails. The style is traditional pirate sailing, but with a richer and more luxurious feel. The materials are wood for the hull and masts, with gold trim, and canvas for the sails. The colors are rich and saturated, with the hull being a deep brown wood color (0.30,0.17,0.08), the masts"
+    }
+  },
+  {
+    "seed": 900006,
+    "rung": "L0",
+    "status": "active",
+    "use_count": 0,
+    "params": {
+      "engine": "blender",
+      "build_id": 2,
+      "version": 3,
+      "title": "build me a three-masted sailboat",
+      "brief": "The asset is a three-masted pirate sailboat, with a hull length of approximately 10 meters, a beam of around 3 meters, and a depth of about 1.5 meters. The style is traditional pirate sailing with rich, saturated colors. The materials include wood for the hull and deck, canvas for the sails, and gold for the trim. The colors are black (0.05,0.05,0.05), dark wood (0.20,0.12,0.06), red (0.65,0.05,0."
+    }
+  },
+  {
+    "seed": 900014,
+    "rung": "L0",
+    "status": "active",
+    "use_count": 0,
+    "params": {
+      "engine": "blender",
+      "build_id": 3,
+      "version": 6,
+      "title": "a dockside tavern, weathered wood walls, tiled roof",
+      "brief": "The asset is a dockside tavern, with weathered wood plank walls, a tiled roof, and a style that suggests a rustic, aged appearance. The materials include weathered wood planks and tiles. The colors are earthy and muted, with the wood being a brown color and the tiles being a terracotta color. The mood is cozy and inviting, with a sense of age and wear. The scale is suitable for a small to medium-s"
+    }
+  },
+  {
+    "seed": 900015,
+    "rung": "L0",
+    "status": "active",
+    "use_count": 0,
+    "params": {
+      "engine": "blender",
+      "build_id": 2,
+      "version": 6,
+      "title": "build me a three-masted sailboat",
+      "brief": "The asset is a three-masted pirate sailboat, with a hull length of approximately 10 meters, a beam of around 3 meters, and a depth of about 1.5 meters. The style is traditional pirate sailing with rich, saturated colors. The materials include wood for the hull and deck, canvas for the sails, and gold for the trim. The colors are black (0.05,0.05,0.05), dark wood (0.20,0.12,0.06), red (0.65,0.05,0."
+    }
+  },
+  {
+    "seed": 900023,
+    "rung": "L0",
+    "status": "active",
+    "use_count": 0,
+    "params": {
+      "engine": "cad",
+      "build_id": 5,
+      "version": 3,
+      "title": "Design a precise ship's wheel as machined CAD: 420 mm diamet",
+      "brief": "The asset is a precise ship's wheel as machined CAD, with a 420 mm diameter rim, brass hub, and eight turned spokes, exact dimensions in millimetres."
+    }
+  }
+]
