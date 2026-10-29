@@ -1,0 +1,13 @@
+[
+  {
+    "seed": 1,
+    "rung": "L0",
+    "status": "active",
+    "use_count": 5,
+    "params": {
+      "size": 220.0,
+      "height": 26.0,
+      "heightmap": "/home/caseydigennaro/foundry/data/sitka_height.png"
+    }
+  }
+]

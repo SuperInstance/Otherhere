@@ -1,0 +1,11 @@
+{
+  "source": "SRTM via AWS terrain tiles (skadi N57W136)",
+  "tile": "N57W136",
+  "lat0": 57.022,
+  "lon0": -135.372,
+  "span_deg": 0.11,
+  "elev_min_m": -37,
+  "elev_max_m": 1003,
+  "file": "sitka_height.png",
+  "raw_tile": "N57W136.hgt"
+}

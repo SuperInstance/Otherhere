@@ -1,0 +1,97 @@
+{
+ "ok": true,
+ "engine": "blender",
+ "request": {
+  "textures": [],
+  "motion": {
+   "bob": {
+    "amp": 0.15,
+    "period_s": 2.0
+   },
+   "sway": {
+    "amp_deg": 1.8,
+    "period_s": 2.0
+   },
+   "parts": {
+    "flag*": {
+     "rot_y": {
+      "amp_deg": 16,
+      "period_s": 1.0
+     }
+    }
+   }
+  },
+  "samples": 48,
+  "seed": 7
+ },
+ "device": "CUDA:NVIDIA Thor",
+ "objects": [
+  "bowsprit",
+  "cabin",
+  "deck",
+  "flag_main",
+  "hull",
+  "jib_mast_fore",
+  "jib_mast_main",
+  "jib_mast_mizzen",
+  "lantern",
+  "mast_fore",
+  "mast_fore_boom",
+  "mast_main",
+  "mast_main_boom",
+  "mast_mizzen",
+  "mast_mizzen_boom",
+  "rudder",
+  "sail_mast_fore",
+  "sail_mast_main",
+  "sail_mast_mizzen"
+ ],
+ "parts": [
+  "bowsprit",
+  "cabin",
+  "deck",
+  "flag_main",
+  "hull",
+  "jib_mast_fore",
+  "jib_mast_main",
+  "jib_mast_mizzen",
+  "lantern",
+  "mast_fore",
+  "mast_fore_boom",
+  "mast_main",
+  "mast_main_boom",
+  "mast_mizzen",
+  "mast_mizzen_boom",
+  "rudder",
+  "sail_mast_fore",
+  "sail_mast_main",
+  "sail_mast_mizzen"
+ ],
+ "stage": "water",
+ "motion_applied": {
+  "bob": {
+   "amp": 0.15,
+   "period_s": 2.0
+  },
+  "sway": {
+   "amp_deg": 1.8,
+   "period_s": 2.0
+  },
+  "flag_main": {
+   "rot_y": {
+    "amp_deg": 16,
+    "period_s": 1.0
+   }
+  }
+ },
+ "build_s": 0.03,
+ "preview_render_s": 1.04,
+ "turntable_s": 7.22,
+ "motion_s": 10.9,
+ "glb": "/home/caseydigennaro/foundry/builds/handtest/v1/asset.glb",
+ "blend": "/home/caseydigennaro/foundry/builds/handtest/v1/asset.blend",
+ "_wall_s": 20.39,
+ "turntable.webp": "/home/caseydigennaro/foundry/builds/handtest/v1/turntable.webp",
+ "motion.webp": "/home/caseydigennaro/foundry/builds/handtest/v1/motion.webp",
+ "total_s": 21.14
+}

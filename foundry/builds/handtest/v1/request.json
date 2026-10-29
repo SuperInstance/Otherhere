@@ -1,0 +1,1 @@
+{"textures": [], "motion": {"bob": {"amp": 0.15, "period_s": 2.0}, "sway": {"amp_deg": 1.8, "period_s": 2.0}, "parts": {"flag*": {"rot_y": {"amp_deg": 16, "period_s": 1.0}}}}, "samples": 48, "seed": 7}
