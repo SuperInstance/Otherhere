@@ -122,7 +122,9 @@ MODE=photo RUNS=2 pnpm --filter @otherhere/judge exec tsx scripts/local-vs-cloud
 - **text** — `building-observations.v1`, 14 cases, **62** labelled field-answers. The model reads a written observation.
 - **photo** — `building-photos.v1`, 10 photos, **31** labelled field-answers. The model reads the photo. Every arm saw **byte-identical image data**, so the only variable was the model.
 
-Both tables below are one measurement set: same day, same harness, two runs per arm, **six arms**, **zero failed calls**.
+Both tables below are the same day's measurement: two runs per arm, **six arms**, **zero failed
+calls**. Every score in them was reproduced by a second, independent invocation of the whole
+harness; the latency column is the median of the idle-box run.
 
 ### Text — 62 answers
 
@@ -144,9 +146,10 @@ Both tables below are one measurement set: same day, same harness, two runs per 
 | `local-3b`               | 21/31     | 67.7%      | 576 ms     | $0       | 0      | 0      |
 | **`local-clef`**         | **27/31** | **87.1%**  | 1,048 ms   | $0       | 0      | 0      |
 | **`cloud-jev`**          | 26/31     | 83.9%      | **288 ms** | $0.0007  | 0      | 0      |
-| `cloud-llm` (MiniMax-M3) | 20–23/31  | 64.5–74.2% | 17,926 ms  | $0.0233  | 1–2    | 0      |
+| `cloud-llm` (MiniMax-M3) | 20–23/31  | 64.5–74.2% | 17,926 ms  | $0.0233  | 1      | 0      |
 
-Spread is the difference between the best and worst of two runs. Latency is the median of the
+Spread is the difference between the best and worst of two runs, so the cloud LLM's 1 is
+within one invocation; across invocations it ranged from 20 to 23. Latency is the median of the
 idle-box run; a second run with a build on the machine gave the same scores with medians 20–30%
 higher, so the local numbers above are the idle ones.
 
@@ -200,7 +203,7 @@ The floor was re-measured against the live API on 2026-10-28, independently of A
 
 - **31 and 62 answers are small sets.** `model-field-notes.md` is explicit that one to two answers is noise. The 41 → 61 gap on text is 20 answers and is real. The 26 → 27 gap between cloud Jev and `clef-flash` on photos is **one answer and is not**. Treat them as tied.
 - **Two packs, one domain.** Street-level building descriptions in Sitka. Nothing here says a local decision model beats a cloud one in general.
-- **The local arms and the cloud arm do not get the same _preprocessing_ in production.** Here they get the same bytes, which is what makes the comparison fair. In production the cloud path uses `fitForJev` (crop past 5.6:1, scale into 280–1,568 px) and the local path should use its own smaller fit. The numbers above are about the models, not about the production fits.
+- **The local arms and the cloud arm do not get the same _preprocessing_ in production.** Here they get the same bytes, which is what makes the comparison fair. In production the cloud path uses `fitForJev` (crop past 5.6:1, scale into 280–1,568 px) and the local path wants its own smaller fit — `fitForShared` is the rule for one image that has to serve both. The numbers above are about the models, not about the production fits.
 - **The cloud arms were paid for.** `cloud-jev` at $0.0006–0.0007 a run and `cloud-llm` at $0.0075–0.0233. The local arms are $0 and are on the box.
 
 ## Reproduction

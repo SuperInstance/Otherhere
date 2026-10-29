@@ -60,7 +60,7 @@ Two runs per arm, six arms, **zero failed calls**, `packages/judge/scripts/local
 | `local-3b`               | 21/31     | 67.7%      | 576 ms     | $0       | 0      | 0      |
 | **`local-clef`**         | **27/31** | **87.1%**  | 1,048 ms   | $0       | 0      | 0      |
 | **`cloud-jev`**          | 26/31     | 83.9%      | **288 ms** | $0.0007  | 0      | 0      |
-| `cloud-llm` (MiniMax-M3) | 20–23/31  | 64.5–74.2% | 17,926 ms  | $0.0233  | 1–2    | 0      |
+| `cloud-llm` (MiniMax-M3) | 20–23/31  | 64.5–74.2% | 17,926 ms  | $0.0233  | 1      | 0      |
 
 Three things fall out of this.
 
